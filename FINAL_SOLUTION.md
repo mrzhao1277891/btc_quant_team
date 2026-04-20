@@ -1,7 +1,7 @@
 # 🚨 GitHub推送最终解决方案
 
 ## 🔍 问题诊断
-当前Token (`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`) 返回"invalid credentials"错误。
+当前Token (`NEW_CLASSIC_TOKEN`) 返回"invalid credentials"错误。
 
 **可能原因:**
 1. ❌ **Token是fine-grained token**，但未正确配置仓库访问
