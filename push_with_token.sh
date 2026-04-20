@@ -1,0 +1,38 @@
+#!/bin/bash
+# 使用Personal Access Token推送
+
+echo "🦊 使用Personal Access Token推送"
+echo "=" * 60
+
+echo "📋 步骤:"
+echo "1. 访问 https://github.com/settings/tokens"
+echo "2. 点击 'Generate new token'"
+echo "3. 选择 'Fine-grained tokens' 或 'Personal access tokens (classic)'"
+echo "4. 设置权限:"
+echo "   - Repository access: All repositories"
+echo "   - Permissions:"
+echo "     ✓ Contents: Read and write"
+echo "     ✓ Metadata: Read"
+echo "5. 生成token并复制"
+echo ""
+echo "🔑 然后运行以下命令:"
+echo ""
+echo "# 方法1: 直接使用token (推荐)"
+echo "git remote set-url origin https://mrzhao1277891:YOUR_TOKEN@github.com/mrzhao1277891/btc_quant_team.git"
+echo "git push -u origin main"
+echo ""
+echo "# 方法2: 使用凭据助手"
+echo "git push -u origin main"
+echo "# 用户名: mrzhao1277891"
+echo "# 密码: YOUR_TOKEN (粘贴token)"
+echo ""
+echo "💡 提示:"
+echo "- Token只会显示一次，请妥善保存"
+echo "- 如果使用classic token，选择 'repo' 权限"
+echo "- 如果使用fine-grained token，选择所有仓库权限"
+
+echo ""
+echo "🚀 立即推送命令:"
+echo "git push -u origin main"
+echo ""
+echo "🦊 运行上面的命令，然后输入用户名和token！"
