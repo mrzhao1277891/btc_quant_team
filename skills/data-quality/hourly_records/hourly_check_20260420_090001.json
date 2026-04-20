@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-04-20T09:00:01.562898",
+  "duration_seconds": 0.011002,
+  "summary": {
+    "total_checks": 4,
+    "needed_updates": 0,
+    "successful_updates": 0,
+    "failed_updates": 0,
+    "fresh_data": 4,
+    "stale_data": 0,
+    "missing_data": 0
+  },
+  "results": [
+    {
+      "symbol": "BTCUSDT",
+      "timeframe": "4h",
+      "timestamp": "2026-04-20T09:00:01.563108",
+      "checked": true,
+      "needed_update": false,
+      "update_performed": false,
+      "update_success": false,
+      "update_reason": "very_fresh"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "timeframe": "1d",
+      "timestamp": "2026-04-20T09:00:01.566531",
+      "checked": true,
+      "needed_update": false,
+      "update_performed": false,
+      "update_success": false,
+      "update_reason": "very_fresh"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "timeframe": "1w",
+      "timestamp": "2026-04-20T09:00:01.569301",
+      "checked": true,
+      "needed_update": false,
+      "update_performed": false,
+      "update_success": false,
+      "update_reason": "very_fresh"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "timeframe": "1M",
+      "timestamp": "2026-04-20T09:00:01.571542",
+      "checked": true,
+      "needed_update": false,
+      "update_performed": false,
+      "update_success": false,
+      "update_reason": "still_acceptable"
+    }
+  ]
+}
