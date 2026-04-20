@@ -1,0 +1,367 @@
+# 加密货币多时间框架投资框架
+
+name: "加密货币多时间框架投资框架"
+description: "基于金字塔式决策流程的加密货币分析框架，从宏观趋势到微观入场"
+version: "1.0.0"
+author: "市场分析专家"
+created_date: "2026-04-19"
+
+# 核心原则
+core_principles:
+  - "大周期定方向，小周期找机会"
+  - "趋势是你的朋友，但要知道趋势何时结束"
+  - "风险管理是生存的第一要素"
+  - "耐心等待高概率机会，果断执行"
+
+# 时间框架配置
+timeframes:
+  # 战略层 (月线、周线) - 决定牛熊方向
+  strategic:
+    - name: "月线"
+      timeframe: "1M"
+      weight: 0.40
+      indicators: ["EMA25", "MACD", "长期趋势线", "成交量轮廓"]
+      purpose: "确定长期趋势方向，识别牛熊转换"
+      decision_period: "数月-数年"
+    
+    - name: "周线"
+      timeframe: "1w"
+      weight: 0.35
+      indicators: ["EMA7", "EMA12", "EMA25", "MACD", "RSI", "成交量"]
+      purpose: "确认中期趋势阶段，识别主要支撑阻力"
+      decision_period: "数周-数月"
+  
+  # 战术层 (日线) - 确定交易区域
+  tactical:
+    - name: "日线"
+      timeframe: "1d"
+      weight: 0.15
+      indicators: ["EMA12", "EMA25", "EMA50", "RSI", "布林带", "ATR"]
+      purpose: "确定交易区域，识别关键价格水平"
+      decision_period: "数日-数周"
+  
+  # 执行层 (4小时线) - 确定入场时机
+  execution:
+    - name: "4小时线"
+      timeframe: "4h"
+      weight: 0.10
+      indicators: ["EMA12", "EMA25", "RSI", "随机指标", "K线形态", "成交量分布"]
+      purpose: "确定精确入场时机，设置止损止盈"
+      decision_period: "数小时-数日"
+
+# 决策规则
+decision_rules:
+  # 趋势确认规则
+  trend_confirmation:
+    - "至少2个战略层时间框架趋势一致"
+    - "战术层趋势方向与战略层相同"
+    - "执行层提供入场确认信号"
+  
+  # 信号强度规则
+  signal_strength:
+    - "多时间框架信号共振增加信号强度"
+    - "成交量放大确认增加信号可信度"
+    - "关键价格水平突破提供额外确认"
+  
+  # 风险管理规则
+  risk_management:
+    - "战略层决定最大风险暴露"
+    - "战术层决定具体止损位置"
+    - "执行层决定精确入场价格"
+    - "仓位大小基于多时间框架置信度"
+
+# 技术指标配置
+technical_indicators:
+  # 移动平均线
+  moving_averages:
+    ema7:
+      period: 7
+      color: "#FF6B6B"
+      weight: 0.3
+    
+    ema12:
+      period: 12
+      color: "#4ECDC4"
+      weight: 0.4
+    
+    ema25:
+      period: 25
+      color: "#45B7D1"
+      weight: 0.6
+    
+    ema50:
+      period: 50
+      color: "#96CEB4"
+      weight: 0.8
+  
+  # 动量指标
+  momentum:
+    rsi:
+      period: 14
+      overbought: 70
+      oversold: 30
+      weight: 0.7
+    
+    macd:
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+      weight: 0.8
+    
+    stochastic:
+      k_period: 14
+      d_period: 3
+      overbought: 80
+      oversold: 20
+      weight: 0.6
+  
+  # 波动率指标
+  volatility:
+    bollinger_bands:
+      period: 20
+      std_dev: 2
+      weight: 0.5
+    
+    atr:
+      period: 14
+      weight: 0.7
+
+# 支撑阻力分析
+support_resistance:
+  # 技术位
+  technical_levels:
+    - "前期高低点"
+    - "趋势线"
+    - "形态颈线"
+    - "斐波那契回调位"
+  
+  # 心理位
+  psychological_levels:
+    - "整数关口 (如: 70000, 75000)"
+    - "重要历史价格"
+    - "市场共识水平"
+  
+  # 动态位
+  dynamic_levels:
+    - "移动平均线"
+    - "布林带边界"
+    - "枢轴点"
+  
+  # 强度评估
+  strength_assessment:
+    confluence_weight: 0.3      # 重合度权重
+    volume_weight: 0.2          # 成交量权重
+    time_weight: 0.2            # 时间权重
+    retest_weight: 0.3          # 回测权重
+
+# 模式识别
+pattern_recognition:
+  # 反转模式
+  reversal_patterns:
+    - "头肩顶/底"
+    - "双顶/底"
+    - "三重顶/底"
+    - "圆弧顶/底"
+  
+  # 持续模式
+  continuation_patterns:
+    - "三角形"
+    - "旗形"
+    - "楔形"
+    - "矩形"
+  
+  # 蜡烛图模式
+  candlestick_patterns:
+    single_candle:
+      - "锤子线"
+      - "吊颈线"
+      - "十字星"
+    
+    double_candle:
+      - "吞没形态"
+      - "乌云盖顶"
+      - "刺透形态"
+    
+    triple_candle:
+      - "早晨之星"
+      - "黄昏之星"
+      - "三只乌鸦"
+  
+  # 模式置信度
+  pattern_confidence:
+    volume_confirmation: 0.2
+    timeframe_alignment: 0.3
+    key_level_proximity: 0.2
+    indicator_confirmation: 0.3
+
+# 市场状态判断
+market_state:
+  # 趋势状态
+  trend_states:
+    strong_uptrend:
+      conditions:
+        - "价格在所有主要EMA之上"
+        - "EMA多头排列"
+        - "成交量放大"
+        - "RSI在50-70之间"
+    
+    moderate_uptrend:
+      conditions:
+        - "价格在EMA25之上"
+        - "EMA基本多头排列"
+        - "成交量温和"
+        - "RSI在40-60之间"
+    
+    consolidation:
+      conditions:
+        - "价格在区间内震荡"
+        - "EMA缠绕"
+        - "成交量萎缩"
+        - "RSI在30-70之间"
+    
+    moderate_downtrend:
+      conditions:
+        - "价格在EMA25之下"
+        - "EMA基本空头排列"
+        - "成交量温和"
+        - "RSI在40-60之间"
+    
+    strong_downtrend:
+      conditions:
+        - "价格在所有主要EMA之下"
+        - "EMA空头排列"
+        - "成交量放大"
+        - "RSI在30-50之间"
+  
+  # 趋势反转信号
+  trend_reversal_signals:
+    - "价格与指标背离"
+    - "关键支撑阻力突破"
+    - "成交量异常放大"
+    - "重要形态完成"
+
+# 交易信号生成
+trading_signals:
+  # 入场信号
+  entry_signals:
+    trend_following:
+      - "回调至动态支撑"
+      - "突破关键阻力"
+      - "均线金叉确认"
+    
+    reversal:
+      - "超买超卖区域"
+      - "背离信号"
+      - "形态完成"
+    
+    breakout:
+      - "区间突破"
+      - "三角形突破"
+      - "旗形突破"
+  
+  # 出场信号
+  exit_signals:
+    profit_taking:
+      - "达到风险回报比目标"
+      - "遇到强阻力"
+      - "趋势动能减弱"
+    
+    stop_loss:
+      - "价格跌破关键支撑"
+      - "趋势反转确认"
+      - "时间止损"
+  
+  # 信号过滤
+  signal_filtering:
+    min_confidence: 0.6
+    min_risk_reward: 1.5
+    max_risk_per_signal: 0.03
+    timeframe_confirmation: 2  # 至少2个时间框架确认
+
+# 风险管理
+risk_management:
+  # 仓位管理
+  position_sizing:
+    base_risk: 0.02            # 基础风险2%
+    confidence_multiplier:
+      very_high: 1.5
+      high: 1.2
+      medium: 1.0
+      low: 0.5
+    
+    max_position_per_symbol: 0.20
+    max_total_exposure: 0.50
+  
+  # 止损设置
+  stop_loss:
+    methods:
+      - "关键支撑阻力下方"
+      - "ATR倍数"
+      - "固定百分比"
+    
+    max_stop_distance: 0.10    # 最大止损距离10%
+    min_stop_distance: 0.01    # 最小止损距离1%
+  
+  # 止盈设置
+  take_profit:
+    methods:
+      - "风险回报比目标"
+      - "关键阻力位置"
+      - "移动止盈"
+    
+    min_risk_reward: 1.5
+    target_risk_reward: 2.0
+
+# 绩效评估
+performance_evaluation:
+  # 关键绩效指标
+  kpis:
+    - "胜率"
+    - "平均风险回报比"
+    - "最大回撤"
+    - "夏普比率"
+    - "卡尔玛比率"
+  
+  # 回测设置
+  backtesting:
+    period: "1年"
+    initial_capital: 10000
+    commission: 0.001          # 0.1%手续费
+  
+  # 持续改进
+  continuous_improvement:
+    - "定期回顾交易记录"
+    - "分析亏损原因"
+    - "优化参数设置"
+    - "更新市场认知"
+
+# 框架使用指南
+usage_guidelines:
+  # 分析流程
+  analysis_flow:
+    1: "从战略层开始，确定大趋势方向"
+    2: "在战术层寻找交易区域"
+    3: "在执行层确定精确入场点"
+    4: "综合多时间框架信息做出决策"
+  
+  # 决策检查清单
+  decision_checklist:
+    - "战略层趋势是否明确？"
+    - "战术层是否有清晰的交易区域？"
+    - "执行层是否有高概率入场信号？"
+    - "风险回报比是否合适？"
+    - "仓位大小是否在风险承受范围内？"
+  
+  # 常见错误避免
+  common_mistakes:
+    - "忽略大周期趋势"
+    - "在小周期过度交易"
+    - "不止损或止损过大"
+    - "仓位过重"
+    - "情绪化决策"
+
+# 框架更新记录
+changelog:
+  - version: "1.0.0"
+    date: "2026-04-19"
+    changes: "初始版本发布"

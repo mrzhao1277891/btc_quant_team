@@ -1,0 +1,283 @@
+# 数据质量默认配置
+
+# 数据源配置
+data_sources:
+  primary:
+    type: "sqlite"
+    path: "crypto_analyzer/data/ultra_light.db"
+    table: "klines"
+    symbol_column: "symbol"
+    timeframe_column: "timeframe"
+    timestamp_column: "open_time"
+  
+  secondary:
+    type: "binance_api"
+    enabled: false
+    api_key: "${BINANCE_API_KEY}"
+    api_secret: "${BINANCE_API_SECRET}"
+  
+  fallback:
+    type: "coingecko_api"
+    enabled: false
+    api_key: "${COINGECKO_API_KEY}"
+
+# 质量检查配置
+quality_checks:
+  # 启用哪些检查
+  enable_completeness: true
+  enable_consistency: true
+  enable_accuracy: true
+  enable_timeliness: true
+  
+  # 检查深度
+  completeness_depth: "full"      # full, quick, basic
+  consistency_depth: "full"
+  accuracy_depth: "full"
+  timeliness_depth: "full"
+  
+  # 自动修复
+  auto_fix_minor: false
+  auto_fix_major: false
+  backup_before_fix: true
+
+# 阈值配置
+thresholds:
+  # 评分阈值
+  completeness: 0.95      # 完整性阈值
+  consistency: 0.98       # 一致性阈值
+  accuracy: 0.95          # 准确性阈值
+  timeliness: 0.90        # 及时性阈值
+  overall: 0.90           # 总体阈值
+  
+  # 异常检测阈值
+  anomaly:
+    z_score: 3.0          # Z-Score阈值
+    iqr_multiplier: 1.5   # IQR乘数
+    grubbs_alpha: 0.05    # Grubbs检验显著性水平
+  
+  # 告警阈值
+  alert:
+    critical: 0.70        # 严重告警
+    high: 0.80            # 高优先级告警
+    medium: 0.85          # 中优先级告警
+    low: 0.90             # 低优先级告警
+
+# 异常检测配置
+anomaly_detection:
+  # 检测方法
+  methods:
+    - "statistical"       # 统计方法
+    - "pattern"           # 模式方法
+    - "timeseries"        # 时间序列方法
+    - "correlation"       # 相关性方法
+  
+  # 灵敏度
+  sensitivity: 0.95       # 检测灵敏度
+  
+  # 具体方法配置
+  statistical:
+    enabled: true
+    methods: ["z_score", "iqr", "grubbs"]
+    window_size: 30       # 滑动窗口大小
+  
+  pattern:
+    enabled: true
+    methods: ["clustering", "isolation_forest"]
+    n_clusters: 5
+  
+  timeseries:
+    enabled: true
+    methods: ["seasonal", "moving_average"]
+    seasonal_period: 7
+  
+  correlation:
+    enabled: false
+    reference_symbols: ["ETHUSDT", "BNBUSDT"]
+
+# 数据修复配置
+data_repair:
+  # 缺失值处理
+  missing_values:
+    method: "interpolation"  # interpolation, forward_fill, backward_fill, mean, median
+    interpolation_method: "linear"  # linear, quadratic, cubic
+    limit: 3                 # 最大连续缺失填充数
+  
+  # 异常值处理
+  outliers:
+    method: "cap"           # cap, remove, mark
+    cap_method: "iqr"       # iqr, percentile
+    lower_percentile: 1     # 下限百分位
+    upper_percentile: 99    # 上限百分位
+  
+  # 格式标准化
+  formatting:
+    datetime_format: "%Y-%m-%d %H:%M:%S"
+    numeric_precision: 2
+    volume_unit: "BTC"      # BTC, USD, native
+
+# 监控配置
+monitoring:
+  # 监控频率
+  check_interval_minutes: 60
+  
+  # 监控范围
+  symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+  timeframes: ["1d", "4h", "1h"]
+  
+  # 告警通道
+  alert_channels:
+    - "telegram"
+    - "email"
+    - "log"
+  
+  # 告警配置
+  alerts:
+    telegram:
+      enabled: false
+      bot_token: "${TELEGRAM_BOT_TOKEN}"
+      chat_id: "${TELEGRAM_CHAT_ID}"
+    
+    email:
+      enabled: false
+      smtp_server: "${SMTP_SERVER}"
+      sender_email: "${SENDER_EMAIL}"
+      recipient_emails: ["${RECIPIENT_EMAIL}"]
+    
+    log:
+      enabled: true
+      level: "WARNING"
+
+# 报告配置
+reports:
+  # 报告类型
+  types:
+    - name: "detailed"
+      description: "详细报告"
+      include_all: true
+    
+    - name: "executive"
+      description: "执行摘要"
+      include_summary: true
+      include_recommendations: true
+    
+    - name: "technical"
+      description: "技术报告"
+      include_technical: true
+      include_metrics: true
+  
+  # 输出格式
+  output:
+    default_format: "markdown"  # markdown, html, json
+    save_directory: "reports"
+    auto_save: true
+    archive_old_reports: true
+    archive_days: 30
+
+# 性能配置
+performance:
+  # 缓存配置
+  cache:
+    enabled: true
+    ttl_seconds: 300
+    max_size_mb: 100
+  
+  # 并行处理
+  parallel:
+    enabled: true
+    max_workers: 4
+    timeout_seconds: 30
+  
+  # 内存管理
+  memory:
+    chunk_size: 10000
+    use_disk_cache: true
+    temp_directory: "temp"
+
+# 日志配置
+logging:
+  level: "INFO"                # DEBUG, INFO, WARNING, ERROR
+  file: "logs/data_quality.log"
+  max_size: 10485760           # 10MB
+  backup_count: 5
+  
+  # 详细日志
+  verbose:
+    enabled: false
+    log_checks: false
+    log_metrics: false
+
+# 系统配置
+system:
+  # 错误处理
+  error_handling:
+    max_retries: 3
+    retry_delay_seconds: 5
+    fallback_enabled: true
+  
+  # 安全配置
+  security:
+    encrypt_sensitive_data: false
+    mask_api_keys: true
+  
+  # 维护配置
+  maintenance:
+    auto_cleanup: true
+    cleanup_interval_days: 7
+    max_log_age_days: 30
+
+# 高级配置
+advanced:
+  # 机器学习功能
+  machine_learning:
+    enabled: false
+    model_path: "models/"
+    training_data_days: 365
+  
+  # 自定义检查
+  custom_checks:
+    enabled: true
+    checks_path: "custom_checks/"
+  
+  # 实时分析
+  realtime:
+    enabled: false
+    update_interval_seconds: 60
+    websocket_enabled: false
+
+# 集成配置
+integrations:
+  # 与市场分析系统集成
+  market_analysis:
+    enabled: true
+    skill_path: "../market-analysis"
+    auto_check_before_analysis: true
+  
+  # 与交易系统集成
+  trading_system:
+    enabled: false
+    min_quality_score: 0.85
+    block_low_quality: true
+  
+  # 与监控系统集成
+  monitoring_system:
+    enabled: true
+    skill_path: "../btc-monitor"
+    update_monitor_points: true
+
+# 测试配置
+testing:
+  # 单元测试
+  unit_tests:
+    enabled: true
+    test_directory: "tests/"
+    coverage_threshold: 0.80
+  
+  # 集成测试
+  integration_tests:
+    enabled: false
+    test_data_days: 30
+  
+  # 性能测试
+  performance_tests:
+    enabled: false
+    load_test_iterations: 1000

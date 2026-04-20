@@ -1,0 +1,248 @@
+# 市场分析默认配置
+
+# 分析配置
+analysis:
+  # 默认时间框架
+  default_timeframes: ["1d", "4h", "1h"]
+  
+  # 分析维度
+  include_sentiment: true      # 包含情绪分析
+  include_fundamental: false   # 包含基本面分析
+  include_flow: true          # 包含资金流向分析
+  
+  # 强度评分阈值
+  strength_thresholds:
+    very_strong: 80
+    strong: 60
+    moderate: 40
+    weak: 20
+  
+  # 市场状态判断
+  market_state:
+    trend_strength_threshold: 0.6
+    consolidation_range: 0.03  # 3%范围内视为盘整
+
+# 数据配置
+data:
+  cache_ttl: 300               # 缓存时间(秒)
+  max_data_points: 1000        # 最大数据点数
+  data_sources:
+    primary: "binance"         # 主要数据源
+    fallback: "coingecko"      # 备用数据源
+  
+  # 时间框架映射
+  timeframe_mapping:
+    "1M": 30                   # 月线: 30天
+    "1w": 7                    # 周线: 7天
+    "1d": 1                    # 日线: 1天
+    "4h": 0.1667               # 4小时: 0.1667天
+    "1h": 0.0417               # 1小时: 0.0417天
+
+# 报告配置
+reports:
+  # 报告类型
+  types:
+    - name: "professional"
+      description: "专业分析报告"
+      template: "professional.md"
+      include_all: true
+    
+    - name: "executive"
+      description: "执行摘要"
+      template: "executive.md"
+      include_summary: true
+      include_recommendations: true
+    
+    - name: "technical"
+      description: "技术分析报告"
+      template: "technical.md"
+      include_technical: true
+      include_signals: true
+  
+  # 输出格式
+  output:
+    default_format: "markdown"  # 默认输出格式
+    supported_formats: ["markdown", "html", "json"]
+    save_directory: "reports"
+    auto_save: true
+
+# 信号配置
+signals:
+  # 信号生成
+  generation:
+    min_confidence: 0.4        # 最小置信度
+    max_signals_per_analysis: 10  # 每次分析最大信号数
+    
+    # 信号类型权重
+    type_weights:
+      trend_following: 1.0
+      reversal: 0.8
+      breakout: 0.9
+      divergence: 0.7
+      support_resistance: 0.6
+      pattern: 0.8
+      multi_confirmation: 1.2
+  
+  # 信号过滤
+  filtering:
+    enable_filtering: true
+    min_risk_reward: 1.5       # 最小风险回报比
+    max_risk_per_signal: 0.03  # 单信号最大风险
+    priority_thresholds:
+      critical: 0.85
+      high: 0.70
+      medium: 0.55
+      low: 0.40
+
+# 风险管理配置
+risk:
+  # 默认风险参数
+  default_account_size: 10000
+  default_max_risk_per_trade: 0.02
+  default_max_drawdown: 0.20
+  
+  # 仓位计算方法
+  position_sizing_method: "fixed_risk"  # fixed_risk, kelly_criterion, volatility_adjusted
+  
+  # 止损方法
+  stop_loss_method: "atr_based"  # fixed_percent, atr_based, support_resistance
+  
+  # 止盈方法
+  take_profit_method: "risk_reward"  # risk_reward, resistance_support, trailing_stop
+
+# 多时间框架配置
+multi_timeframe:
+  # 默认框架
+  default_framework: "crypto_mtf"
+  
+  # 时间框架层级
+  hierarchies:
+    strategic:
+      timeframes: ["1M", "1w"]
+      weight: 0.60
+    
+    tactical:
+      timeframes: ["1d"]
+      weight: 0.25
+    
+    execution:
+      timeframes: ["4h", "1h"]
+      weight: 0.15
+  
+  # 趋势对齐
+  alignment:
+    min_alignment_score: 0.6
+    strong_alignment_threshold: 0.8
+
+# 日志配置
+logging:
+  level: "INFO"                # 日志级别: DEBUG, INFO, WARNING, ERROR
+  file: "logs/market_analysis.log"
+  max_size: 10485760           # 最大文件大小(字节)
+  backup_count: 5              # 备份文件数量
+  
+  # 性能日志
+  performance:
+    enable: true
+    threshold_ms: 1000         # 性能阈值(毫秒)
+
+# 系统配置
+system:
+  # 并发设置
+  concurrency:
+    max_workers: 4
+    timeout_seconds: 30
+  
+  # 缓存设置
+  cache:
+    enable: true
+    ttl_seconds: 300
+    max_size_mb: 100
+  
+  # 错误处理
+  error_handling:
+    max_retries: 3
+    retry_delay_seconds: 5
+    fallback_enabled: true
+
+# 高级配置
+advanced:
+  # 机器学习功能
+  machine_learning:
+    enable: false
+    model_path: "models/"
+    training_data_days: 365
+  
+  # 自定义指标
+  custom_indicators:
+    enable: true
+    indicators_path: "indicators/"
+  
+  # 实时更新
+  realtime:
+    enable: false
+    update_interval_seconds: 60
+    websocket_enabled: false
+
+# 集成配置
+integrations:
+  # 数据源集成
+  data_sources:
+    binance:
+      enabled: true
+      api_key: ""              # 从环境变量获取
+      api_secret: ""           # 从环境变量获取
+    
+    coingecko:
+      enabled: true
+      api_key: ""              # 从环境变量获取
+    
+    tradingview:
+      enabled: false
+      webhook_url: ""
+  
+  # 通知集成
+  notifications:
+    telegram:
+      enabled: false
+      bot_token: ""
+      chat_id: ""
+    
+    email:
+      enabled: false
+      smtp_server: ""
+      sender_email: ""
+      recipient_emails: []
+  
+  # 交易平台集成
+  trading_platforms:
+    binance:
+      enabled: false
+      api_key: ""
+      api_secret: ""
+    
+    bybit:
+      enabled: false
+      api_key: ""
+      api_secret: ""
+
+# 测试配置
+testing:
+  # 回测设置
+  backtesting:
+    enable: false
+    start_date: "2024-01-01"
+    end_date: "2024-12-31"
+    initial_capital: 10000
+    
+  # 模拟交易
+  paper_trading:
+    enable: false
+    initial_balance: 10000
+    commission_rate: 0.001      # 0.1%手续费
+    
+  # 单元测试
+  unit_tests:
+    enable: true
+    test_directory: "tests/"
+    coverage_threshold: 0.80    # 80%测试覆盖率

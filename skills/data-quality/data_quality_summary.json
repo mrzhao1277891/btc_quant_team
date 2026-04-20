@@ -1,0 +1,61 @@
+{
+  "symbol": "BTCUSDT",
+  "timeframe": "1M",
+  "timestamp": "2026-04-19T15:11:00.507223",
+  "overall_score": 1.0,
+  "checks": {
+    "完整性": {
+      "score": 1.0,
+      "status": "PASS",
+      "issues": [],
+      "metrics": {
+        "total_cells": 300,
+        "missing_cells": 0,
+        "missing_columns": []
+      }
+    },
+    "一致性": {
+      "score": 1.0,
+      "status": "PASS",
+      "issues": [],
+      "metrics": {
+        "total_checks": 180,
+        "errors": 0
+      }
+    },
+    "新鲜度": {
+      "score": 1.0,
+      "status": "PASS",
+      "issues": [],
+      "metrics": {
+        "latest_time": "2026-04-01T08:00:00",
+        "age_hours": 439.18347401166665,
+        "threshold_hours": 720
+      }
+    },
+    "技术指标": {
+      "score": 1.0,
+      "status": "PASS",
+      "issues": [],
+      "metrics": {
+        "total_indicators": 6,
+        "available_indicators": 6,
+        "available_list": [
+          "ema7",
+          "ema12",
+          "ema25",
+          "ema50",
+          "rsi14",
+          "macd"
+        ]
+      }
+    }
+  },
+  "data_info": {
+    "rows": 60,
+    "time_range": {
+      "start": "2021-05-01T00:00:00",
+      "end": "2026-04-01T00:00:00"
+    }
+  }
+}

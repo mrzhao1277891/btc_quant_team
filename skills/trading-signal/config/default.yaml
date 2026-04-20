@@ -1,0 +1,446 @@
+# 交易信号默认配置
+
+# 数据源配置
+data_sources:
+  historical:
+    type: "sqlite"
+    path: "crypto_analyzer/data/ultra_light.db"
+    table: "klines"
+    symbol_column: "symbol"
+    timeframe_column: "timeframe"
+    timestamp_column: "open_time"
+  
+  realtime:
+    type: "binance_websocket"
+    enabled: false
+    symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+    reconnect_interval: 30
+  
+  alternative:
+    type: "coingecko_api"
+    enabled: false
+    api_key: "${COINGECKO_API_KEY}"
+
+# 信号生成配置
+signal_generation:
+  # 启用信号类型
+  enabled_types:
+    - "technical"          # 技术分析信号
+    - "pattern"            # 模式识别信号
+    - "multi_timeframe"    # 多时间框架信号
+    - "sentiment"          # 市场情绪信号
+    - "flow"               # 资金流向信号
+  
+  # 时间框架配置
+  timeframes: ["1d", "4h", "1h"]
+  primary_timeframe: "1d"
+  
+  # 信号参数
+  min_confidence: 0.6      # 最小置信度
+  min_risk_reward: 1.5     # 最小风险回报比
+  default_validity_hours: 24  # 默认有效期(小时)
+  
+  # 生成深度
+  lookback_days: 365       # 回看天数
+  min_data_points: 100     # 最小数据点数
+  
+  # 信号限制
+  max_signals_per_generation: 50
+  signal_cooldown_hours: 6  # 相同类型信号冷却时间
+
+# 技术指标配置
+technical_indicators:
+  # 移动平均线
+  moving_averages:
+    short_period: 10
+    medium_period: 20
+    long_period: 50
+    extra_long_period: 200
+  
+  # RSI
+  rsi:
+    period: 14
+    overbought: 70
+    oversold: 30
+    signal_line: 50
+  
+  # MACD
+  macd:
+    fast_period: 12
+    slow_period: 26
+    signal_period: 9
+  
+  # 布林带
+  bollinger_bands:
+    period: 20
+    std_dev: 2
+  
+  # 随机指标
+  stochastic:
+    k_period: 14
+    d_period: 3
+    overbought: 80
+    oversold: 20
+  
+  # ATR
+  atr:
+    period: 14
+
+# 模式识别配置
+pattern_recognition:
+  # 蜡烛图模式
+  candlestick_patterns:
+    enabled: true
+    patterns:
+      - "doji"
+      - "hammer"
+      - "shooting_star"
+      - "engulfing"
+      - "harami"
+      - "morning_star"
+      - "evening_star"
+  
+  # 图表模式
+  chart_patterns:
+    enabled: true
+    patterns:
+      - "head_and_shoulders"
+      - "double_top"
+      - "double_bottom"
+      - "triangle"
+      - "flag"
+      - "wedge"
+  
+  # 谐波模式
+  harmonic_patterns:
+    enabled: false
+    patterns:
+      - "butterfly"
+      - "gartley"
+      - "bat"
+      - "crab"
+  
+  # 模式参数
+  parameters:
+    min_pattern_size: 10    # 最小模式大小(数据点)
+    confirmation_bars: 3    # 确认K线数
+    volume_confirmation: true  # 需要成交量确认
+
+# 多时间框架配置
+multi_timeframe:
+  # 时间框架层级
+  hierarchies:
+    strategic:
+      timeframes: ["1w", "1d"]
+      weight: 0.60
+    
+    tactical:
+      timeframes: ["4h"]
+      weight: 0.25
+    
+    execution:
+      timeframes: ["1h", "30m"]
+      weight: 0.15
+  
+  # 趋势对齐
+  alignment:
+    min_alignment_score: 0.6
+    strong_alignment_threshold: 0.8
+  
+  # 信号共振
+  resonance:
+    min_timeframes: 2       # 最小共振时间框架数
+    resonance_bonus: 0.15   # 共振奖励分数
+
+# 市场情绪配置
+sentiment_analysis:
+  # 恐惧贪婪指数
+  fear_greed:
+    enabled: true
+    source: "alternative"
+    thresholds:
+      extreme_fear: 25
+      fear: 45
+      neutral: 55
+      greed: 75
+      extreme_greed: 90
+  
+  # 社交媒体情绪
+  social_media:
+    enabled: false
+    sources: ["twitter", "reddit"]
+    sentiment_window: 24    # 小时
+  
+  # 新闻情绪
+  news_sentiment:
+    enabled: false
+    sources: ["cryptopanic", "coindesk"]
+  
+  # 期权市场情绪
+  options_sentiment:
+    enabled: false
+    put_call_ratio_threshold: 1.2
+
+# 资金流向配置
+flow_analysis:
+  # 交易所流量
+  exchange_flow:
+    enabled: true
+    sources: ["glassnode", "cryptoquant"]
+    accumulation_threshold: 1000  # BTC
+  
+  # 链上数据
+  on_chain:
+    enabled: false
+    metrics:
+      - "hodl_waves"
+      - "entity_adjusted_flow"
+      - "mvrv_z_score"
+  
+  # 聪明钱指标
+  smart_money:
+    enabled: false
+    indicators:
+      - "whale_transactions"
+      - "exchange_netflow"
+
+# 信号过滤配置
+signal_filtering:
+  # 置信度过滤
+  confidence:
+    min_confidence: 0.6
+    high_confidence_threshold: 0.8
+  
+  # 风险回报过滤
+  risk_reward:
+    min_ratio: 1.5
+    target_ratio: 2.0
+    max_ratio: 5.0
+  
+  # 风险过滤
+  risk:
+    max_risk_per_signal: 0.02  # 单信号最大风险
+    max_drawdown: 0.20         # 最大回撤
+    max_position_size: 0.20    # 最大仓位比例
+  
+  # 市场状态过滤
+  market_state:
+    filter_by_trend: true
+    filter_by_volatility: true
+    volatility_threshold: 0.05  # 5%日波动率
+  
+  # 时间过滤
+  time:
+    avoid_weekends: true
+    avoid_holidays: true
+    trading_hours: ["00:00-23:59"]  # 24小时交易
+
+# 回溯测试配置
+backtesting:
+  # 基础配置
+  enabled: true
+  initial_capital: 10000
+  commission: 0.001          # 0.1%手续费
+  slippage: 0.001            # 0.1%滑点
+  
+  # 回测参数
+  lookback_days: 365
+  warmup_period: 30          # 热身期(天)
+  walk_forward: false        # 滚动窗口回测
+  walk_forward_window: 90    # 滚动窗口大小(天)
+  walk_forward_step: 30      # 滚动步长(天)
+  
+  # 绩效指标
+  metrics:
+    - "total_return"
+    - "annual_return"
+    - "sharpe_ratio"
+    - "sortino_ratio"
+    - "max_drawdown"
+    - "win_rate"
+    - "profit_factor"
+    - "calmar_ratio"
+  
+  # 交易规则
+  trading_rules:
+    allow_short: true
+    allow_leverage: false
+    max_leverage: 1.0
+    stop_loss_enforced: true
+    take_profit_enforced: true
+
+# 实时监控配置
+monitoring:
+  # 监控频率
+  check_interval_seconds: 300  # 5分钟
+  
+  # 监控范围
+  symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+  timeframes: ["1d", "4h", "1h"]
+  
+  # 告警配置
+  alert_channels:
+    - "telegram"
+    - "email"
+    - "log"
+  
+  alert_thresholds:
+    critical_confidence: 0.85
+    high_confidence: 0.75
+    medium_confidence: 0.65
+  
+  # 实时数据
+  realtime_data:
+    enabled: false
+    update_interval_seconds: 60
+    websocket_timeout: 30
+
+# 报告配置
+reports:
+  # 报告类型
+  types:
+    - name: "detailed"
+      description: "详细报告"
+      include_all: true
+    
+    - name: "executive"
+      description: "执行摘要"
+      include_summary: true
+      include_recommendations: true
+    
+    - name: "technical"
+      description: "技术报告"
+      include_technical: true
+      include_signals: true
+    
+    - name: "performance"
+      description: "绩效报告"
+      include_metrics: true
+      include_charts: true
+  
+  # 输出格式
+  output:
+    default_format: "markdown"  # markdown, html, json, pdf
+    save_directory: "reports"
+    auto_save: true
+    archive_old_reports: true
+    archive_days: 30
+
+# 性能配置
+performance:
+  # 缓存配置
+  cache:
+    enabled: true
+    ttl_seconds: 300
+    max_size_mb: 100
+  
+  # 并行处理
+  parallel:
+    enabled: true
+    max_workers: 4
+    timeout_seconds: 30
+  
+  # 内存管理
+  memory:
+    chunk_size: 10000
+    use_disk_cache: true
+    temp_directory: "temp"
+
+# 日志配置
+logging:
+  level: "INFO"                # DEBUG, INFO, WARNING, ERROR
+  file: "logs/trading_signal.log"
+  max_size: 10485760           # 10MB
+  backup_count: 5
+  
+  # 详细日志
+  verbose:
+    enabled: false
+    log_signals: true
+    log_analysis: false
+
+# 系统配置
+system:
+  # 错误处理
+  error_handling:
+    max_retries: 3
+    retry_delay_seconds: 5
+    fallback_enabled: true
+  
+  # 安全配置
+  security:
+    encrypt_sensitive_data: false
+    mask_api_keys: true
+  
+  # 维护配置
+  maintenance:
+    auto_cleanup: true
+    cleanup_interval_days: 7
+    max_log_age_days: 30
+
+# 高级配置
+advanced:
+  # 机器学习功能
+  machine_learning:
+    enabled: false
+    model_path: "models/"
+    training_data_days: 365
+    features: ["technical", "pattern", "sentiment"]
+  
+  # 自定义信号
+  custom_signals:
+    enabled: true
+    signals_path: "custom_signals/"
+  
+  # 自适应系统
+  adaptive:
+    enabled: false
+    market_regime_detection: true
+    parameter_adaptation: true
+    strategy_switching: false
+
+# 集成配置
+integrations:
+  # 与市场分析系统集成
+  market_analysis:
+    enabled: true
+    skill_path: "../market-analysis"
+    use_analysis_for_signals: true
+  
+  # 与数据质量系统集成
+  data_quality:
+    enabled: true
+    skill_path: "../data-quality"
+    min_quality_score: 0.85
+  
+  # 与监控系统集成
+  monitoring_system:
+    enabled: true
+    skill_path: "../btc-monitor"
+    send_signals_to_monitor: true
+  
+  # 与交易系统集成
+  trading_system:
+    enabled: false
+    api_endpoint: ""
+    auto_execute_high_confidence: false
+    max_auto_execute_risk: 0.01
+
+# 测试配置
+testing:
+  # 单元测试
+  unit_tests:
+    enabled: true
+    test_directory: "tests/"
+    coverage_threshold: 0.80
+  
+  # 集成测试
+  integration_tests:
+    enabled: false
+    test_data_days: 30
+  
+  # 压力测试
+  stress_tests:
+    enabled: false
+    concurrent_requests: 100
+    duration_seconds: 300

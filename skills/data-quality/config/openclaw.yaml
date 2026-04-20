@@ -1,0 +1,234 @@
+# OpenClaw数据质量专家Skill配置
+
+skill:
+  # 技能基本信息
+  name: "数据质量专家"
+  version: "2.0.0"
+  description: "专业的数据质量管理和监控Skill，支持用户主动触发检查和更新"
+  author: "Steve (🦊)"
+  
+  # 触发词配置
+  trigger_words:
+    - "数据质量"
+    - "quality"
+    - "新鲜度"
+    - "freshness"
+    - "更新数据"
+    - "update"
+    - "检查数据"
+    - "质量检查"
+    - "数据监控"
+  
+  # 响应格式
+  response_format: "markdown"  # markdown, html, plain
+  
+  # 通知配置
+  enable_notifications: true
+  notification_channels:
+    - "chat"      # OpenClaw聊天
+    # - "telegram" # Telegram消息
+    # - "email"    # 电子邮件
+  
+  # 自动功能
+  auto_features:
+    welcome_message: true      # 发送欢迎消息
+    command_suggestions: true  # 提供命令建议
+    session_management: true   # 会话管理
+    cleanup_old_sessions: true # 清理旧会话
+
+integration:
+  # OpenClaw API集成
+  openclaw_api:
+    enabled: false
+    api_url: "http://localhost:18789"
+    api_key: null
+  
+  # Webhook集成
+  webhook:
+    enabled: false
+    webhook_url: null
+    secret_token: null
+  
+  # 自动注册
+  auto_register: true
+  register_on_startup: true
+
+features:
+  # 功能开关
+  chat_commands: true          # 聊天命令
+  scheduled_checks: true       # 定时检查
+  auto_updates: true           # 自动更新
+  reports: true               # 报告生成
+  alerts: true                # 告警通知
+  
+  # 高级功能
+  multi_user: true            # 多用户支持
+  session_persistence: true   # 会话持久化
+  task_queue: true           # 任务队列
+  progress_tracking: true    # 进度跟踪
+
+commands:
+  # 命令配置
+  check_quality:
+    enabled: true
+    aliases: ["检查质量", "质量检查", "quality check"]
+    default_symbols: ["BTCUSDT"]
+    default_timeframes: ["4h", "1d", "1w", "1M"]
+    timeout_seconds: 300
+  
+  update_data:
+    enabled: true
+    aliases: ["更新", "刷新", "update", "refresh"]
+    default_symbols: ["BTCUSDT"]
+    default_timeframes: ["4h", "1d", "1w", "1M"]
+    auto_update_stale: true
+    timeout_seconds: 600
+  
+  check_freshness:
+    enabled: true
+    aliases: ["新鲜度", "新鲜检查", "freshness"]
+    default_symbols: ["BTCUSDT"]
+    default_timeframes: ["4h", "1d", "1w", "1M"]
+    timeout_seconds: 180
+  
+  full_check:
+    enabled: true
+    aliases: ["全面检查", "完整检查", "full check"]
+    default_symbols: ["BTCUSDT"]
+    default_timeframes: ["4h", "1d", "1w", "1M"]
+    timeout_seconds: 900
+  
+  status:
+    enabled: true
+    aliases: ["状态", "查看状态", "status"]
+  
+  help:
+    enabled: true
+    aliases: ["帮助", "命令", "help", "usage"]
+  
+  report:
+    enabled: true
+    aliases: ["报告", "生成报告", "report"]
+    types: ["summary", "daily", "weekly", "monthly"]
+
+notifications:
+  # 通知模板
+  templates:
+    task_started: |
+      🎯 任务已开始！
+      
+      任务ID: {task_id}
+      类型: {task_type}
+      用户: {user_name}
+      时间: {timestamp}
+      
+      🔍 正在执行 {task_type}...
+      请稍候，完成后会通知您。
+    
+    task_completed: |
+      ✅ 任务完成！
+      
+      任务ID: {task_id}
+      类型: {task_type}
+      用户: {user_name}
+      开始时间: {started_at}
+      完成时间: {completed_at}
+      持续时间: {duration}
+      
+      📋 结果摘要:
+      {summary}
+      
+      💡 建议:
+      {recommendations}
+    
+    task_failed: |
+      ❌ 任务失败！
+      
+      任务ID: {task_id}
+      类型: {task_type}
+      用户: {user_name}
+      错误: {error}
+      
+      请检查日志或联系管理员。
+    
+    quality_alert: |
+      🚨 数据质量警告！
+      
+      交易对: {symbol}
+      时间框架: {timeframe}
+      问题: {issue}
+      严重程度: {severity}
+      
+      建议立即处理。
+    
+    freshness_alert: |
+      ⏰ 数据新鲜度警告！
+      
+      交易对: {symbol}
+      时间框架: {timeframe}
+      数据年龄: {age_hours:.1f}小时
+      阈值: {threshold_hours}小时
+      
+      监控系统将尝试自动更新。
+
+logging:
+  # 日志配置
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "logs/openclaw_skill.log"
+  max_size_mb: 10
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # 审计日志
+  audit_logging: true
+  audit_file: "logs/audit.log"
+  log_user_actions: true
+  log_command_execution: true
+
+security:
+  # 安全配置
+  rate_limiting:
+    enabled: true
+    max_requests_per_minute: 30
+    max_requests_per_hour: 200
+  
+  authentication:
+    enabled: false
+    allowed_users: []
+    admin_users: []
+  
+  data_privacy:
+    mask_sensitive_data: true
+    log_sanitization: true
+
+performance:
+  # 性能配置
+  max_concurrent_tasks: 3
+  task_timeout_seconds: 900
+  cache_enabled: true
+  cache_ttl_seconds: 300
+  
+  # 资源限制
+  max_memory_mb: 512
+  max_cpu_percent: 80
+
+maintenance:
+  # 维护配置
+  auto_cleanup: true
+  cleanup_schedule: "0 3 * * *"  # 每天凌晨3点
+  keep_sessions_days: 7
+  keep_tasks_days: 30
+  keep_reports_days: 90
+  
+  # 备份
+  backup_enabled: true
+  backup_schedule: "0 2 * * *"  # 每天凌晨2点
+  backup_dir: "backups"
+  keep_backups_days: 30
+
+# 开发配置
+development:
+  debug_mode: false
+  test_mode: false
+  mock_apis: false
+  verbose_logging: false

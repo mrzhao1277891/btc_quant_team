@@ -1,0 +1,188 @@
+# 数据质量监控配置
+
+monitoring:
+  # 监控开关
+  enabled: true
+  
+  # 检查间隔（分钟）
+  check_interval_minutes: 60
+  
+  # 自动更新过时数据
+  auto_update: true
+  
+  # 失败时告警
+  alert_on_failure: true
+  
+  # 监控的交易对
+  symbols:
+    - BTCUSDT
+    # - ETHUSDT  # 可以取消注释添加更多交易对
+    # - BNBUSDT
+  
+  # 监控的时间框架
+  timeframes:
+    - 1d
+    - 4h
+    - 1w
+    - 1M
+    # - 1h  # 需要先添加1小时数据采集
+  
+  # 数据新鲜度阈值（小时）
+  freshness_thresholds:
+    1h: 2    # 1小时线：超过2小时未更新需要更新
+    4h: 6    # 4小时线：超过6小时未更新需要更新
+    1d: 24   # 日线：超过24小时未更新需要更新
+    1w: 168  # 周线：超过7天未更新需要更新
+    1M: 720  # 月线：超过30天未更新需要更新
+  
+  # 质量评分阈值
+  quality_thresholds:
+    excellent: 0.90  # 优秀
+    good: 0.80       # 良好
+    warning: 0.70    # 警告
+    fail: 0.60       # 失败
+
+alerts:
+  # 告警开关
+  enabled: true
+  
+  # 告警渠道
+  channels:
+    - log      # 系统日志
+    # - telegram # Telegram消息（需要配置）
+    # - email    # 电子邮件（需要配置）
+  
+  # 最小告警严重程度
+  min_severity: warning  # info, warning, error, critical
+  
+  # Telegram配置（如果使用）
+  telegram_bot_token: null
+  telegram_chat_id: null
+  
+  # Email配置（如果使用）
+  email_smtp_server: null
+  email_smtp_port: 587
+  email_username: null
+  email_password: null
+  email_from: null
+  email_to: null
+
+reporting:
+  # 生成报告
+  generate_reports: true
+  
+  # 报告保存目录
+  report_dir: reports
+  
+  # 报告保留天数
+  keep_days: 30
+  
+  # 报告类型
+  report_types:
+    - daily    # 日报
+    - weekly   # 周报
+    - monthly  # 月报
+    - on_demand # 按需报告
+
+database:
+  # 数据库路径
+  path: /home/francis/.openclaw/workspace/crypto_analyzer/data/ultra_light.db
+  
+  # 数据库备份
+  backup_enabled: true
+  backup_dir: backups
+  backup_keep_days: 7
+
+api:
+  # Binance API配置
+  binance:
+    base_url: https://api.binance.com/api/v3
+    timeout_seconds: 30
+    retry_attempts: 3
+    retry_delay_seconds: 5
+  
+  # 备用数据源
+  fallback_sources:
+    - name: CoinGecko
+      base_url: https://api.coingecko.com/api/v3
+      enabled: false
+    - name: CryptoCompare
+      base_url: https://min-api.cryptocompare.com/data
+      enabled: false
+
+scheduling:
+  # 定时任务配置
+  daily_check_time: "09:00"  # 每日全面检查时间
+  weekly_report_day: "Monday"  # 周报生成日
+  monthly_report_day: 1  # 月报生成日（每月1号）
+  
+  # 特殊监控时段
+  intensive_monitoring:
+    enabled: false
+    start_time: "08:00"
+    end_time: "20:00"
+    check_interval_minutes: 30
+
+notifications:
+  # 通知模板
+  templates:
+    quality_warning: |
+      🚨 数据质量警告
+      
+      交易对: {symbol}
+      时间框架: {timeframe}
+      质量评分: {score:.1%}
+      问题: {issue}
+      
+      建议立即检查数据源。
+    
+    freshness_warning: |
+      ⏰ 数据新鲜度警告
+      
+      交易对: {symbol}
+      时间框架: {timeframe}
+      数据年龄: {age_hours:.1f}小时
+      阈值: {threshold_hours}小时
+      
+      监控系统将尝试自动更新。
+    
+    update_success: |
+      ✅ 数据更新成功
+      
+      交易对: {symbol}
+      时间框架: {timeframe}
+      新增数据: {new_count}条
+      总数据量: {total_count}条
+      
+      数据已保持最新。
+    
+    update_failed: |
+      ❌ 数据更新失败
+      
+      交易对: {symbol}
+      时间框架: {timeframe}
+      错误: {error}
+      
+      请手动检查数据源。
+
+logging:
+  # 日志配置
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  file: logs/quality_monitor.log
+  max_size_mb: 10
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+performance:
+  # 性能配置
+  max_concurrent_checks: 3
+  request_timeout_seconds: 30
+  cache_enabled: true
+  cache_ttl_minutes: 5
+
+maintenance:
+  # 维护配置
+  auto_cleanup: true
+  cleanup_schedule: "0 2 * * *"  # 每天凌晨2点
+  max_history_records: 10000
+  compress_old_reports: true

@@ -1,0 +1,178 @@
+# 开发环境配置
+
+# 应用配置
+app:
+  name: "BTC量化团队"
+  version: "1.0.0"
+  environment: "development"
+  debug: true
+  log_level: "DEBUG"
+
+# 数据源配置
+data_sources:
+  binance:
+    enabled: true
+    api_url: "https://api.binance.com"
+    api_key: "${BINANCE_API_KEY}"  # 从环境变量读取
+    api_secret: "${BINANCE_API_SECRET}"
+    rate_limit: 1200  # 每分钟请求限制
+    timeout: 10  # 秒
+  
+  cache:
+    enabled: true
+    db_path: "${HOME}/.btc_quant/data_cache.db"
+    ttl: 300  # 缓存有效期(秒)
+    cleanup_hours: 24  # 清理多少小时前的缓存
+
+# 监控配置
+monitoring:
+  btc_monitor:
+    enabled: true
+    default_low: 69000
+    default_high: 73000
+    default_interval: 15  # 分钟
+    max_interval: 60
+    min_interval: 1
+    
+    notifications:
+      telegram:
+        enabled: true
+        bot_token: "${TELEGRAM_BOT_TOKEN}"
+        chat_id: "${TELEGRAM_CHAT_ID}"
+        parse_mode: "Markdown"
+      
+      email:
+        enabled: false
+        smtp_server: "smtp.gmail.com"
+        smtp_port: 587
+        username: "${EMAIL_USERNAME}"
+        password: "${EMAIL_PASSWORD}"
+        from_address: "btc-monitor@example.com"
+      
+      log:
+        enabled: true
+        file: "${HOME}/.btc_quant/monitor.log"
+        max_size_mb: 10
+        backup_count: 5
+
+# 分析配置
+analysis:
+  timeframes: ["4h", "1d", "1w", "1M"]
+  indicators:
+    trend:
+      enabled: true
+      periods: [7, 25, 50, 100]
+    
+    momentum:
+      enabled: true
+      macd:
+        fast_period: 12
+        slow_period: 26
+        signal_period: 9
+      rsi:
+        period: 14
+    
+    volatility:
+      enabled: true
+      bollinger:
+        period: 20
+        std_dev: 2
+
+# 风险配置
+risk:
+  default_capital: 10000  # 默认资金量(USD)
+  max_risk_per_trade: 0.02  # 每笔交易最大风险(2%)
+  max_position_size: 0.1  # 最大仓位比例(10%)
+  min_risk_reward: 2.0  # 最小风险收益比
+  max_holding_period: 48  # 最大持仓时间(小时)
+
+# 数据库配置
+database:
+  main:
+    type: "sqlite"
+    path: "${HOME}/.btc_quant/main.db"
+    pool_size: 5
+  
+  cache:
+    type: "sqlite"
+    path: "${HOME}/.btc_quant/cache.db"
+    pool_size: 3
+
+# 日志配置
+logging:
+  root:
+    level: "INFO"
+    handlers: ["console", "file"]
+  
+  handlers:
+    console:
+      class: "logging.StreamHandler"
+      level: "DEBUG"
+      formatter: "detailed"
+      stream: "ext://sys.stdout"
+    
+    file:
+      class: "logging.handlers.RotatingFileHandler"
+      level: "INFO"
+      formatter: "detailed"
+      filename: "${HOME}/.btc_quant/app.log"
+      maxBytes: 10485760  # 10MB
+      backupCount: 5
+  
+  formatters:
+    simple:
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+    detailed:
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
+
+# API服务配置 (如果启用)
+api:
+  enabled: false
+  host: "0.0.0.0"
+  port: 8000
+  workers: 2
+  cors_origins: ["http://localhost:3000"]
+  
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+
+# 定时任务配置
+scheduler:
+  data_update:
+    enabled: true
+    schedule: "*/5 * * * *"  # 每5分钟
+    task: "update_data"
+    
+  daily_report:
+    enabled: true
+    schedule: "0 9 * * *"  # 每天9点
+    task: "generate_daily_report"
+    
+  weekly_analysis:
+    enabled: true
+    schedule: "0 10 * * 1"  # 每周一10点
+    task: "generate_weekly_analysis"
+
+# 功能开关
+features:
+  realtime_monitoring: true
+  technical_analysis: true
+  risk_management: true
+  automated_trading: false  # 开发环境关闭自动交易
+  backtesting: true
+  reporting: true
+
+# 开发工具配置
+development:
+  test_mode: true
+  mock_data: false
+  profiling: false
+  hot_reload: true
+  
+  testing:
+    coverage_threshold: 80
+    unit_test_timeout: 30  # 秒
+    integration_test_timeout: 120  # 秒
