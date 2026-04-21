@@ -369,19 +369,11 @@ class SupportResistanceAnalyzerPhase1:
     
     def identify_dynamic_levels(self, timeframe: str, symbol: str = 'BTCUSDT') -> Dict[str, List[Dict]]:
         """
-        识别动态支撑阻力位（移动平均线、布林带）
-        
-        参数:
-            timeframe: 时间框架
-            symbol: 交易对
-        
-        返回:
-            动态位字典
+        识别动态支撑阻力位（均线 + 布林带），加入历史触碰验证
         """
         try:
             cursor = self.connection.cursor(dictionary=True)
             
-            # 获取最新数据（包含技术指标）
             query = """
                 SELECT timestamp, close,
                        ema7, ema12, ema25, ema50,
@@ -391,7 +383,6 @@ class SupportResistanceAnalyzerPhase1:
                 ORDER BY timestamp DESC
                 LIMIT 100
             """
-            
             cursor.execute(query, (symbol, timeframe))
             data = cursor.fetchall()
             
@@ -399,55 +390,70 @@ class SupportResistanceAnalyzerPhase1:
                 return {'supports': [], 'resistances': []}
             
             latest = data[0]
-            current_price = latest['close']
+            current_price = ensure_float(latest['close'])
             
             # 动态位配置
-            dynamic_levels = [
-                {'price': latest['ema50'], 'name': 'EMA50', 'weight': 3},
-                {'price': latest['boll_md'], 'name': 'BOLL_MD', 'weight': 3},
-                {'price': latest['ema25'], 'name': 'EMA25', 'weight': 2},
-                {'price': latest['ema12'], 'name': 'EMA12', 'weight': 2},
-                {'price': latest['ema7'], 'name': 'EMA7', 'weight': 1},
-                {'price': latest['boll_up'], 'name': 'BOLL_UP', 'weight': 2},
-                {'price': latest['boll_dn'], 'name': 'BOLL_DN', 'weight': 2}
+            dynamic_level_defs = [
+                {'key': 'ema50',   'name': 'EMA50',   'weight': 3},
+                {'key': 'boll_md', 'name': 'BOLL_MD', 'weight': 3},
+                {'key': 'ema25',   'name': 'EMA25',   'weight': 2},
+                {'key': 'ema12',   'name': 'EMA12',   'weight': 2},
+                {'key': 'ema7',    'name': 'EMA7',    'weight': 1},
+                {'key': 'boll_up', 'name': 'BOLL_UP', 'weight': 2},
+                {'key': 'boll_dn', 'name': 'BOLL_DN', 'weight': 2},
             ]
+            
+            # 提取历史收盘价序列（正序）用于触碰验证
+            history = list(reversed(data))  # 从旧到新
+            hist_closes = [ensure_float(r['close']) for r in history]
             
             supports = []
             resistances = []
             
-            for level in dynamic_levels:
-                if level['price'] is None:
+            for defn in dynamic_level_defs:
+                raw_price = latest.get(defn['key'])
+                if raw_price is None:
+                    continue
+                level_price = ensure_float(raw_price)
+                if level_price <= 0:
                     continue
                 
-                # 判断是支撑还是阻力
-                if current_price > level['price']:
-                    # 价格在均线上方，可能是支撑
-                    level_type = 'support'
-                else:
-                    # 价格在均线下方，可能是阻力
-                    level_type = 'resistance'
+                # 历史触碰验证：统计过去N根K线中价格在该均线附近（±1%）反转的次数
+                tolerance = level_price * 0.01
+                touch_count = 0
+                for i in range(1, len(hist_closes) - 1):
+                    if abs(hist_closes[i] - level_price) <= tolerance:
+                        # 判断是否发生反转（前后方向不同）
+                        if (hist_closes[i-1] < hist_closes[i] and hist_closes[i] > hist_closes[i+1]) or \
+                           (hist_closes[i-1] > hist_closes[i] and hist_closes[i] < hist_closes[i+1]):
+                            touch_count += 1
+                
+                # 触碰次数加成强度（最多+2）
+                touch_bonus = min(touch_count, 2)
+                final_weight = defn['weight'] + touch_bonus
                 
                 level_info = {
-                    'price': float(level['price']),
+                    'price': level_price,
                     'timestamp': latest['timestamp'],
                     'type': 'dynamic',
-                    'subtype': level['name'],
+                    'subtype': defn['name'],
                     'timeframe': timeframe,
-                    'base_strength': level['weight'],
+                    'base_strength': final_weight,
+                    'touch_count': touch_count,
                     'metadata': {
                         'current_price': current_price,
-                        'relation': 'above' if current_price > level['price'] else 'below'
+                        'touch_count': touch_count,
+                        'relation': 'above' if current_price > level_price else 'below'
                     }
                 }
                 
-                if level_type == 'support':
+                if current_price > level_price:
                     supports.append(level_info)
                 else:
                     resistances.append(level_info)
             
             cursor.close()
-            
-            logger.info(f"{timeframe} 识别到 {len(supports)} 个动态支撑位和 {len(resistances)} 个动态阻力位")
+            logger.info(f"{timeframe} 动态位: {len(supports)}支撑, {len(resistances)}阻力")
             return {'supports': supports, 'resistances': resistances}
             
         except mysql.connector.Error as e:
@@ -592,43 +598,150 @@ class SupportResistanceAnalyzerPhase1:
     
     def _calculate_simple_fibonacci(self, closes: List[float], current_price: float, timeframe: str) -> Dict[str, List[Dict]]:
         """
-        无外部计算器时的简单斐波那契回撤计算
-        取近期最高/最低价计算标准回撤位
+        基于近期趋势波段的斐波那契计算
+        识别最近一次明显的涨跌波段，分别计算回撤位和延伸位
         """
         if len(closes) < 20:
             return {'supports': [], 'resistances': []}
-        
-        recent = closes[-100:] if len(closes) >= 100 else closes
-        swing_high = max(recent)
-        swing_low = min(recent)
-        diff = swing_high - swing_low
-        
-        if diff <= 0:
-            return {'supports': [], 'resistances': []}
-        
-        # 标准斐波那契回撤比例
-        fib_ratios = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
-        
+
+        # 根据时间框架决定用多少根K线来找近期波段
+        lookback_map = {'1M': 24, '1w': 52, '1d': 120, '4h': 200}
+        lookback = lookback_map.get(timeframe, 100)
+        recent = closes[-lookback:] if len(closes) >= lookback else closes
+
+        # 找近期波段：用滑动窗口找局部高低点
+        window = max(5, len(recent) // 20)
+        local_highs = []
+        local_lows = []
+        for i in range(window, len(recent) - window):
+            if all(recent[i] >= recent[i-j] and recent[i] >= recent[i+j] for j in range(1, window+1)):
+                local_highs.append((i, recent[i]))
+            if all(recent[i] <= recent[i-j] and recent[i] <= recent[i+j] for j in range(1, window+1)):
+                local_lows.append((i, recent[i]))
+
+        if not local_highs or not local_lows:
+            # 兜底：直接用全段高低点
+            swing_high = max(recent)
+            swing_low = min(recent)
+            waves = [('down', swing_high, swing_low)]
+        else:
+            # 取最近的高点和低点，判断当前趋势方向
+            last_high_idx, last_high_val = local_highs[-1]
+            last_low_idx, last_low_val = local_lows[-1]
+
+            # 振幅过滤：波段幅度至少3%
+            min_amplitude = 0.03
+            waves = []
+
+            if last_high_idx > last_low_idx:
+                # 最近是上涨波段：从低点涨到高点
+                amp = (last_high_val - last_low_val) / last_low_val
+                if amp >= min_amplitude:
+                    waves.append(('up', last_low_val, last_high_val))
+                # 同时找上一个低点，构造更大的下跌波段
+                prev_lows = [l for l in local_lows if l[0] < last_low_idx]
+                if prev_lows:
+                    prev_high_candidates = [h for h in local_highs if h[0] < last_low_idx]
+                    if prev_high_candidates:
+                        prev_high_val = prev_high_candidates[-1][1]
+                        amp2 = (prev_high_val - last_low_val) / prev_high_val
+                        if amp2 >= min_amplitude:
+                            waves.append(('down', prev_high_val, last_low_val))
+            else:
+                # 最近是下跌波段：从高点跌到低点
+                amp = (last_high_val - last_low_val) / last_high_val
+                if amp >= min_amplitude:
+                    waves.append(('down', last_high_val, last_low_val))
+                # 同时找上一个高点，构造更大的上涨波段
+                prev_highs = [h for h in local_highs if h[0] < last_high_idx]
+                if prev_highs:
+                    prev_low_candidates = [l for l in local_lows if l[0] < last_high_idx]
+                    if prev_low_candidates:
+                        prev_low_val = prev_low_candidates[-1][1]
+                        amp2 = (last_high_val - prev_low_val) / prev_low_val
+                        if amp2 >= min_amplitude:
+                            waves.append(('up', prev_low_val, last_high_val))
+
+            if not waves:
+                swing_high = max(recent[-50:])
+                swing_low = min(recent[-50:])
+                waves = [('down', swing_high, swing_low)]
+
+        # 标准斐波那契比例
+        retracement_ratios = [0.236, 0.382, 0.5, 0.618, 0.786]  # 回撤
+        extension_ratios   = [1.272, 1.618, 2.0]                 # 延伸
+
         supports = []
         resistances = []
-        
-        for ratio in fib_ratios:
-            # 下跌回撤位（从高点往下）
-            price = swing_high - diff * ratio
-            level = {
-                'price': round(price, 2),
-                'type': 'fibonacci',
-                'subtype': f'fib_{ratio}',
-                'timeframe': timeframe,
-                'base_strength': 2,
-                'metadata': {'ratio': ratio, 'swing_high': swing_high, 'swing_low': swing_low}
-            }
-            if price < current_price:
-                supports.append(level)
-            elif price > current_price:
-                resistances.append(level)
-        
-        logger.info(f"{timeframe} 简单斐波那契: {len(supports)}支撑, {len(resistances)}阻力")
+
+        for direction, wave_start, wave_end in waves:
+            diff = abs(wave_end - wave_start)
+            if diff <= 0:
+                continue
+
+            if direction == 'up':
+                # 上涨波段：回撤位在下方（支撑），延伸位在上方（阻力）
+                high, low = wave_end, wave_start
+                for ratio in retracement_ratios:
+                    price = high - diff * ratio
+                    importance = 3 if ratio in (0.382, 0.618) else 2
+                    level = {
+                        'price': round(price, 2),
+                        'type': 'fibonacci',
+                        'subtype': f'retracement_{ratio}',
+                        'timeframe': timeframe,
+                        'base_strength': importance,
+                        'metadata': {'ratio': ratio, 'direction': 'up', 'wave_high': high, 'wave_low': low}
+                    }
+                    if price < current_price:
+                        supports.append(level)
+                    elif price > current_price:
+                        resistances.append(level)
+                for ratio in extension_ratios:
+                    price = low + diff * ratio
+                    level = {
+                        'price': round(price, 2),
+                        'type': 'fibonacci',
+                        'subtype': f'extension_{ratio}',
+                        'timeframe': timeframe,
+                        'base_strength': 2,
+                        'metadata': {'ratio': ratio, 'direction': 'up', 'wave_high': high, 'wave_low': low}
+                    }
+                    if price > current_price:
+                        resistances.append(level)
+
+            else:
+                # 下跌波段：回撤位在上方（阻力），延伸位在下方（支撑）
+                high, low = wave_start, wave_end
+                for ratio in retracement_ratios:
+                    price = low + diff * ratio
+                    importance = 3 if ratio in (0.382, 0.618) else 2
+                    level = {
+                        'price': round(price, 2),
+                        'type': 'fibonacci',
+                        'subtype': f'retracement_{ratio}',
+                        'timeframe': timeframe,
+                        'base_strength': importance,
+                        'metadata': {'ratio': ratio, 'direction': 'down', 'wave_high': high, 'wave_low': low}
+                    }
+                    if price > current_price:
+                        resistances.append(level)
+                    elif price < current_price:
+                        supports.append(level)
+                for ratio in extension_ratios:
+                    price = high - diff * ratio
+                    level = {
+                        'price': round(price, 2),
+                        'type': 'fibonacci',
+                        'subtype': f'extension_{ratio}',
+                        'timeframe': timeframe,
+                        'base_strength': 2,
+                        'metadata': {'ratio': ratio, 'direction': 'down', 'wave_high': high, 'wave_low': low}
+                    }
+                    if price < current_price:
+                        supports.append(level)
+
+        logger.info(f"{timeframe} 斐波那契({len(waves)}个波段): {len(supports)}支撑, {len(resistances)}阻力")
         return {'supports': supports, 'resistances': resistances}
     
     # ==================== 2. 多时间框架融合系统 ====================
@@ -802,6 +915,9 @@ class SupportResistanceAnalyzerPhase1:
         all_supports = []
         all_resistances = []
         
+        # 每个时间框架的独立分析结果（用于分周期报告）
+        timeframe_results = {}
+        
         # 获取当前价格
         current_price = self.get_current_price(symbol)
         if current_price is None:
@@ -837,8 +953,31 @@ class SupportResistanceAnalyzerPhase1:
                 level['timeframe_weight'] = config['weight']
                 level['timeframe'] = timeframe
             
-            all_supports.extend(timeframe_supports)
-            all_resistances.extend(timeframe_resistances)
+            # 对本周期位点按当前价格校正方向后评分并排序
+            # 支撑必须在当前价格下方，阻力必须在上方
+            tf_supports_corrected = [l for l in timeframe_supports if l.get('price', 0) < current_price]
+            tf_resistances_corrected = [l for l in timeframe_resistances if l.get('price', 0) > current_price]
+            # 方向错误的位点交换过去
+            tf_supports_corrected += [l for l in timeframe_resistances if l.get('price', 0) < current_price]
+            tf_resistances_corrected += [l for l in timeframe_supports if l.get('price', 0) > current_price]
+            
+            tf_scored_supports = [self.calculate_strength_score(level, 'support', current_price)
+                                  for level in tf_supports_corrected]
+            tf_scored_resistances = [self.calculate_strength_score(level, 'resistance', current_price)
+                                     for level in tf_resistances_corrected]
+            tf_scored_supports.sort(key=lambda x: (-x.get('final_score', 0), -(x.get('price', 0))))
+            tf_scored_resistances.sort(key=lambda x: (-x.get('final_score', 0), x.get('price', 0)))
+            
+            timeframe_results[timeframe] = {
+                'atr': atr,
+                'weight': config['weight'],
+                'description': config['description'],
+                'supports': tf_scored_supports,
+                'resistances': tf_scored_resistances,
+            }
+            
+            all_supports.extend(tf_supports_corrected)
+            all_resistances.extend(tf_resistances_corrected)
         
         # 2. 添加心理位（适用于所有时间框架）
         psychological_levels = self.identify_psychological_levels(current_price, symbol)
@@ -928,6 +1067,7 @@ class SupportResistanceAnalyzerPhase1:
             'base_atr': base_atr,
             'supports': strong_supports,
             'resistances': strong_resistances,
+            'timeframe_results': timeframe_results,
             'analysis_time': datetime.now().isoformat(),
             'timeframes_analyzed': list(self.timeframe_config.keys()),
             'optimizations': {
@@ -992,81 +1132,78 @@ class SupportResistanceAnalyzerPhase1:
     
     def calculate_strength_score(self, level: Dict, level_type: str, current_price: float) -> Dict:
         """
-        计算支撑阻力位综合强度评分（优化版）
+        综合强度评分
         
-        考虑优化模块的置信度，评分范围0-1
+        权重分配（总100%）：
+        - 时间框架权威性  35%  （大周期更可靠）
+        - 触碰/置信度     35%  （历史验证次数）
+        - 成交量确认      15%  （有量才有效）
+        - 距离当前价格    15%  （参考价值，不主导评分）
         """
         score = 0.0
         score_factors = {}
         
-        # 1. 时间框架权威性（0-0.25）
+        # 1. 时间框架权威性（35%）
         timeframe_weight = level.get('timeframe_weight', 1)
-        timeframe_score = timeframe_weight / 4.0  # 转换为0-1
-        score += timeframe_score * 0.25
+        timeframe_score = timeframe_weight / 4.0
+        score += timeframe_score * 0.35
         score_factors['timeframe'] = timeframe_score
         
-        # 2. 基础置信度/强度（0-0.25）
+        # 2. 触碰次数 / 置信度（35%）
         if 'confidence' in level:
-            # 来自优化模块的置信度
-            confidence_score = level['confidence']
+            confidence_score = float(level['confidence'])
+        elif 'touch_count' in level:
+            # 触碰1次=0.3，2次=0.6，3次=0.8，4次以上=1.0
+            tc = level['touch_count']
+            confidence_score = min(0.25 * tc + 0.05, 1.0)
         elif 'base_strength' in level:
-            confidence_score = level['base_strength'] / 5.0
+            confidence_score = min(level['base_strength'] / 5.0, 1.0)
         elif 'importance' in level:
             confidence_score = level['importance'] / 3.0
-        elif 'touch_count' in level:
-            confidence_score = min(level['touch_count'] / 4.0, 1.0)
         else:
-            confidence_score = 0.5
+            confidence_score = 0.4
         
-        score += confidence_score * 0.25
+        score += confidence_score * 0.35
         score_factors['confidence'] = confidence_score
         
-        # 3. 成交量确认（0-0.2）
-        volume_score = 0.0
+        # 3. 成交量确认（15%）
         if 'volume_confirmation' in level:
             vol_conf = level['volume_confirmation']
-            if vol_conf.get('confirmed', False):
-                volume_score = vol_conf.get('confidence', 0)
-            else:
-                volume_score = 0.3  # 即使未确认，也给基础分
+            volume_score = vol_conf.get('confidence', 0.3) if vol_conf.get('confirmed', False) else 0.2
         else:
-            volume_score = 0.5  # 默认分
+            volume_score = 0.4  # 无成交量数据时给中性分，不拉高也不拉低
         
-        score += volume_score * 0.2
+        score += volume_score * 0.15
         score_factors['volume'] = volume_score
         
-        # 4. 距离当前价格（0-0.3）
+        # 4. 距离当前价格（15%）—— 仅作参考，不主导
         price = level.get('price', 0)
-        if current_price > 0:
+        if current_price > 0 and price > 0:
             distance_pct = abs(current_price - price) / current_price
-            
-            # 距离评分：距离越近，分数越高（但不要太近）
-            if distance_pct <= 0.03:  # 3%以内
-                distance_score = 0.9
-            elif distance_pct <= 0.06:  # 6%以内
-                distance_score = 0.7
-            elif distance_pct <= 0.10:  # 10%以内
-                distance_score = 0.5
-            elif distance_pct <= 0.15:  # 15%以内
-                distance_score = 0.3
+            if distance_pct <= 0.03:
+                distance_score = 1.0
+            elif distance_pct <= 0.06:
+                distance_score = 0.8
+            elif distance_pct <= 0.10:
+                distance_score = 0.6
+            elif distance_pct <= 0.15:
+                distance_score = 0.4
+            elif distance_pct <= 0.25:
+                distance_score = 0.2
             else:
                 distance_score = 0.1
         else:
-            distance_score = 0.5
+            distance_score = 0.4
         
-        score += distance_score * 0.3
+        score += distance_score * 0.15
         score_factors['distance'] = distance_score
         
-        # 确保分数在0-1范围内
-        final_score = max(0, min(score, 1.0))
-        
-        # 转换为1-15分（兼容原系统）
+        # 归一化到 0-1，转换为 1-15 分
+        final_score = max(0.0, min(score, 1.0))
         final_score_15 = int(final_score * 14) + 1
         
-        # 添加等级映射
         strength_level = self._map_score_to_level(final_score_15)
         
-        # 更新level信息
         level['final_score'] = final_score_15
         level['final_score_normalized'] = final_score
         level['score_factors'] = score_factors
@@ -1179,88 +1316,126 @@ class SupportResistanceAnalyzerPhase1:
     # ==================== 报告生成 ====================
     
     def generate_report(self, analysis_result: Dict) -> str:
-        """生成分析报告"""
+        """生成分析报告：先输出各周期，再输出综合"""
         symbol = analysis_result.get('symbol', 'BTCUSDT')
         current_price = analysis_result.get('current_price', 0)
         base_atr = analysis_result.get('base_atr', 0)
+        timeframe_results = analysis_result.get('timeframe_results', {})
         
         report = []
         report.append("=" * 80)
-        report.append(f"📊 BTC支撑阻力分析报告 - 优化版")
+        report.append(f"📊 {symbol} 支撑阻力分析报告")
         report.append(f"分析时间: {analysis_result.get('analysis_time', 'N/A')}")
-        report.append(f"当前价格: ${current_price:,.2f}")
-        report.append(f"基准ATR(14): ${base_atr:,.2f}")
-        report.append(f"优化应用: 摆动点过滤 + 斐波那契计算 + 成交量确认")
+        report.append(f"当前价格: ${current_price:,.2f}  |  基准ATR(14): ${base_atr:,.2f}")
         report.append("=" * 80)
         
-        # 支撑位报告
-        report.append("\n📈 强支撑位 (按强度排序):")
-        report.append("-" * 80)
-        supports = analysis_result.get('supports', [])
-        if supports:
-            for i, support in enumerate(supports[:10], 1):  # 显示前10个
-                price = support.get('price', 0)
-                score = support.get('final_score', 0)
-                level = support.get('strength_symbol', '★')
-                timeframes = ', '.join(support.get('timeframes', []))
-                types = ', '.join(support.get('types', []))
-                
-                distance_pct = ((current_price - price) / current_price * 100) if current_price > 0 else 0
-                
-                report.append(f"{i:2d}. {level} ${price:,.2f} "
-                            f"(评分: {score}/15, 距离: {distance_pct:+.1f}%)")
-                report.append(f"    时间框架: {timeframes} | 类型: {types}")
-        else:
-            report.append("未找到强支撑位")
+        # ── 各周期独立分析 ──
+        tf_order = ['1M', '1w', '1d', '4h']
+        tf_labels = {
+            '1M': '月线 1M（战略层，权重×4）',
+            '1w': '周线 1w（战役层，权重×3）',
+            '1d': '日线 1d（战术层，权重×2）',
+            '4h': '4小时 4h（执行层，权重×1）',
+        }
         
-        # 阻力位报告
-        report.append("\n📉 强阻力位 (按强度排序):")
-        report.append("-" * 80)
+        for tf in tf_order:
+            if tf not in timeframe_results:
+                continue
+            tf_data = timeframe_results[tf]
+            tf_supports = tf_data.get('supports', [])
+            tf_resistances = tf_data.get('resistances', [])
+            atr_val = tf_data.get('atr', 0)
+            
+            report.append(f"\n{'─'*80}")
+            report.append(f"【{tf_labels[tf]}】  ATR={atr_val:,.2f}")
+            report.append(f"{'─'*80}")
+            
+            # 阻力位（从低到高，最近的在前）
+            report.append("  📉 阻力位（由近到远）:")
+            tf_res_sorted = sorted(tf_resistances, key=lambda x: x.get('price', 0))
+            if tf_res_sorted:
+                for level in tf_res_sorted[:5]:
+                    price = level.get('price', 0)
+                    score = level.get('final_score', 0)
+                    stars = level.get('strength_symbol', '★')
+                    types = ', '.join(level.get('types', [level.get('type', '')]))
+                    dist = (price - current_price) / current_price * 100
+                    report.append(f"    {stars} ${price:,.2f}  距离+{dist:.1f}%  评分{score}/15  [{types}]")
+            else:
+                report.append("    暂无识别到阻力位")
+            
+            # 支撑位（从高到低，最近的在前）
+            report.append("  📈 支撑位（由近到远）:")
+            tf_sup_sorted = sorted(tf_supports, key=lambda x: x.get('price', 0), reverse=True)
+            if tf_sup_sorted:
+                for level in tf_sup_sorted[:5]:
+                    price = level.get('price', 0)
+                    score = level.get('final_score', 0)
+                    stars = level.get('strength_symbol', '★')
+                    types = ', '.join(level.get('types', [level.get('type', '')]))
+                    dist = (current_price - price) / current_price * 100
+                    report.append(f"    {stars} ${price:,.2f}  距离-{dist:.1f}%  评分{score}/15  [{types}]")
+            else:
+                report.append("    暂无识别到支撑位")
+        
+        # ── 综合分析（多时间框架加权融合）──
+        report.append(f"\n{'='*80}")
+        report.append("🔥 综合分析（多时间框架加权融合）")
+        report.append(f"{'='*80}")
+        
+        supports = analysis_result.get('supports', [])
         resistances = analysis_result.get('resistances', [])
-        if resistances:
-            for i, resistance in enumerate(resistances[:10], 1):  # 显示前10个
-                price = resistance.get('price', 0)
-                score = resistance.get('final_score', 0)
-                level = resistance.get('strength_symbol', '★')
-                timeframes = ', '.join(resistance.get('timeframes', []))
-                types = ', '.join(resistance.get('types', []))
-                
-                distance_pct = ((price - current_price) / current_price * 100) if current_price > 0 else 0
-                
-                report.append(f"{i:2d}. {level} ${price:,.2f} "
-                            f"(评分: {score}/15, 距离: {distance_pct:+.1f}%)")
-                report.append(f"    时间框架: {timeframes} | 类型: {types}")
+        
+        # 综合阻力位
+        report.append("\n  📉 关键阻力位（由近到远）:")
+        res_sorted = sorted(resistances, key=lambda x: x.get('price', 0))
+        if res_sorted:
+            for i, r in enumerate(res_sorted[:8], 1):
+                price = r.get('price', 0)
+                score = r.get('final_score', 0)
+                stars = r.get('strength_symbol', '★')
+                tfs = ', '.join(r.get('timeframes', [r.get('timeframe', '')]))
+                types = ', '.join(r.get('types', [r.get('type', '')]))
+                dist = (price - current_price) / current_price * 100
+                report.append(f"  {i:2d}. {stars} ${price:,.2f}  距离+{dist:.1f}%  评分{score}/15")
+                report.append(f"      时间框架: {tfs}  |  类型: {types}")
         else:
-            report.append("未找到强阻力位")
+            report.append("  未识别到综合阻力位")
+        
+        # 综合支撑位
+        report.append("\n  � 关键支撑位（由近到远）:")
+        sup_sorted = sorted(supports, key=lambda x: x.get('price', 0), reverse=True)
+        if sup_sorted:
+            for i, s in enumerate(sup_sorted[:8], 1):
+                price = s.get('price', 0)
+                score = s.get('final_score', 0)
+                stars = s.get('strength_symbol', '★')
+                tfs = ', '.join(s.get('timeframes', [s.get('timeframe', '')]))
+                types = ', '.join(s.get('types', [s.get('type', '')]))
+                dist = (current_price - price) / current_price * 100
+                report.append(f"  {i:2d}. {stars} ${price:,.2f}  距离-{dist:.1f}%  评分{score}/15")
+                report.append(f"      时间框架: {tfs}  |  类型: {types}")
+        else:
+            report.append("  未识别到综合支撑位")
         
         # 交易建议
-        report.append("\n💡 交易建议:")
-        report.append("-" * 80)
-        if supports and current_price > 0:
-            nearest_support = supports[0]
-            support_price = nearest_support.get('price', 0)
-            support_distance = ((current_price - support_price) / current_price * 100)
-            
-            if support_distance <= 5:  # 5%以内
-                report.append(f"⚠️  价格接近强支撑位 ${support_price:,.2f} ({support_distance:.1f}%)")
-                report.append("   建议：等待看涨信号，准备做多")
-            else:
-                report.append(f"价格距离最近强支撑位 {support_distance:.1f}%，可等待回调")
+        report.append(f"\n{'─'*80}")
+        report.append("💡 交易建议:")
+        nearest_res = res_sorted[0] if res_sorted else None
+        nearest_sup = sup_sorted[0] if sup_sorted else None
         
-        if resistances and current_price > 0:
-            nearest_resistance = resistances[0]
-            resistance_price = nearest_resistance.get('price', 0)
-            resistance_distance = ((resistance_price - current_price) / current_price * 100)
-            
-            if resistance_distance <= 5:  # 5%以内
-                report.append(f"⚠️  价格接近强阻力位 ${resistance_price:,.2f} ({resistance_distance:.1f}%)")
-                report.append("   建议：等待看跌信号，准备做空")
-            else:
-                report.append(f"上方强阻力位在 ${resistance_price:,.2f} ({resistance_distance:.1f}%)")
+        if nearest_res:
+            dist = (nearest_res['price'] - current_price) / current_price * 100
+            report.append(f"  上方最近阻力: ${nearest_res['price']:,.2f}  (+{dist:.1f}%)  {nearest_res.get('strength_symbol','★')}")
+        if nearest_sup:
+            dist = (current_price - nearest_sup['price']) / current_price * 100
+            report.append(f"  下方最近支撑: ${nearest_sup['price']:,.2f}  (-{dist:.1f}%)  {nearest_sup.get('strength_symbol','★')}")
         
-        report.append("\n" + "=" * 80)
-        report.append("分析完成 🎯")
+        if nearest_res and nearest_sup:
+            rr = (nearest_res['price'] - current_price) / (current_price - nearest_sup['price'])
+            report.append(f"  当前位置盈亏比（做多）: {rr:.2f}  {'✅ 可考虑做多' if rr >= 2 else '⚠️ 盈亏比不足2，谨慎'}")
         
+        report.append("=" * 80)
         return "\n".join(report)
     
     def save_report(self, analysis_result: Dict, filepath: str = None):
