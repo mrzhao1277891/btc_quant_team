@@ -328,6 +328,11 @@ class DataRefresher:
                 matype=0
             )
             
+            # ATR(14)
+            highs = np.array([k['high'] for k in klines], dtype=np.float64)
+            lows = np.array([k['low'] for k in klines], dtype=np.float64)
+            atr14 = talib.ATR(highs, lows, closes, timeperiod=14)
+            
             # 将计算结果赋回到K线数据
             for i in range(len(klines)):
                 if not np.isnan(ema7[i]):
@@ -363,6 +368,10 @@ class DataRefresher:
                     klines[i]['boll_up'] = float(round(upperband[i], 4))
                 if not np.isnan(lowerband[i]):
                     klines[i]['boll_dn'] = float(round(lowerband[i], 4))
+                
+                # ATR(14)
+                if not np.isnan(atr14[i]):
+                    klines[i]['atr'] = float(round(atr14[i], 4))
             
             logger.info(f"✅ 使用TA-Lib计算了 {len(klines)} 条数据的指标")
             return klines
@@ -399,6 +408,7 @@ class DataRefresher:
                     dif, dea, macd,
                     rsi14, rsi6,
                     boll, boll_up, boll_md, boll_dn,
+                    atr,
                     create_time, update_time
                 ) VALUES (
                     %s, %s, %s,
@@ -407,6 +417,7 @@ class DataRefresher:
                     %s, %s, %s,
                     %s, %s,
                     %s, %s, %s, %s,
+                    %s,
                     NOW(), NOW()
                 )
                 ON DUPLICATE KEY UPDATE
@@ -430,6 +441,7 @@ class DataRefresher:
                     boll_up = VALUES(boll_up),
                     boll_md = VALUES(boll_md),
                     boll_dn = VALUES(boll_dn),
+                    atr = VALUES(atr),
                     update_time = NOW()
             """
             
@@ -462,7 +474,8 @@ class DataRefresher:
                         kline.get('boll'),
                         kline.get('boll_up'),
                         kline.get('boll_md'),
-                        kline.get('boll_dn')
+                        kline.get('boll_dn'),
+                        kline.get('atr')
                     ))
                     
                     if cursor.rowcount == 1:
