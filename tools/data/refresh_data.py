@@ -319,6 +319,15 @@ class DataRefresher:
             rsi14 = talib.RSI(closes, timeperiod=14)
             rsi6 = talib.RSI(closes, timeperiod=6)
             
+            # 布林带 (20, 2)
+            upperband, middleband, lowerband = talib.BBANDS(
+                closes, 
+                timeperiod=20,
+                nbdevup=2,
+                nbdevdn=2,
+                matype=0
+            )
+            
             # 将计算结果赋回到K线数据
             for i in range(len(klines)):
                 if not np.isnan(ema7[i]):
@@ -345,6 +354,15 @@ class DataRefresher:
                     klines[i]['rsi14'] = float(round(rsi14[i], 4))
                 if not np.isnan(rsi6[i]):
                     klines[i]['rsi6'] = float(round(rsi6[i], 4))
+                
+                # 布林带
+                if not np.isnan(middleband[i]):
+                    klines[i]['boll'] = float(round(middleband[i], 4))
+                    klines[i]['boll_md'] = float(round(middleband[i], 4))
+                if not np.isnan(upperband[i]):
+                    klines[i]['boll_up'] = float(round(upperband[i], 4))
+                if not np.isnan(lowerband[i]):
+                    klines[i]['boll_dn'] = float(round(lowerband[i], 4))
             
             logger.info(f"✅ 使用TA-Lib计算了 {len(klines)} 条数据的指标")
             return klines
@@ -380,6 +398,7 @@ class DataRefresher:
                     ema7, ema25, ema50, ema12, ma5, ma10,
                     dif, dea, macd,
                     rsi14, rsi6,
+                    boll, boll_up, boll_md, boll_dn,
                     create_time, update_time
                 ) VALUES (
                     %s, %s, %s,
@@ -387,6 +406,7 @@ class DataRefresher:
                     %s, %s, %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s,
+                    %s, %s, %s, %s,
                     NOW(), NOW()
                 )
                 ON DUPLICATE KEY UPDATE
@@ -406,6 +426,10 @@ class DataRefresher:
                     macd = VALUES(macd),
                     rsi14 = VALUES(rsi14),
                     rsi6 = VALUES(rsi6),
+                    boll = VALUES(boll),
+                    boll_up = VALUES(boll_up),
+                    boll_md = VALUES(boll_md),
+                    boll_dn = VALUES(boll_dn),
                     update_time = NOW()
             """
             
@@ -434,7 +458,11 @@ class DataRefresher:
                         kline.get('dea'),
                         kline.get('macd'),
                         kline.get('rsi14'),
-                        kline.get('rsi6')
+                        kline.get('rsi6'),
+                        kline.get('boll'),
+                        kline.get('boll_up'),
+                        kline.get('boll_md'),
+                        kline.get('boll_dn')
                     ))
                     
                     if cursor.rowcount == 1:
