@@ -50,15 +50,16 @@ BINANCE_API_URL = "https://api.binance.com"
 BINANCE_KLINES_ENDPOINT = "/api/v3/klines"
 
 # 时间框架配置
+# 刷新阈值说明：每2小时检查一次，保证数据在阈值内
 TIMEFRAME_CONFIG = {
-    '1m': {'refresh_hours': 1, 'limit': 100},
-    '5m': {'refresh_hours': 6, 'limit': 200},
-    '15m': {'refresh_hours': 24, 'limit': 300},
-    '1h': {'refresh_hours': 48, 'limit': 400},
-    '4h': {'refresh_hours': 168, 'limit': 600},  # 7天
-    '1d': {'refresh_hours': 720, 'limit': 600},  # 30天
-    '1w': {'refresh_hours': 2160, 'limit': 250}, # 90天
-    '1M': {'refresh_hours': 8640, 'limit': 60}   # 360天
+    '1m': {'refresh_hours': 2, 'limit': 100},     # 保证数据在2小时内
+    '5m': {'refresh_hours': 6, 'limit': 200},     # 保证数据在6小时内
+    '15m': {'refresh_hours': 24, 'limit': 300},   # 保证数据在24小时内
+    '1h': {'refresh_hours': 48, 'limit': 400},    # 保证数据在48小时内
+    '4h': {'refresh_hours': 4, 'limit': 600},     # 保证数据在4小时内（合理）
+    '1d': {'refresh_hours': 24, 'limit': 600},    # 保证数据在24小时内（合理）
+    '1w': {'refresh_hours': 168, 'limit': 250},   # 保证数据在7天内（合理）
+    '1M': {'refresh_hours': 720, 'limit': 60}     # 保证数据在30天内（合理）
 }
 
 class DataRefresher:
