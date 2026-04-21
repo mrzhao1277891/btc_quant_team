@@ -134,7 +134,9 @@ class SupportResistanceAnalyzerPhase1:
             'psych_major_interval': 5000,
             
             # ── 位点合并 ─────────────────────────────────────────────────
-            # 合并容差 = ATR × 此倍数，越大合并越激进
+            # 合并容差 = min(ATR/价格 × 此倍数, 1.5%)
+            # 即：ATR 相对比例 和 固定上限 1.5% 取较小值，防止月线大 ATR 把所有位点合并成一个
+            # 调大 → 合并更激进（位点更少），调小 → 保留更多独立位点
             'merge_atr_multiplier': 1.0,
             
             # ── 评分权重（四项之和应为 1.0）────────────────────────────
@@ -885,45 +887,38 @@ class SupportResistanceAnalyzerPhase1:
         """
         合并相近的支撑阻力位
         
-        参数:
-            levels: 位点列表
-            atr: 平均真实波幅
-            atr_multiplier: ATR倍数（调整合并容差）
-        
-        返回:
-            合并后的位点列表
+        用相对价格百分比作为合并容差（避免不同周期 ATR 差异过大导致链式合并）
+        和组内第一个位点（锚点）比较，防止链式漂移
         """
         if not levels:
             return []
         
-        # 按价格排序
-        sorted_levels = sorted(levels, key=lambda x: x['price'])
+        sorted_levels = sorted(levels, key=lambda x: float(x['price']))
+        
+        # 合并容差：取 ATR 相对比例 和 固定1.5% 中较小的，避免月线 ATR 把所有位点合并
+        anchor_price = float(sorted_levels[0]['price']) if sorted_levels else 1
+        atr_pct = float(atr) / anchor_price if anchor_price > 0 else 0.015
+        merge_pct = min(atr_pct * atr_multiplier, 0.015)  # 最大容差 1.5%
         
         merged = []
         current_group = [sorted_levels[0]]
+        group_anchor = float(sorted_levels[0]['price'])  # 锚点：组内第一个价格
         
         for i in range(1, len(sorted_levels)):
-            current_price = sorted_levels[i]['price']
-            last_price_in_group = current_group[-1]['price']
+            current_val = float(sorted_levels[i]['price'])
             
-            # 检查是否应该合并到当前组
-            # 确保数据类型正确
-            current_price_val = float(current_price)
-            last_price_val = float(last_price_in_group)
-            atr_val = float(atr)
-            
-            if abs(current_price_val - last_price_val) <= atr_val * atr_multiplier:
+            # 和锚点比较，防止链式漂移
+            if group_anchor > 0 and abs(current_val - group_anchor) / group_anchor <= merge_pct:
                 current_group.append(sorted_levels[i])
             else:
-                # 合并当前组
                 merged.append(self._merge_group(current_group))
                 current_group = [sorted_levels[i]]
+                group_anchor = current_val  # 新组的锚点
         
-        # 合并最后一组
         if current_group:
             merged.append(self._merge_group(current_group))
         
-        logger.info(f"合并 {len(levels)} 个位点到 {len(merged)} 个区域")
+        logger.info(f"合并 {len(levels)} 个位点到 {len(merged)} 个区域 (容差={merge_pct*100:.1f}%)")
         return merged
     
     def _merge_group(self, group: List[Dict]) -> Dict:
