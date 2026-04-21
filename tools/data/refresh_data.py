@@ -598,7 +598,7 @@ class DataRefresher:
         }
         
         # 按时间框架优先级排序（从短到长）
-        timeframes = ['1m', '5m', '15m', '1h', '4h', '1d', '1w', '1M']
+        timeframes = ['4h', '1d', '1w', '1M']
         
         for timeframe in timeframes:
             logger.info(f"\n📈 处理 {timeframe} 时间框架...")

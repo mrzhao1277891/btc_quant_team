@@ -177,7 +177,7 @@ class BTCDataInitializerTA:
                 if not np.isnan(upperband[i]):
                     klines[i]['boll_up'] = float(round(upperband[i], 4))
                 if not np.isnan(lowerband[i]):
-                    klines[i]['boll_dn'] = float(round(lowerband[i], 4))
+                    klines[i]['boll_down'] = float(round(lowerband[i], 4))
             
             logger.info(f"✅ 使用TA-Lib计算了 {len(klines)} 条数据的指标")
             
@@ -204,7 +204,7 @@ class BTCDataInitializerTA:
                     ema7, ema25, ema50, ema12, ma5, ma10,
                     dif, dea, macd,
                     rsi14, rsi6,
-                    boll, boll_up, boll_md, boll_dn,
+                    boll, boll_up, boll_md, boll_down,
                     create_time, update_time
                 ) VALUES (
                     %s, %s, %s,
@@ -235,7 +235,7 @@ class BTCDataInitializerTA:
                     boll = VALUES(boll),
                     boll_up = VALUES(boll_up),
                     boll_md = VALUES(boll_md),
-                    boll_dn = VALUES(boll_dn),
+                    boll_down = VALUES(boll_down),
                     update_time = NOW()
             """
             
@@ -268,7 +268,7 @@ class BTCDataInitializerTA:
                         kline.get('boll'),
                         kline.get('boll_up'),
                         kline.get('boll_md'),
-                        kline.get('boll_dn')
+                        kline.get('boll_down')
                     ))
                     
                     if cursor.rowcount == 1:
