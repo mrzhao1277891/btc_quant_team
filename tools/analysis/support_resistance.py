@@ -165,14 +165,14 @@ class SupportResistanceAnalyzerPhase1:
     
     # ==================== 1. 基础支撑阻力识别 ====================
     
-    def find_swing_points(self, prices: List[float], window: int = 5, min_amplitude: float = 0.01) -> Tuple[List[int], List[int]]:
+    def find_swing_points(self, prices: List[float], window: int = 3, min_amplitude: float = 0.003) -> Tuple[List[int], List[int]]:
         """
         优化版摆动点识别算法
         
         参数:
             prices: 价格序列
-            window: 观察窗口大小（默认5）
-            min_amplitude: 最小波动幅度（默认1%）
+            window: 观察窗口大小（默认3，降低以识别更多摆动点）
+            min_amplitude: 最小波动幅度（默认0.3%，BTC大价格适配）
         
         返回:
             (swing_highs, swing_lows): 摆动高点索引列表，摆动低点索引列表
@@ -187,32 +187,22 @@ class SupportResistanceAnalyzerPhase1:
         
         for i in range(window, n - window):
             # 检查是否为摆动高点
-            is_high = True
-            for j in range(1, window + 1):
-                if prices[i] <= prices[i - j] or prices[i] <= prices[i + j]:
-                    is_high = False
-                    break
+            is_high = all(prices[i] > prices[i - j] and prices[i] > prices[i + j]
+                          for j in range(1, window + 1))
             
             # 检查是否为摆动低点
-            is_low = True
-            for j in range(1, window + 1):
-                if prices[i] >= prices[i - j] or prices[i] >= prices[i + j]:
-                    is_low = False
-                    break
+            is_low = all(prices[i] < prices[i - j] and prices[i] < prices[i + j]
+                         for j in range(1, window + 1))
             
-            # 过滤微小波动
-            if is_high:
-                # 检查幅度
-                avg_surrounding = (sum(prices[i-window:i]) + sum(prices[i+1:i+window+1])) / (window * 2)
+            # 过滤微小波动（用周围均值计算相对幅度）
+            if is_high or is_low:
+                avg_surrounding = (sum(prices[i - window:i]) + sum(prices[i + 1:i + window + 1])) / (window * 2)
+                if avg_surrounding == 0:
+                    continue
                 amplitude = abs(prices[i] - avg_surrounding) / avg_surrounding
-                if amplitude >= min_amplitude:
+                if is_high and amplitude >= min_amplitude:
                     swing_highs.append(i)
-            
-            if is_low:
-                # 检查幅度
-                avg_surrounding = (sum(prices[i-window:i]) + sum(prices[i+1:i+window+1])) / (window * 2)
-                amplitude = abs(prices[i] - avg_surrounding) / avg_surrounding
-                if amplitude >= min_amplitude:
+                if is_low and amplitude >= min_amplitude:
                     swing_lows.append(i)
         
         logger.info(f"识别到 {len(swing_highs)} 个摆动高点和 {len(swing_lows)} 个摆动低点")
@@ -261,6 +251,9 @@ class SupportResistanceAnalyzerPhase1:
             supports = []
             resistances = []
             
+            # 获取当前价格用于方向校正
+            current_price = closes[-1] if closes else 0
+            
             if use_optimizer and self.swing_optimizer is not None:
                 # 使用优化器识别摆动点
                 self._init_optimization_modules()
@@ -274,10 +267,11 @@ class SupportResistanceAnalyzerPhase1:
                     min_days=30
                 )
                 
-                # 构建支撑位（摆动低点）
+                # 摆动低点：价格下方 → 支撑，价格上方 → 阻力
                 for swing_low in swing_lows:
-                    supports.append({
-                        'price': swing_low['price'],
+                    price = swing_low['price']
+                    level = {
+                        'price': price,
                         'timestamp': swing_low['timestamp'],
                         'type': 'technical',
                         'subtype': 'swing_low_optimized',
@@ -288,12 +282,17 @@ class SupportResistanceAnalyzerPhase1:
                             'volume_ratio': swing_low.get('volume_ratio', 1),
                             'atr_ratio': swing_low.get('atr_ratio', 0)
                         }
-                    })
+                    }
+                    if price < current_price:
+                        supports.append(level)
+                    else:
+                        resistances.append(level)
                 
-                # 构建阻力位（摆动高点）
+                # 摆动高点：价格上方 → 阻力，价格下方 → 支撑
                 for swing_high in swing_highs:
-                    resistances.append({
-                        'price': swing_high['price'],
+                    price = swing_high['price']
+                    level = {
+                        'price': price,
                         'timestamp': swing_high['timestamp'],
                         'type': 'technical',
                         'subtype': 'swing_high_optimized',
@@ -304,7 +303,11 @@ class SupportResistanceAnalyzerPhase1:
                             'volume_ratio': swing_high.get('volume_ratio', 1),
                             'atr_ratio': swing_high.get('atr_ratio', 0)
                         }
-                    })
+                    }
+                    if price > current_price:
+                        resistances.append(level)
+                    else:
+                        supports.append(level)
                 
                 logger.info(f"{timeframe} 优化识别: {len(supports)}支撑, {len(resistances)}阻力")
             else:
@@ -312,8 +315,9 @@ class SupportResistanceAnalyzerPhase1:
                 swing_highs_idx, swing_lows_idx = self.find_swing_points(highs, window=3, min_amplitude=0.005)
                 
                 for idx in swing_lows_idx:
-                    supports.append({
-                        'price': lows[idx],
+                    price = lows[idx]
+                    level = {
+                        'price': price,
                         'timestamp': timestamps[idx],
                         'type': 'technical',
                         'subtype': 'swing_low',
@@ -326,11 +330,16 @@ class SupportResistanceAnalyzerPhase1:
                             'close': closes[idx],
                             'volume': volumes[idx]
                         }
-                    })
+                    }
+                    if price < current_price:
+                        supports.append(level)
+                    else:
+                        resistances.append(level)
                 
                 for idx in swing_highs_idx:
-                    resistances.append({
-                        'price': highs[idx],
+                    price = highs[idx]
+                    level = {
+                        'price': price,
                         'timestamp': timestamps[idx],
                         'type': 'technical',
                         'subtype': 'swing_high',
@@ -343,7 +352,11 @@ class SupportResistanceAnalyzerPhase1:
                             'close': closes[idx],
                             'volume': volumes[idx]
                         }
-                    })
+                    }
+                    if price > current_price:
+                        resistances.append(level)
+                    else:
+                        supports.append(level)
                 
                 logger.info(f"{timeframe} 原始识别: {len(supports)}支撑, {len(resistances)}阻力")
             
@@ -520,7 +533,7 @@ class SupportResistanceAnalyzerPhase1:
         try:
             cursor = self.connection.cursor(dictionary=True)
             
-            # 获取价格数据
+            # 获取价格数据（同时取当前价格）
             query = """
                 SELECT timestamp, close, volume
                 FROM klines 
@@ -541,10 +554,14 @@ class SupportResistanceAnalyzerPhase1:
             closes = [ensure_float(row['close']) for row in data]
             volumes = [ensure_float(row['volume']) for row in data]
             
+            # 当前价格取最新收盘价
+            current_price = closes[-1]
+            
             # 使用斐波那契计算器
             self._init_optimization_modules()
             if self.fib_calculator is None:
-                return {'supports': [], 'resistances': []}
+                # 无计算器时用简单方法：取近期高低点计算 fib 回撤
+                return self._calculate_simple_fibonacci(closes, current_price, timeframe)
             
             # 识别波段
             waves = self.fib_calculator.identify_waves(closes, volumes)
@@ -552,16 +569,67 @@ class SupportResistanceAnalyzerPhase1:
             # 计算斐波那契位
             fib_levels = self.fib_calculator.calculate_all_fibonacci_levels(waves)
             
-            # 添加时间框架信息
-            for level in fib_levels['supports'] + fib_levels['resistances']:
-                level['timeframe'] = timeframe
+            # 根据当前价格修正支撑/阻力方向
+            corrected_supports = []
+            corrected_resistances = []
             
-            logger.info(f"{timeframe} 斐波那契位: {len(fib_levels['supports'])}支撑, {len(fib_levels['resistances'])}阻力")
-            return fib_levels
+            for level in fib_levels.get('supports', []) + fib_levels.get('resistances', []):
+                level['timeframe'] = timeframe
+                price = level.get('price', 0)
+                if price <= 0:
+                    continue
+                if price < current_price:
+                    corrected_supports.append(level)
+                else:
+                    corrected_resistances.append(level)
+            
+            logger.info(f"{timeframe} 斐波那契位: {len(corrected_supports)}支撑, {len(corrected_resistances)}阻力")
+            return {'supports': corrected_supports, 'resistances': corrected_resistances}
             
         except Exception as e:
             logger.error(f"识别斐波那契位失败: {e}")
             return {'supports': [], 'resistances': []}
+    
+    def _calculate_simple_fibonacci(self, closes: List[float], current_price: float, timeframe: str) -> Dict[str, List[Dict]]:
+        """
+        无外部计算器时的简单斐波那契回撤计算
+        取近期最高/最低价计算标准回撤位
+        """
+        if len(closes) < 20:
+            return {'supports': [], 'resistances': []}
+        
+        recent = closes[-100:] if len(closes) >= 100 else closes
+        swing_high = max(recent)
+        swing_low = min(recent)
+        diff = swing_high - swing_low
+        
+        if diff <= 0:
+            return {'supports': [], 'resistances': []}
+        
+        # 标准斐波那契回撤比例
+        fib_ratios = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
+        
+        supports = []
+        resistances = []
+        
+        for ratio in fib_ratios:
+            # 下跌回撤位（从高点往下）
+            price = swing_high - diff * ratio
+            level = {
+                'price': round(price, 2),
+                'type': 'fibonacci',
+                'subtype': f'fib_{ratio}',
+                'timeframe': timeframe,
+                'base_strength': 2,
+                'metadata': {'ratio': ratio, 'swing_high': swing_high, 'swing_low': swing_low}
+            }
+            if price < current_price:
+                supports.append(level)
+            elif price > current_price:
+                resistances.append(level)
+        
+        logger.info(f"{timeframe} 简单斐波那契: {len(supports)}支撑, {len(resistances)}阻力")
+        return {'supports': supports, 'resistances': resistances}
     
     # ==================== 2. 多时间框架融合系统 ====================
     
@@ -784,32 +852,47 @@ class SupportResistanceAnalyzerPhase1:
         # 3. 计算综合ATR（使用4H ATR作为基准）
         base_atr = self.calculate_atr('4h', symbol)
         
-        # 4. 合并相近位点
-        merged_supports = self.merge_nearby_levels(all_supports, base_atr, atr_multiplier=1.0)
-        merged_resistances = self.merge_nearby_levels(all_resistances, base_atr, atr_multiplier=1.0)
+        # 4. 合并相近位点，合并后按当前价格重新校正方向
+        merged_supports_raw = self.merge_nearby_levels(all_supports, base_atr, atr_multiplier=1.0)
+        merged_resistances_raw = self.merge_nearby_levels(all_resistances, base_atr, atr_multiplier=1.0)
+        
+        # 合并后重新校正：支撑必须在当前价格下方，阻力必须在上方
+        merged_supports = []
+        merged_resistances = []
+        for level in merged_supports_raw:
+            if level.get('price', 0) < current_price:
+                merged_supports.append(level)
+            else:
+                merged_resistances.append(level)  # 合并后跑到上方，归为阻力
+        for level in merged_resistances_raw:
+            if level.get('price', 0) > current_price:
+                merged_resistances.append(level)
+            else:
+                merged_supports.append(level)  # 合并后跑到下方，归为支撑
         
         # 5. 运行成交量确认（可选）
         if self.volume_system is not None:
             self._init_optimization_modules()
             logger.info("🔍 运行成交量确认...")
             
-            # 获取4H价格数据用于成交量确认
-            price_data = self._get_price_data_for_volume('4h', symbol, 300)
-            if price_data:
-                confirmed_supports, confirmed_resistances = self.volume_system.integrate_with_support_resistance(
-                    support_levels=merged_supports,
-                    resistance_levels=merged_resistances,
-                    prices=price_data['closes'],
-                    highs=price_data['highs'],
-                    lows=price_data['lows'],
-                    closes=price_data['closes'],
-                    volumes=price_data['volumes'],
-                    timestamps=price_data['timestamps']
-                )
-                
-                # 使用确认后的位点
-                merged_supports = confirmed_supports
-                merged_resistances = confirmed_resistances
+            # 获取4H价格数据用于成交量确认，limit 与 fib 保持一致
+            price_data = self._get_price_data_for_volume('4h', symbol, 200)
+            if price_data and len(price_data['closes']) == len(price_data['volumes']):
+                try:
+                    confirmed_supports, confirmed_resistances = self.volume_system.integrate_with_support_resistance(
+                        support_levels=merged_supports,
+                        resistance_levels=merged_resistances,
+                        prices=price_data['closes'],
+                        highs=price_data['highs'],
+                        lows=price_data['lows'],
+                        closes=price_data['closes'],
+                        volumes=price_data['volumes'],
+                        timestamps=price_data['timestamps']
+                    )
+                    merged_supports = confirmed_supports
+                    merged_resistances = confirmed_resistances
+                except Exception as e:
+                    logger.warning(f"成交量确认失败，跳过: {e}")
         
         # 6. 计算综合强度评分
         scored_supports = [self.calculate_strength_score(level, 'support', current_price) 
@@ -817,9 +900,9 @@ class SupportResistanceAnalyzerPhase1:
         scored_resistances = [self.calculate_strength_score(level, 'resistance', current_price)
                              for level in merged_resistances]
         
-        # 6. 按强度排序
-        scored_supports.sort(key=lambda x: x.get('final_score', 0), reverse=True)
-        scored_resistances.sort(key=lambda x: x.get('final_score', 0), reverse=True)
+        # 6. 按强度排序，同分时距离近的优先
+        scored_supports.sort(key=lambda x: (-x.get('final_score', 0), -(x.get('price', 0))))
+        scored_resistances.sort(key=lambda x: (-x.get('final_score', 0), x.get('price', 0)))
         
         # 7. 过滤弱位点（降低门槛）
         # 原系统：评分<4过滤，新系统：归一化评分<0.3过滤
