@@ -142,6 +142,9 @@ class BTCDataInitializerTA:
                 matype=0        # 0=SMA, 1=EMA, 2=WMA, 3=DEMA, 4=TEMA, 5=TRIMA, 6=KAMA, 7=MAMA, 8=T3
             )
             
+            # ATR(14)
+            atr14 = talib.ATR(highs, lows, closes, timeperiod=14)
+            
             # 将计算结果赋回到K线数据
             for i in range(len(klines)):
                 if not np.isnan(ema7[i]):
@@ -178,6 +181,10 @@ class BTCDataInitializerTA:
                     klines[i]['boll_up'] = float(round(upperband[i], 4))
                 if not np.isnan(lowerband[i]):
                     klines[i]['boll_dn'] = float(round(lowerband[i], 4))
+                
+                # ATR(14)
+                if not np.isnan(atr14[i]):
+                    klines[i]['atr'] = float(round(atr14[i], 4))
             
             logger.info(f"✅ 使用TA-Lib计算了 {len(klines)} 条数据的指标")
             
@@ -211,6 +218,7 @@ class BTCDataInitializerTA:
                     dif, dea, macd,
                     rsi14, rsi6,
                     boll, boll_up, boll_md, boll_dn,
+                    atr,
                     create_time, update_time
                 ) VALUES (
                     %s, %s, %s,
@@ -219,6 +227,7 @@ class BTCDataInitializerTA:
                     %s, %s, %s,
                     %s, %s,
                     %s, %s, %s, %s,
+                    %s,
                     NOW(), NOW()
                 )
                 ON DUPLICATE KEY UPDATE
@@ -242,6 +251,7 @@ class BTCDataInitializerTA:
                     boll_up = VALUES(boll_up),
                     boll_md = VALUES(boll_md),
                     boll_dn = VALUES(boll_dn),
+                    atr = VALUES(atr),
                     update_time = NOW()
             """
             
@@ -274,7 +284,8 @@ class BTCDataInitializerTA:
                         kline.get('boll'),
                         kline.get('boll_up'),
                         kline.get('boll_md'),
-                        kline.get('boll_dn')
+                        kline.get('boll_dn'),
+                        kline.get('atr')
                     ))
                     
                     if cursor.rowcount == 1:
