@@ -851,37 +851,43 @@ class SupportResistanceAnalyzerPhase1:
         if not group:
             return {}
         
-        # 计算合并后的价格范围
         prices = [float(level['price']) for level in group]
-        min_price = min(prices)
-        max_price = max(prices)
         avg_price = sum(prices) / len(prices)
         
-        # 计算综合强度（取最大值）
         strengths = [self._extract_strength(level) for level in group]
         max_strength = max(strengths) if strengths else 0
         
-        # 收集时间框架信息
+        # 收集时间框架，取最高权重
         timeframes = set()
+        max_tf_weight = 1
         for level in group:
             if 'timeframe' in level:
                 timeframes.add(level['timeframe'])
+            tw = level.get('timeframe_weight', 1)
+            if tw > max_tf_weight:
+                max_tf_weight = tw
         
-        # 收集类型信息
         types = set()
         for level in group:
             if 'type' in level:
                 types.add(level['type'])
         
+        # 触碰次数累加（多个来源叠加）
+        total_touch = sum(level.get('touch_count', 0) for level in group)
+        
         return {
             'price': avg_price,
-            'price_range': [min_price, max_price],
+            'price_range': [min(prices), max(prices)],
             'strength': max_strength,
             'timeframes': list(timeframes),
             'types': list(types),
             'source_count': len(group),
             'sources': group,
-            'is_merged': True
+            'is_merged': True,
+            # 关键：保留权重和触碰信息供评分使用
+            'timeframe_weight': max_tf_weight,
+            'base_strength': max_strength,
+            'touch_count': total_touch,
         }
     
     def _extract_strength(self, level: Dict) -> int:
@@ -1009,29 +1015,8 @@ class SupportResistanceAnalyzerPhase1:
             else:
                 merged_supports.append(level)  # 合并后跑到下方，归为支撑
         
-        # 5. 运行成交量确认（可选）
-        if self.volume_system is not None:
-            self._init_optimization_modules()
-            logger.info("🔍 运行成交量确认...")
-            
-            # 获取4H价格数据用于成交量确认，limit 与 fib 保持一致
-            price_data = self._get_price_data_for_volume('4h', symbol, 200)
-            if price_data and len(price_data['closes']) == len(price_data['volumes']):
-                try:
-                    confirmed_supports, confirmed_resistances = self.volume_system.integrate_with_support_resistance(
-                        support_levels=merged_supports,
-                        resistance_levels=merged_resistances,
-                        prices=price_data['closes'],
-                        highs=price_data['highs'],
-                        lows=price_data['lows'],
-                        closes=price_data['closes'],
-                        volumes=price_data['volumes'],
-                        timestamps=price_data['timestamps']
-                    )
-                    merged_supports = confirmed_supports
-                    merged_resistances = confirmed_resistances
-                except Exception as e:
-                    logger.warning(f"成交量确认失败，跳过: {e}")
+        # 5. 成交量确认（当前跳过，volume_confirmation 模块会清空所有位点）
+        # TODO: 修复 volume_confirmation 的序列长度问题后再启用
         
         # 6. 计算综合强度评分
         scored_supports = [self.calculate_strength_score(level, 'support', current_price) 
@@ -1043,21 +1028,11 @@ class SupportResistanceAnalyzerPhase1:
         scored_supports.sort(key=lambda x: (-x.get('final_score', 0), -(x.get('price', 0))))
         scored_resistances.sort(key=lambda x: (-x.get('final_score', 0), x.get('price', 0)))
         
-        # 7. 过滤弱位点（降低门槛）
-        # 原系统：评分<4过滤，新系统：归一化评分<0.3过滤
-        strong_supports = []
-        for s in scored_supports:
-            score = s.get('final_score', 0)
-            norm_score = s.get('final_score_normalized', score/15.0)
-            if norm_score >= 0.3:  # 相当于原系统4.5分
-                strong_supports.append(s)
-        
-        strong_resistances = []
-        for r in scored_resistances:
-            score = r.get('final_score', 0)
-            norm_score = r.get('final_score_normalized', score/15.0)
-            if norm_score >= 0.3:
-                strong_resistances.append(r)
+        # 7. 过滤弱位点
+        strong_supports = [s for s in scored_supports
+                           if s.get('final_score_normalized', 0) >= 0.2]
+        strong_resistances = [r for r in scored_resistances
+                              if r.get('final_score_normalized', 0) >= 0.2]
         
         logger.info(f"✅ 分析完成: {len(strong_supports)}强支撑, {len(strong_resistances)}强阻力")
         
