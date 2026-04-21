@@ -94,6 +94,78 @@ class SupportResistanceAnalyzerPhase1:
         self.swing_optimizer = None
         self.fib_calculator = None
         self.volume_system = None
+        
+        # ================================================================
+        # 集中参数配置 —— 所有可调参数都在这里，修改后全局生效
+        # ================================================================
+        self.params = {
+            
+            # ── 摆动点识别 ──────────────────────────────────────────────
+            # 窗口大小：左右各看几根K线来判断极值点，越大越严格，识别的点越少
+            'swing_window': 3,
+            # 最小波动幅度：摆动点相对周围均值的最小涨跌幅，过滤噪音
+            # 0.003 = 0.3%，BTC 7万刀时约 210 刀
+            'swing_min_amplitude': 0.003,
+            # 原始方法（无优化器时）的最小幅度，稍高一点过滤更多噪音
+            'swing_min_amplitude_fallback': 0.005,
+            
+            # ── 斐波那契计算 ─────────────────────────────────────────────
+            # 各周期用于寻找近期波段的回溯K线数
+            'fib_lookback': {'1M': 24, '1w': 52, '1d': 120, '4h': 144},
+            # 波段最小振幅（相对幅度），低于此不计算 fib
+            'fib_min_wave_amplitude': 0.03,       # 3%
+            # 回撤比例列表（黄金分割 0.382/0.618 强度+1）
+            'fib_retracement_ratios': [0.236, 0.382, 0.5, 0.618, 0.786],
+            # 延伸比例列表
+            'fib_extension_ratios': [1.272, 1.618, 2.0],
+            
+            # ── 动态位（均线/布林带）────────────────────────────────────
+            # 历史触碰验证容差：均线价格 ± 此比例内算"触碰"
+            'dynamic_touch_tolerance': 0.01,      # 1%
+            # 触碰次数上限加成（每次+1强度，最多加此值）
+            'dynamic_touch_bonus_max': 2,
+            
+            # ── 心理位 ───────────────────────────────────────────────────
+            # 心理位扫描范围：当前价格 ± 此比例
+            'psych_range_pct': 0.20,              # ±20%
+            # 心理位间隔（整千）
+            'psych_interval': 1000,
+            # 重要心理位间隔（整五千，强度+1）
+            'psych_major_interval': 5000,
+            
+            # ── 位点合并 ─────────────────────────────────────────────────
+            # 合并容差 = ATR × 此倍数，越大合并越激进
+            'merge_atr_multiplier': 1.0,
+            
+            # ── 评分权重（四项之和应为 1.0）────────────────────────────
+            # 时间框架权威性：大周期位点更可靠
+            'score_weight_timeframe': 0.35,
+            # 触碰/置信度：历史验证次数越多越可靠
+            'score_weight_confidence': 0.35,
+            # 成交量确认：有量才有效
+            'score_weight_volume': 0.15,
+            # 距离当前价格：近的参考价值高，但不主导评分
+            'score_weight_distance': 0.15,
+            # 无成交量数据时的默认分（0~1）
+            'score_volume_default': 0.4,
+            
+            # ── 距离评分档位（distance_pct → score）────────────────────
+            # 格式：[(距离上限, 得分), ...]，从近到远
+            'score_distance_tiers': [
+                (0.03, 1.0),   # 3% 以内
+                (0.06, 0.8),   # 6% 以内
+                (0.10, 0.6),   # 10% 以内
+                (0.15, 0.4),   # 15% 以内
+                (0.25, 0.2),   # 25% 以内
+            ],
+            # 超出所有档位时的兜底分
+            'score_distance_fallback': 0.1,
+            
+            # ── 过滤门槛 ─────────────────────────────────────────────────
+            # 综合分析中过滤弱位点的归一化评分下限（0~1）
+            # 0.2 ≈ 原系统 3/15 分，调高则结果更精简，调低则结果更多
+            'filter_min_score': 0.2,
+        }
     
     def connect(self) -> bool:
         """连接到数据库"""
@@ -165,7 +237,7 @@ class SupportResistanceAnalyzerPhase1:
     
     # ==================== 1. 基础支撑阻力识别 ====================
     
-    def find_swing_points(self, prices: List[float], window: int = 3, min_amplitude: float = 0.003) -> Tuple[List[int], List[int]]:
+    def find_swing_points(self, prices: List[float], window: int = None, min_amplitude: float = None) -> Tuple[List[int], List[int]]:
         """
         优化版摆动点识别算法
         
@@ -178,6 +250,10 @@ class SupportResistanceAnalyzerPhase1:
             (swing_highs, swing_lows): 摆动高点索引列表，摆动低点索引列表
         """
         n = len(prices)
+        if window is None:
+            window = self.params['swing_window']
+        if min_amplitude is None:
+            min_amplitude = self.params['swing_min_amplitude']
         if n < window * 2 + 1:
             logger.warning(f"数据不足({n}条)，需要至少{window*2+1}条数据")
             return [], []
@@ -312,7 +388,11 @@ class SupportResistanceAnalyzerPhase1:
                 logger.info(f"{timeframe} 优化识别: {len(supports)}支撑, {len(resistances)}阻力")
             else:
                 # 使用原始方法
-                swing_highs_idx, swing_lows_idx = self.find_swing_points(highs, window=3, min_amplitude=0.005)
+                swing_highs_idx, swing_lows_idx = self.find_swing_points(
+                    highs,
+                    window=self.params['swing_window'],
+                    min_amplitude=self.params['swing_min_amplitude_fallback']
+                )
                 
                 for idx in swing_lows_idx:
                     price = lows[idx]
@@ -418,8 +498,8 @@ class SupportResistanceAnalyzerPhase1:
                 if level_price <= 0:
                     continue
                 
-                # 历史触碰验证：统计过去N根K线中价格在该均线附近（±1%）反转的次数
-                tolerance = level_price * 0.01
+                # 历史触碰验证：统计过去N根K线中价格在该均线附近反转的次数
+                tolerance = level_price * self.params['dynamic_touch_tolerance']
                 touch_count = 0
                 for i in range(1, len(hist_closes) - 1):
                     if abs(hist_closes[i] - level_price) <= tolerance:
@@ -429,7 +509,7 @@ class SupportResistanceAnalyzerPhase1:
                             touch_count += 1
                 
                 # 触碰次数加成强度（最多+2）
-                touch_bonus = min(touch_count, 2)
+                touch_bonus = min(touch_count, self.params['dynamic_touch_bonus_max'])
                 final_weight = defn['weight'] + touch_bonus
                 
                 level_info = {
@@ -481,7 +561,7 @@ class SupportResistanceAnalyzerPhase1:
             minor_levels = [50, 10]
         
         # 计算当前价格±20%范围内的心理位
-        lookback_percent = 0.2
+        lookback_percent = self.params['psych_range_pct']
         min_price = current_price * (1 - lookback_percent)
         max_price = current_price * (1 + lookback_percent)
         
@@ -489,17 +569,17 @@ class SupportResistanceAnalyzerPhase1:
         resistances = []
         
         # 生成主要心理位
-        for base in range(int(min_price // 1000) * 1000, int(max_price // 1000) * 1000 + 1000, 1000):
+        for base in range(int(min_price // self.params['psych_interval']) * self.params['psych_interval'],
+                          int(max_price // self.params['psych_interval']) * self.params['psych_interval'] + self.params['psych_interval'],
+                          self.params['psych_interval']):
             if min_price <= base <= max_price:
-                # 判断是支撑还是阻力
                 if current_price > base:
                     level_type = 'support'
                 else:
                     level_type = 'resistance'
                 
-                # 评估强度
-                strength = 2  # 基础强度
-                if base % 5000 == 0:  # 重要五千关口
+                strength = 2
+                if base % self.params['psych_major_interval'] == 0:
                     strength = 3
                 if abs(current_price - base) / current_price < 0.01:  # 接近当前价格
                     strength += 1
@@ -508,7 +588,7 @@ class SupportResistanceAnalyzerPhase1:
                     'price': float(base),
                     'timestamp': int(datetime.now().timestamp() * 1000),
                     'type': 'psychological',
-                    'subtype': 'major' if base % 5000 == 0 else 'standard',
+                    'subtype': 'major' if base % self.params['psych_major_interval'] == 0 else 'standard',
                     'timeframe': 'all',  # 心理位适用于所有时间框架
                     'base_strength': strength,
                     'metadata': {
@@ -605,7 +685,7 @@ class SupportResistanceAnalyzerPhase1:
             return {'supports': [], 'resistances': []}
 
         # 根据时间框架决定用多少根K线来找近期波段
-        lookback_map = {'1M': 24, '1w': 52, '1d': 120, '4h': 200}
+        lookback_map = self.params['fib_lookback']
         lookback = lookback_map.get(timeframe, 100)
         recent = closes[-lookback:] if len(closes) >= lookback else closes
 
@@ -629,8 +709,8 @@ class SupportResistanceAnalyzerPhase1:
             last_high_idx, last_high_val = local_highs[-1]
             last_low_idx, last_low_val = local_lows[-1]
 
-            # 振幅过滤：波段幅度至少3%
-            min_amplitude = 0.03
+            # 振幅过滤：波段幅度低于阈值不计算
+            min_amplitude = self.params['fib_min_wave_amplitude']
             waves = []
 
             if last_high_idx > last_low_idx:
@@ -668,8 +748,8 @@ class SupportResistanceAnalyzerPhase1:
                 waves = [('down', swing_high, swing_low)]
 
         # 标准斐波那契比例
-        retracement_ratios = [0.236, 0.382, 0.5, 0.618, 0.786]  # 回撤
-        extension_ratios   = [1.272, 1.618, 2.0]                 # 延伸
+        retracement_ratios = self.params['fib_retracement_ratios']
+        extension_ratios   = self.params['fib_extension_ratios']
 
         supports = []
         resistances = []
@@ -998,8 +1078,8 @@ class SupportResistanceAnalyzerPhase1:
         base_atr = self.calculate_atr('4h', symbol)
         
         # 4. 合并相近位点，合并后按当前价格重新校正方向
-        merged_supports_raw = self.merge_nearby_levels(all_supports, base_atr, atr_multiplier=1.0)
-        merged_resistances_raw = self.merge_nearby_levels(all_resistances, base_atr, atr_multiplier=1.0)
+        merged_supports_raw = self.merge_nearby_levels(all_supports, base_atr, atr_multiplier=self.params['merge_atr_multiplier'])
+        merged_resistances_raw = self.merge_nearby_levels(all_resistances, base_atr, atr_multiplier=self.params['merge_atr_multiplier'])
         
         # 合并后重新校正：支撑必须在当前价格下方，阻力必须在上方
         merged_supports = []
@@ -1030,9 +1110,9 @@ class SupportResistanceAnalyzerPhase1:
         
         # 7. 过滤弱位点
         strong_supports = [s for s in scored_supports
-                           if s.get('final_score_normalized', 0) >= 0.2]
+                           if s.get('final_score_normalized', 0) >= self.params['filter_min_score']]
         strong_resistances = [r for r in scored_resistances
-                              if r.get('final_score_normalized', 0) >= 0.2]
+                              if r.get('final_score_normalized', 0) >= self.params['filter_min_score']]
         
         logger.info(f"✅ 分析完成: {len(strong_supports)}强支撑, {len(strong_resistances)}强阻力")
         
@@ -1121,7 +1201,7 @@ class SupportResistanceAnalyzerPhase1:
         # 1. 时间框架权威性（35%）
         timeframe_weight = level.get('timeframe_weight', 1)
         timeframe_score = timeframe_weight / 4.0
-        score += timeframe_score * 0.35
+        score += timeframe_score * self.params['score_weight_timeframe']
         score_factors['timeframe'] = timeframe_score
         
         # 2. 触碰次数 / 置信度（35%）
@@ -1138,7 +1218,7 @@ class SupportResistanceAnalyzerPhase1:
         else:
             confidence_score = 0.4
         
-        score += confidence_score * 0.35
+        score += confidence_score * self.params['score_weight_confidence']
         score_factors['confidence'] = confidence_score
         
         # 3. 成交量确认（15%）
@@ -1146,31 +1226,24 @@ class SupportResistanceAnalyzerPhase1:
             vol_conf = level['volume_confirmation']
             volume_score = vol_conf.get('confidence', 0.3) if vol_conf.get('confirmed', False) else 0.2
         else:
-            volume_score = 0.4  # 无成交量数据时给中性分，不拉高也不拉低
+            volume_score = self.params['score_volume_default']
         
-        score += volume_score * 0.15
+        score += volume_score * self.params['score_weight_volume']
         score_factors['volume'] = volume_score
         
         # 4. 距离当前价格（15%）—— 仅作参考，不主导
         price = level.get('price', 0)
         if current_price > 0 and price > 0:
             distance_pct = abs(current_price - price) / current_price
-            if distance_pct <= 0.03:
-                distance_score = 1.0
-            elif distance_pct <= 0.06:
-                distance_score = 0.8
-            elif distance_pct <= 0.10:
-                distance_score = 0.6
-            elif distance_pct <= 0.15:
-                distance_score = 0.4
-            elif distance_pct <= 0.25:
-                distance_score = 0.2
-            else:
-                distance_score = 0.1
+            distance_score = self.params['score_distance_fallback']
+            for threshold, dscore in self.params['score_distance_tiers']:
+                if distance_pct <= threshold:
+                    distance_score = dscore
+                    break
         else:
             distance_score = 0.4
         
-        score += distance_score * 0.15
+        score += distance_score * self.params['score_weight_distance']
         score_factors['distance'] = distance_score
         
         # 归一化到 0-1，转换为 1-15 分
