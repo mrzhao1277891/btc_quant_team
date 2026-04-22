@@ -40,7 +40,7 @@ class BTCDataInitializerTA:
         
         # 数据采集配置
         self.data_config = {
-            '4h': {'limit': 600, 'interval': '4h'},
+            '4h': {'limit': 4380, 'interval': '4h'},
             '1d': {'limit': 600, 'interval': '1d'},
             '1w': {'limit': 250, 'interval': '1w'},
             '1M': {'limit': 60, 'interval': '1M'}
