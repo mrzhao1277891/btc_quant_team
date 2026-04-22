@@ -154,14 +154,16 @@ class SupportResistanceAnalyzerPhase1:
             'merge_atr_multiplier': 1.0,
             
             # ── 评分权重（四项之和应为 1.0）────────────────────────────
-            # 时间框架权威性：大周期位点更可靠
-            'score_weight_timeframe': 0.35,
-            # 触碰/置信度：历史验证次数越多越可靠
-            'score_weight_confidence': 0.35,
-            # 成交量确认：有量才有效
-            'score_weight_volume': 0.15,
-            # 距离当前价格：近的参考价值高，但不主导评分
-            'score_weight_distance': 0.15,
+            # 触碰/置信度：历史验证次数，最能预测位点有效性
+            'score_weight_confidence': 0.50,
+            # 多时间框架共振：同一价格区域在多个周期都有位点，可靠性大幅提升
+            'score_weight_confluence': 0.30,
+            # 时间框架权威性：大周期位点更可靠（降权，避免月线固定高分）
+            'score_weight_timeframe': 0.20,
+            # 距离当前价格：去掉（在回测触及判定里已经保证了距离，这里加反而有害）
+            'score_weight_distance': 0.0,
+            # 成交量确认：暂无数据，权重归零
+            'score_weight_volume': 0.0,
             # 无成交量数据时的默认分（0~1）
             'score_volume_default': 0.4,
             
@@ -1252,77 +1254,64 @@ class SupportResistanceAnalyzerPhase1:
     def calculate_strength_score(self, level: Dict, level_type: str, current_price: float) -> Dict:
         """
         综合强度评分
-        
+
         权重分配（总100%）：
-        - 时间框架权威性  35%  （大周期更可靠）
-        - 触碰/置信度     35%  （历史验证次数）
-        - 成交量确认      15%  （有量才有效）
-        - 距离当前价格    15%  （参考价值，不主导评分）
+        - 触碰/置信度         50%  （历史验证次数，最能预测位点有效性）
+        - 多时间框架共振      30%  （同一价格区域在多个周期都有位点）
+        - 时间框架权威性      20%  （大周期更可靠，但不再主导评分）
         """
         score = 0.0
         score_factors = {}
-        
-        # 1. 时间框架权威性（35%）
-        timeframe_weight = level.get('timeframe_weight', 1)
-        timeframe_score = timeframe_weight / 4.0
-        score += timeframe_score * self.params['score_weight_timeframe']
-        score_factors['timeframe'] = timeframe_score
-        
-        # 2. 触碰次数 / 置信度（35%）
+
+        # 1. 触碰/置信度（50%）
         if 'confidence' in level:
             confidence_score = float(level['confidence'])
         elif 'touch_count' in level:
-            # 触碰1次=0.3，2次=0.6，3次=0.8，4次以上=1.0
+            # 触碰1次=0.3，2次=0.55，3次=0.75，4次=0.9，5次以上=1.0
             tc = level['touch_count']
-            confidence_score = min(0.25 * tc + 0.05, 1.0)
+            confidence_score = min(0.2 * tc + 0.1, 1.0)
         elif 'base_strength' in level:
             confidence_score = min(level['base_strength'] / 5.0, 1.0)
         elif 'importance' in level:
             confidence_score = level['importance'] / 3.0
         else:
-            confidence_score = 0.4
-        
+            confidence_score = 0.3
         score += confidence_score * self.params['score_weight_confidence']
         score_factors['confidence'] = confidence_score
-        
-        # 3. 成交量确认（15%）
-        if 'volume_confirmation' in level:
-            vol_conf = level['volume_confirmation']
-            volume_score = vol_conf.get('confidence', 0.3) if vol_conf.get('confirmed', False) else 0.2
-        else:
-            volume_score = self.params['score_volume_default']
-        
-        score += volume_score * self.params['score_weight_volume']
-        score_factors['volume'] = volume_score
-        
-        # 4. 距离当前价格（15%）—— 仅作参考，不主导
-        price = level.get('price', 0)
-        if current_price > 0 and price > 0:
-            distance_pct = abs(current_price - price) / current_price
-            distance_score = self.params['score_distance_fallback']
-            for threshold, dscore in self.params['score_distance_tiers']:
-                if distance_pct <= threshold:
-                    distance_score = dscore
-                    break
-        else:
-            distance_score = 0.4
-        
-        score += distance_score * self.params['score_weight_distance']
-        score_factors['distance'] = distance_score
-        
+
+        # 2. 多时间框架共振（30%）
+        # source_count：合并时来自几个独立位点
+        # timeframes：覆盖几个不同周期
+        source_count = level.get('source_count', 1)
+        timeframes   = level.get('timeframes', [level.get('timeframe', '')])
+        tf_count     = len(set(timeframes)) if timeframes else 1
+        # source_count 越多、跨越周期越多，共振越强
+        # 1个来源=0.2，2个=0.5，3个=0.75，4个以上=1.0
+        confluence_score = min(0.25 * source_count, 1.0)
+        # 跨周期加成：跨2个周期+0.1，跨3个+0.2，跨4个+0.3
+        confluence_score = min(confluence_score + max(0, tf_count - 1) * 0.1, 1.0)
+        score += confluence_score * self.params['score_weight_confluence']
+        score_factors['confluence'] = confluence_score
+
+        # 3. 时间框架权威性（20%）
+        timeframe_weight = level.get('timeframe_weight', 1)
+        timeframe_score  = timeframe_weight / 4.0
+        score += timeframe_score * self.params['score_weight_timeframe']
+        score_factors['timeframe'] = timeframe_score
+
         # 归一化到 0-1，转换为 1-15 分
         final_score = max(0.0, min(score, 1.0))
         final_score_15 = int(final_score * 14) + 1
-        
+
         strength_level = self._map_score_to_level(final_score_15)
-        
+
         level['final_score'] = final_score_15
         level['final_score_normalized'] = final_score
         level['score_factors'] = score_factors
         level['strength_level'] = strength_level['level']
         level['strength_symbol'] = strength_level['symbol']
         level['stop_buffer_multiplier'] = strength_level['buffer_multiplier']
-        
+
         return level
     
     def _calculate_timeframe_score(self, level: Dict) -> int:
