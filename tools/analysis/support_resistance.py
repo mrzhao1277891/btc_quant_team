@@ -546,13 +546,13 @@ class SupportResistanceAnalyzerPhase1:
             
             # 提取历史价格序列（正序）用于触碰验证
             history = list(reversed(data))  # 从旧到新
-            hist_highs = [ensure_float(r['high']) for r in history]
-            hist_lows = [ensure_float(r['low']) for r in history]
+            hist_highs  = [ensure_float(r['high'])  for r in history]
+            hist_lows   = [ensure_float(r['low'])   for r in history]
             hist_closes = [ensure_float(r['close']) for r in history]
-            
+
             supports = []
             resistances = []
-            
+
             for defn in dynamic_level_defs:
                 raw_price = latest.get(defn['key'])
                 if raw_price is None:
@@ -560,16 +560,22 @@ class SupportResistanceAnalyzerPhase1:
                 level_price = ensure_float(raw_price)
                 if level_price <= 0:
                     continue
-                
-                # 历史触碰验证：用 high/low 判断是否触及，用收盘价方向判断是否反转
-                tolerance = level_price * self.params['dynamic_touch_tolerance']
+
+                # 提取每根K线对应的历史均线值（用各自那根K线的均线，而非当前固定值）
+                hist_levels = [ensure_float(r.get(defn['key']) or 0) for r in history]
+
+                # 历史触碰验证：用 high/low 判断是否触及当时的均线，用收盘价方向判断是否反转
                 touch_count = 0
                 for i in range(1, len(hist_closes) - 1):
-                    # 触及判断：high >= 均线 - 容差 且 low <= 均线 + 容差
-                    touched = (hist_highs[i] >= level_price - tolerance and
-                               hist_lows[i] <= level_price + tolerance)
+                    hl = hist_levels[i]
+                    if hl <= 0:
+                        continue
+                    tolerance = hl * self.params['dynamic_touch_tolerance']
+                    # 触及判断：K线的high/low穿过当时的均线附近
+                    touched = (hist_highs[i] >= hl - tolerance and
+                               hist_lows[i]  <= hl + tolerance)
                     if touched:
-                        # 反转判断：收盘价前后方向不同（形成局部高低点）
+                        # 反转判断：收盘价前后方向不同
                         reversed_up = hist_closes[i-1] < hist_closes[i] and hist_closes[i] > hist_closes[i+1]
                         reversed_dn = hist_closes[i-1] > hist_closes[i] and hist_closes[i] < hist_closes[i+1]
                         if reversed_up or reversed_dn:

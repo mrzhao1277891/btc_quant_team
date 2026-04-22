@@ -45,13 +45,17 @@ def ensure_float(v):
 # ──────────────────────────────────────────────
 BACKTEST_CONFIG = {
     # 触及判定：价格进入位点 ± touch_atr_mult × ATR 范围内算触及
-    'touch_atr_mult': 0.5,
+    'touch_atr_mult': 0.3,
     # 止损距离：位点 ± stop_atr_mult × ATR
     'stop_atr_mult': 1.0,
+    # 限价单入场缓冲：在位点 ± entry_buffer_mult × ATR 处挂单
+    # 做多：sup['price'] + entry_buffer_mult × ATR（支撑位稍上方）
+    # 做空：res['price'] - entry_buffer_mult × ATR（阻力位稍下方）
+    'entry_buffer_mult': 0.1,
     # 最小盈亏比：低于此不入场
     'min_rr': 2.0,
     # 最大持仓根数（4H K线数），超过强制平仓
-    'max_bars': 12,          # 12根4H = 48小时
+    'max_bars': 24,          # 24根4H = 96小时（4天）
     # 位点最低评分（final_score，1-15分），低于此不交易
     'min_score': 7,
     # 反弹/回落成立的最小幅度（相对入场价）
@@ -274,7 +278,7 @@ class SRBacktester:
             if i < next_trade_idx:
                 continue
 
-            # ── 做多：检查支撑位触及 ──────────────────────────────────
+            # ── 做多：检查支撑位触及，挂限价单 ──────────────────────
             for sup in supports:
                 if sup.get('score', 0) < self.cfg['min_score']:
                     continue
@@ -282,13 +286,14 @@ class SRBacktester:
                 if abs(bar['low'] - sup['price']) > touch_zone:
                     continue
 
-                entry  = bar['close']
-                stop   = sup['price'] - atr * self.cfg['stop_atr_mult']
+                # 限价单入场：支撑位稍上方，止损在支撑位下方 1×ATR
+                entry = sup['price'] + atr * self.cfg['entry_buffer_mult']
+                stop  = sup['price'] - atr * self.cfg['stop_atr_mult']
                 stop_dist = entry - stop
                 if stop_dist <= 0:
                     continue
 
-                # 目标：最近阻力位 或 entry + 2×stop_dist
+                # 目标：最近阻力位 或 entry + min_rr×stop_dist
                 default_target = entry + self.cfg['min_rr'] * stop_dist
                 res_above = [r for r in resistances if r['price'] > entry]
                 if res_above:
@@ -302,7 +307,11 @@ class SRBacktester:
                 if rr < self.cfg['min_rr']:
                     continue
 
+                # 下一根K线判断限价单是否成交（low <= entry 才成交）
                 future = all_bars[i + 1: i + 1 + self.cfg['max_bars']]
+                if not future or future[0]['low'] > entry:
+                    continue  # 限价单未成交，跳过
+
                 trade = self._simulate_trade('long', entry, stop, target, future)
                 trade.update({
                     'bar_idx': i,
@@ -313,11 +322,10 @@ class SRBacktester:
                     'atr': atr,
                 })
                 trades.append(trade)
-                # 下一笔开仓必须等这笔出场后
                 next_trade_idx = i + 1 + trade['bars_held']
                 break
 
-            # ── 做空：检查阻力位触及 ──────────────────────────────────
+            # ── 做空：检查阻力位触及，挂限价单 ──────────────────────
             for res in resistances:
                 if res.get('score', 0) < self.cfg['min_score']:
                     continue
@@ -325,8 +333,9 @@ class SRBacktester:
                 if abs(bar['high'] - res['price']) > touch_zone:
                     continue
 
-                entry  = bar['close']
-                stop   = res['price'] + atr * self.cfg['stop_atr_mult']
+                # 限价单入场：阻力位稍下方，止损在阻力位上方 1×ATR
+                entry = res['price'] - atr * self.cfg['entry_buffer_mult']
+                stop  = res['price'] + atr * self.cfg['stop_atr_mult']
                 stop_dist = stop - entry
                 if stop_dist <= 0:
                     continue
@@ -344,7 +353,11 @@ class SRBacktester:
                 if rr < self.cfg['min_rr']:
                     continue
 
+                # 下一根K线判断限价单是否成交（high >= entry 才成交）
                 future = all_bars[i + 1: i + 1 + self.cfg['max_bars']]
+                if not future or future[0]['high'] < entry:
+                    continue  # 限价单未成交，跳过
+
                 trade = self._simulate_trade('short', entry, stop, target, future)
                 trade.update({
                     'bar_idx': i,

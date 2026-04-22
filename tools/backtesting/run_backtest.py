@@ -32,8 +32,8 @@ def main():
     parser.add_argument('--password',  default='')
     parser.add_argument('--database',  default='btc_assistant')
     parser.add_argument('--symbol',    default='BTCUSDT')
-    parser.add_argument('--min-score', type=int, default=7,
-                        help='位点最低评分（1-15），默认 7')
+    parser.add_argument('--min-score', type=int, default=10,
+                        help='位点最低评分（1-15），默认 10')
     parser.add_argument('--min-rr',    type=float, default=2.0,
                         help='最小盈亏比，默认 2.0')
     parser.add_argument('--max-bars',  type=int, default=12,
