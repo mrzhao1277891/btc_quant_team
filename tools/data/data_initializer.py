@@ -60,42 +60,70 @@ class BTCDataInitializerTA:
             return False
     
     def fetch_binance_klines(self, symbol: str, interval: str, limit: int) -> List[Dict]:
-        """从币安获取K线数据"""
+        """从币安获取K线数据，自动分页处理超过1000条的请求"""
+        BINANCE_MAX_LIMIT = 1000  # 币安单次请求上限
+        url = f"{self.binance_api}/api/v3/klines"
+        all_klines = []
+
+        logger.info(f"📡 获取数据: {symbol} {interval} 目标数量: {limit}")
+
         try:
-            url = f"{self.binance_api}/api/v3/klines"
-            params = {
-                'symbol': symbol,
-                'interval': interval,
-                'limit': limit
-            }
-            
-            logger.info(f"📡 获取数据: {symbol} {interval} 数量: {limit}")
-            response = requests.get(url, params=params, timeout=30)
-            response.raise_for_status()
-            data = response.json()
-            
-            klines = []
-            for item in data:
-                kline = {
-                    'timestamp': int(item[0]),  # 开盘时间戳
+            end_time = None  # 第一次不传 endTime，从最新往前取
+
+            while len(all_klines) < limit:
+                batch_size = min(BINANCE_MAX_LIMIT, limit - len(all_klines))
+                params = {
                     'symbol': symbol,
-                    'timeframe': interval,
-                    'open': float(item[1]),
-                    'high': float(item[2]),
-                    'low': float(item[3]),
-                    'close': float(item[4]),
-                    'volume': float(item[5]),
-                    'close_time': int(item[6]),  # 收盘时间戳
-                    'quote_volume': float(item[7]),
-                    'trades': int(item[8]),
-                    'taker_buy_base': float(item[9]),
-                    'taker_buy_quote': float(item[10])
+                    'interval': interval,
+                    'limit': batch_size
                 }
-                klines.append(kline)
-            
-            logger.info(f"✅ 获取到 {len(klines)} 条K线数据")
-            return klines
-            
+                if end_time is not None:
+                    params['endTime'] = end_time
+
+                response = requests.get(url, params=params, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+
+                if not data:
+                    break
+
+                batch = []
+                for item in data:
+                    kline = {
+                        'timestamp': int(item[0]),
+                        'symbol': symbol,
+                        'timeframe': interval,
+                        'open': float(item[1]),
+                        'high': float(item[2]),
+                        'low': float(item[3]),
+                        'close': float(item[4]),
+                        'volume': float(item[5]),
+                        'close_time': int(item[6]),
+                        'quote_volume': float(item[7]),
+                        'trades': int(item[8]),
+                        'taker_buy_base': float(item[9]),
+                        'taker_buy_quote': float(item[10])
+                    }
+                    batch.append(kline)
+
+                # 本批数据插到头部（往前翻页，旧数据在前）
+                all_klines = batch + all_klines
+
+                logger.info(f"  📦 已获取 {len(all_klines)}/{limit} 条 (本批 {len(batch)} 条)")
+
+                # 如果返回条数不足一批，说明已到最早数据，停止
+                if len(batch) < batch_size:
+                    break
+
+                # 下一批的 endTime = 本批最早那条的 timestamp - 1ms
+                end_time = batch[0]['timestamp'] - 1
+
+                # 避免触发 API 限流
+                time.sleep(0.3)
+
+            logger.info(f"✅ 共获取 {len(all_klines)} 条K线数据")
+            return all_klines
+
         except Exception as e:
             logger.error(f"❌ 获取数据失败: {e}")
             return []
@@ -471,10 +499,8 @@ def main():
             # 初始化数据
             print(f"\n📥 开始获取数据 (使用TA-Lib计算指标)...")
             print(f"   配置:")
-            print(f"     - 4h周期: 600条")
-            print(f"     - 1d周期: 600条") 
-            print(f"     - 1w周期: 250条")
-            print(f"     - 1M周期: 60条")
+            for tf, cfg in initializer.data_config.items():
+                print(f"     - {tf}周期: {cfg['limit']}条")
             print()
             
             total = initializer.initialize_data(args.symbol, args.force)
