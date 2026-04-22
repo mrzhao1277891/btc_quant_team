@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 import json
 import sys
 import os
+import requests
 from decimal import Decimal
 
 # 添加当前目录到路径，确保能导入优化模块
@@ -103,8 +104,19 @@ class SupportResistanceAnalyzerPhase1:
         self.params = {
             
             # ── 摆动点识别 ──────────────────────────────────────────────
-            # 窗口大小：左右各看几根K线来判断极值点，越大越严格，识别的点越少
+            # 各周期窗口大小：左右各看几根K线来判断极值点
+            # 4h=3(±12h)  1d=5(±5天)  1w=4(±4周)  1M=3(±3个月)
+            'swing_window_by_tf': {
+                '4h': 3,
+                '1d': 5,
+                '1w': 4,
+                '1M': 3,
+            },
+            # 兜底默认值（未匹配到周期时使用）
             'swing_window': 3,
+            # 实盘模式：True=最近window根K线用纯左侧确认，False=严格左右两侧（回测用）
+            # before_ts不为None时自动切换为False（回测模式）
+            'realtime_mode': True,
             # 最小波动幅度：摆动点相对周围均值的最小涨跌幅，过滤噪音
             # 0.003 = 0.3%，BTC 7万刀时约 210 刀
             'swing_min_amplitude': 0.003,
@@ -241,17 +253,16 @@ class SupportResistanceAnalyzerPhase1:
     
     # ==================== 1. 基础支撑阻力识别 ====================
     
-    def find_swing_points(self, prices: List[float], window: int = None, min_amplitude: float = None) -> Tuple[List[int], List[int]]:
+    def find_swing_points(self, prices: List[float], window: int = None,
+                          min_amplitude: float = None,
+                          realtime_mode: bool = False) -> Tuple[List[int], List[int]]:
         """
-        优化版摆动点识别算法
-        
-        参数:
-            prices: 价格序列
-            window: 观察窗口大小（默认3，降低以识别更多摆动点）
-            min_amplitude: 最小波动幅度（默认0.3%，BTC大价格适配）
-        
-        返回:
-            (swing_highs, swing_lows): 摆动高点索引列表，摆动低点索引列表
+        摆动点识别算法
+
+        realtime_mode=True 时，最近 window 根 K 线改用纯左侧确认：
+          - 高点：prices[i] 是左侧 window 根内的最高点，且比前一根高
+          - 低点：prices[i] 是左侧 window 根内的最低点，且比前一根低
+        这样实盘时不会因为缺少右侧数据而漏掉最新摆动点。
         """
         n = len(prices)
         if window is None:
@@ -261,20 +272,17 @@ class SupportResistanceAnalyzerPhase1:
         if n < window * 2 + 1:
             logger.warning(f"数据不足({n}条)，需要至少{window*2+1}条数据")
             return [], []
-        
+
         swing_highs = []
         swing_lows = []
-        
+
+        # 标准区间：有完整左右两侧数据
         for i in range(window, n - window):
-            # 检查是否为摆动高点
             is_high = all(prices[i] > prices[i - j] and prices[i] > prices[i + j]
                           for j in range(1, window + 1))
-            
-            # 检查是否为摆动低点
-            is_low = all(prices[i] < prices[i - j] and prices[i] < prices[i + j]
-                         for j in range(1, window + 1))
-            
-            # 过滤微小波动（用周围均值计算相对幅度）
+            is_low  = all(prices[i] < prices[i - j] and prices[i] < prices[i + j]
+                          for j in range(1, window + 1))
+
             if is_high or is_low:
                 avg_surrounding = (sum(prices[i - window:i]) + sum(prices[i + 1:i + window + 1])) / (window * 2)
                 if avg_surrounding == 0:
@@ -284,8 +292,31 @@ class SupportResistanceAnalyzerPhase1:
                     swing_highs.append(i)
                 if is_low and amplitude >= min_amplitude:
                     swing_lows.append(i)
-        
-        logger.info(f"识别到 {len(swing_highs)} 个摆动高点和 {len(swing_lows)} 个摆动低点")
+
+        # 实盘模式：对最近 window 根 K 线补充纯左侧确认
+        if realtime_mode and n > window:
+            for i in range(n - window, n):
+                if i < window:
+                    continue
+                left = prices[max(0, i - window): i]
+                if not left:
+                    continue
+
+                is_high = prices[i] == max(left + [prices[i]]) and prices[i] > prices[i - 1]
+                is_low  = prices[i] == min(left + [prices[i]]) and prices[i] < prices[i - 1]
+
+                if is_high or is_low:
+                    avg_left = sum(left) / len(left)
+                    if avg_left == 0:
+                        continue
+                    amplitude = abs(prices[i] - avg_left) / avg_left
+                    if is_high and amplitude >= min_amplitude:
+                        swing_highs.append(i)
+                    if is_low and amplitude >= min_amplitude:
+                        swing_lows.append(i)
+
+        logger.info(f"识别到 {len(swing_highs)} 个摆动高点和 {len(swing_lows)} 个摆动低点"
+                    f"{'（含实盘左侧确认）' if realtime_mode else ''}")
         return swing_highs, swing_lows
     
     def identify_technical_levels(self, timeframe: str, symbol: str = 'BTCUSDT', use_optimizer: bool = True) -> Dict[str, List[Dict]]:
@@ -342,6 +373,10 @@ class SupportResistanceAnalyzerPhase1:
             
             # 获取当前价格用于方向校正
             current_price = closes[-1] if closes else 0
+
+            # 按周期取对应 window；回测模式（before_ts不为None）强制关闭实盘左侧确认
+            tf_window = self.params['swing_window_by_tf'].get(timeframe, self.params['swing_window'])
+            realtime_mode = self.params['realtime_mode'] and (self.before_ts is None)
             
             if use_optimizer and self.swing_optimizer is not None:
                 # 使用优化器识别摆动点
@@ -403,8 +438,9 @@ class SupportResistanceAnalyzerPhase1:
                 # 使用原始方法
                 swing_highs_idx, swing_lows_idx = self.find_swing_points(
                     highs,
-                    window=self.params['swing_window'],
-                    min_amplitude=self.params['swing_min_amplitude_fallback']
+                    window=tf_window,
+                    min_amplitude=self.params['swing_min_amplitude_fallback'],
+                    realtime_mode=realtime_mode
                 )
                 
                 for idx in swing_lows_idx:
@@ -469,7 +505,7 @@ class SupportResistanceAnalyzerPhase1:
             
             if self.before_ts:
                 query = """
-                    SELECT timestamp, close,
+                    SELECT timestamp, high, low, close,
                            ema7, ema12, ema25, ema50,
                            boll, boll_up, boll_md, boll_dn
                     FROM klines
@@ -480,7 +516,7 @@ class SupportResistanceAnalyzerPhase1:
                 cursor.execute(query, (symbol, timeframe, self.before_ts))
             else:
                 query = """
-                    SELECT timestamp, close,
+                    SELECT timestamp, high, low, close,
                            ema7, ema12, ema25, ema50,
                            boll, boll_up, boll_md, boll_dn
                     FROM klines
@@ -508,8 +544,10 @@ class SupportResistanceAnalyzerPhase1:
                 {'key': 'boll_dn', 'name': 'BOLL_DN', 'weight': 2},
             ]
             
-            # 提取历史收盘价序列（正序）用于触碰验证
+            # 提取历史价格序列（正序）用于触碰验证
             history = list(reversed(data))  # 从旧到新
+            hist_highs = [ensure_float(r['high']) for r in history]
+            hist_lows = [ensure_float(r['low']) for r in history]
             hist_closes = [ensure_float(r['close']) for r in history]
             
             supports = []
@@ -523,14 +561,18 @@ class SupportResistanceAnalyzerPhase1:
                 if level_price <= 0:
                     continue
                 
-                # 历史触碰验证：统计过去N根K线中价格在该均线附近反转的次数
+                # 历史触碰验证：用 high/low 判断是否触及，用收盘价方向判断是否反转
                 tolerance = level_price * self.params['dynamic_touch_tolerance']
                 touch_count = 0
                 for i in range(1, len(hist_closes) - 1):
-                    if abs(hist_closes[i] - level_price) <= tolerance:
-                        # 判断是否发生反转（前后方向不同）
-                        if (hist_closes[i-1] < hist_closes[i] and hist_closes[i] > hist_closes[i+1]) or \
-                           (hist_closes[i-1] > hist_closes[i] and hist_closes[i] < hist_closes[i+1]):
+                    # 触及判断：high >= 均线 - 容差 且 low <= 均线 + 容差
+                    touched = (hist_highs[i] >= level_price - tolerance and
+                               hist_lows[i] <= level_price + tolerance)
+                    if touched:
+                        # 反转判断：收盘价前后方向不同（形成局部高低点）
+                        reversed_up = hist_closes[i-1] < hist_closes[i] and hist_closes[i] > hist_closes[i+1]
+                        reversed_dn = hist_closes[i-1] > hist_closes[i] and hist_closes[i] < hist_closes[i+1]
+                        if reversed_up or reversed_dn:
                             touch_count += 1
                 
                 # 触碰次数加成强度（最多+2）
@@ -1128,7 +1170,21 @@ class SupportResistanceAnalyzerPhase1:
         }
     
     def get_current_price(self, symbol: str = 'BTCUSDT') -> Optional[float]:
-        """获取当前价格（使用最新4H数据）"""
+        """获取当前价格：优先从 Binance 实时 ticker 拉取，失败时降级用最近 4H 收盘价"""
+
+        # 回测模式：直接用历史 4H 收盘价，不请求实时接口
+        if not self.before_ts:
+            try:
+                url = f"https://api.binance.com/api/v3/ticker/price"
+                resp = requests.get(url, params={'symbol': symbol}, timeout=5)
+                resp.raise_for_status()
+                price = float(resp.json()['price'])
+                logger.debug(f"✅ 实时价格: {symbol} = {price}")
+                return price
+            except Exception as e:
+                logger.warning(f"⚠️ 实时价格获取失败，降级用 4H 收盘价: {e}")
+
+        # 降级 / 回测：从数据库取最近 4H 收盘价
         try:
             cursor = self.connection.cursor(dictionary=True)
             if self.before_ts:
@@ -1147,7 +1203,6 @@ class SupportResistanceAnalyzerPhase1:
                 cursor.execute(query, (symbol,))
             result = cursor.fetchone()
             cursor.close()
-            
             return ensure_float(result['close']) if result else None
         except Exception as e:
             logger.error(f"获取当前价格失败: {e}")
