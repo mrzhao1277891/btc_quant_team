@@ -55,9 +55,11 @@ BACKTEST_CONFIG = {
     # 回测用的 K 线时间框架
     'exec_timeframe': '4h',
     # 计算支撑阻力位时，每次向前看多少根 K 线
-    'sr_lookback_bars': 200,
+    # 4h数据现有4380条(约2年)，lookback设500覆盖约83天的历史位点
+    'sr_lookback_bars': 500,
     # 支撑阻力位计算间隔（每隔多少根 K 线重新计算一次，节省时间）
-    'sr_recalc_interval': 6,
+    # 数据量大了适当加密，每4根重算一次（约16小时）
+    'sr_recalc_interval': 4,
 }
 
 
@@ -315,6 +317,12 @@ class SRBacktester:
         all_bars = self._fetch_klines(symbol, self.cfg['exec_timeframe'])
         if len(all_bars) < self.cfg['sr_lookback_bars'] + self.cfg['max_bars'] + 10:
             raise ValueError(f"数据不足，只有 {len(all_bars)} 根 K 线")
+
+        # 打印数据覆盖范围
+        first_dt = datetime.fromtimestamp(all_bars[0]['timestamp'] / 1000).strftime('%Y-%m-%d')
+        last_dt  = datetime.fromtimestamp(all_bars[-1]['timestamp'] / 1000).strftime('%Y-%m-%d')
+        logger.info(f"📊 数据范围: {first_dt} ~ {last_dt}，共 {len(all_bars)} 根4H K线"
+                    f"（约 {len(all_bars) * 4 / 24 / 365:.1f} 年）")
 
         trades: List[Dict] = []
         last_sr_calc_idx = -999
