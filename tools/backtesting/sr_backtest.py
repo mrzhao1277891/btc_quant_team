@@ -386,12 +386,9 @@ class SRBacktester:
                     'atr': atr,
                 })
                 trades.append(trade)
-                in_trade = True
+                # 下一笔开仓必须等这笔出场后
+                next_trade_idx = i + 1 + trade['bars_held']
                 break
-
-            if in_trade:
-                in_trade = False   # 简化：每笔交易独立，不锁仓
-                continue
 
             # ── 做空：检查阻力位触及 ──────────────────────────────────
             for res in resistances:
@@ -431,6 +428,7 @@ class SRBacktester:
                     'atr': atr,
                 })
                 trades.append(trade)
+                next_trade_idx = i + 1 + trade['bars_held']
                 break
 
         logger.info(f"✅ 回测完成，共触发 {len(trades)} 笔交易")
