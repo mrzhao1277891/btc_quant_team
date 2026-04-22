@@ -829,58 +829,19 @@ class SupportResistanceAnalyzerPhase1:
     # ==================== 2. 多时间框架融合系统 ====================
     
     def calculate_atr(self, timeframe: str, symbol: str = 'BTCUSDT', period: int = 14) -> float:
-        """
-        计算平均真实波幅(ATR)
-        
-        参数:
-            timeframe: 时间框架
-            symbol: 交易对
-            period: ATR周期
-        
-        返回:
-            ATR值
-        """
+        """直接从 klines 表的 atr 字段读取最新 ATR(14)"""
         try:
             cursor = self.connection.cursor(dictionary=True)
-            
-            query = """
-                SELECT high, low, close,
-                       LAG(close, 1) OVER (ORDER BY timestamp) as prev_close
-                FROM klines 
-                WHERE symbol = %s AND timeframe = %s
-                ORDER BY timestamp DESC
-                LIMIT %s
-            """
-            
-            cursor.execute(query, (symbol, timeframe, period * 2))
-            data = cursor.fetchall()
-            
-            if len(data) < period:
-                logger.warning(f"数据不足计算ATR({period})，只有{len(data)}条数据")
-                return 0.0
-            
-            # 计算真实波幅
-            tr_values = []
-            for i in range(1, len(data)):
-                high = data[i]['high']
-                low = data[i]['low']
-                prev_close = data[i-1]['close']
-                
-                tr1 = high - low
-                tr2 = abs(high - prev_close)
-                tr3 = abs(low - prev_close)
-                
-                tr = max(tr1, tr2, tr3)
-                tr_values.append(tr)
-            
-            # 计算ATR
-            atr = sum(tr_values[-period:]) / period if tr_values else 0.0
-            
+            cursor.execute(
+                "SELECT atr FROM klines WHERE symbol = %s AND timeframe = %s "
+                "AND atr IS NOT NULL ORDER BY timestamp DESC LIMIT 1",
+                (symbol, timeframe)
+            )
+            result = cursor.fetchone()
             cursor.close()
-            return atr
-            
+            return float(result['atr']) if result and result['atr'] else 0.0
         except mysql.connector.Error as e:
-            logger.error(f"计算ATR失败: {e}")
+            logger.error(f"读取ATR失败: {e}")
             return 0.0
     
     def merge_nearby_levels(self, levels: List[Dict], atr: float, atr_multiplier: float = 1.0) -> List[Dict]:
