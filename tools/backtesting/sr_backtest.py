@@ -25,6 +25,10 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 import logging
 
+# 导入支撑阻力分析器
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'analysis'))
+from support_resistance import SupportResistanceAnalyzerPhase1
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,15 +79,24 @@ class SRBacktester:
         self.conn = None
         self.cfg = BACKTEST_CONFIG
 
+        # 支撑阻力分析器（共享数据库连接）
+        self.sr_analyzer = SupportResistanceAnalyzerPhase1(
+            host=host, port=port, user=user,
+            password=password, database=database
+        )
+
     # ── 数据库 ──────────────────────────────────────────────────────────
 
     def connect(self):
         self.conn = mysql.connector.connect(**self.db_config)
+        # 分析器共享同一个连接，避免重复建连
+        self.sr_analyzer.connection = self.conn
         logger.info("✅ 数据库连接成功")
 
     def disconnect(self):
         if self.conn and self.conn.is_connected():
             self.conn.close()
+        self.sr_analyzer.connection = None
 
     def _fetch_klines(self, symbol: str, timeframe: str,
                       limit: int = None, before_ts: int = None) -> List[Dict]:
@@ -110,135 +123,38 @@ class SRBacktester:
         return [{k: ensure_float(v) if k not in ('timestamp',) else v
                  for k, v in r.items()} for r in rows]
 
-    # ── 支撑阻力位计算（滚动，避免未来函数）──────────────────────────
+    # ── 支撑阻力位计算（调用 SupportResistanceAnalyzerPhase1）──────────
 
-    def _calc_sr_levels(self, klines: List[Dict], current_price: float
+    def _calc_sr_levels(self, before_ts: int, current_price: float, symbol: str
                         ) -> Tuple[List[Dict], List[Dict]]:
         """
-        用传入的历史 K 线计算支撑阻力位（独立实现，不依赖外部模块）
-        包含：摆动高低点 + 斐波那契回撤/延伸
+        调用 SupportResistanceAnalyzerPhase1 计算支撑阻力位。
+        before_ts: 只使用该时间戳之前的数据（避免未来函数）
         """
-        closes = [k['close'] for k in klines]
-        highs  = [k['high']  for k in klines]
-        lows   = [k['low']   for k in klines]
+        self.sr_analyzer.before_ts = before_ts
+        try:
+            result = self.sr_analyzer.multi_timeframe_analysis(symbol)
+        finally:
+            self.sr_analyzer.before_ts = None  # 用完重置，不影响正常使用
 
-        supports, resistances = [], []
+        # 统一字段：final_score → score
+        supports = []
+        for lv in result.get('supports', []):
+            supports.append({
+                'price': lv['price'],
+                'score': lv.get('final_score', 7),
+                'type':  lv.get('type', lv.get('types', ['unknown'])[0] if lv.get('types') else 'unknown'),
+            })
 
-        # ── 1. 摆动高低点 ──────────────────────────────────────────────
-        window = 3
-        n = len(closes)
-        for i in range(window, n - window):
-            # 摆动低点
-            if all(lows[i] < lows[i-j] and lows[i] < lows[i+j] for j in range(1, window+1)):
-                p = lows[i]
-                score = 8  # 摆动点基础分
-                (supports if p < current_price else resistances).append(
-                    {'price': p, 'type': 'technical', 'score': score})
-            # 摆动高点
-            if all(highs[i] > highs[i-j] and highs[i] > highs[i+j] for j in range(1, window+1)):
-                p = highs[i]
-                score = 8
-                (resistances if p > current_price else supports).append(
-                    {'price': p, 'type': 'technical', 'score': score})
+        resistances = []
+        for lv in result.get('resistances', []):
+            resistances.append({
+                'price': lv['price'],
+                'score': lv.get('final_score', 7),
+                'type':  lv.get('type', lv.get('types', ['unknown'])[0] if lv.get('types') else 'unknown'),
+            })
 
-        # ── 2. 斐波那契（近期波段）────────────────────────────────────
-        recent = closes[-100:] if len(closes) >= 100 else closes
-        recent_h = highs[-100:] if len(highs) >= 100 else highs
-        recent_l = lows[-100:]  if len(lows)  >= 100 else lows
-
-        # 找近期局部高低点（窗口=5）
-        w = 5
-        local_highs, local_lows = [], []
-        for i in range(w, len(recent) - w):
-            if all(recent_h[i] >= recent_h[i-j] and recent_h[i] >= recent_h[i+j]
-                   for j in range(1, w+1)):
-                local_highs.append((i, recent_h[i]))
-            if all(recent_l[i] <= recent_l[i-j] and recent_l[i] <= recent_l[i+j]
-                   for j in range(1, w+1)):
-                local_lows.append((i, recent_l[i]))
-
-        waves = []
-        if local_highs and local_lows:
-            last_hi_idx, last_hi = local_highs[-1]
-            last_lo_idx, last_lo = local_lows[-1]
-            diff = abs(last_hi - last_lo)
-            amp  = diff / max(last_lo, 1)
-            if amp >= 0.03:
-                if last_hi_idx > last_lo_idx:
-                    waves.append(('up', last_lo, last_hi))
-                else:
-                    waves.append(('down', last_hi, last_lo))
-
-        if not waves:
-            # 兜底：全段高低点
-            sh, sl = max(recent_h), min(recent_l)
-            if (sh - sl) / max(sl, 1) >= 0.03:
-                waves.append(('down', sh, sl))
-
-        ret_ratios = [0.236, 0.382, 0.5, 0.618, 0.786]
-        ext_ratios = [1.272, 1.618]
-
-        for direction, wa, wb in waves:
-            diff = abs(wb - wa)
-            if diff <= 0:
-                continue
-            hi = max(wa, wb)
-            lo = min(wa, wb)
-
-            if direction == 'up':
-                # 回撤位（下方支撑）
-                for r in ret_ratios:
-                    p = hi - diff * r
-                    score = 10 if r in (0.382, 0.618) else 8
-                    (supports if p < current_price else resistances).append(
-                        {'price': round(p, 2), 'type': 'fibonacci', 'score': score})
-                # 延伸位（上方阻力）
-                for r in ext_ratios:
-                    p = lo + diff * r
-                    if p > current_price:
-                        resistances.append(
-                            {'price': round(p, 2), 'type': 'fibonacci', 'score': 8})
-            else:
-                # 回撤位（上方阻力）
-                for r in ret_ratios:
-                    p = lo + diff * r
-                    score = 10 if r in (0.382, 0.618) else 8
-                    (resistances if p > current_price else supports).append(
-                        {'price': round(p, 2), 'type': 'fibonacci', 'score': score})
-                # 延伸位（下方支撑）
-                for r in ext_ratios:
-                    p = hi - diff * r
-                    if p < current_price:
-                        supports.append(
-                            {'price': round(p, 2), 'type': 'fibonacci', 'score': 8})
-
-        # ── 3. 均线位（直接从 klines 数据读最新一根的均线字段）────────
-        latest = klines[-1]
-        for key, score in [('ema50', 9), ('ema25', 8), ('ema7', 7),
-                            ('boll_up', 8), ('boll_dn', 8), ('boll_md', 7)]:
-            val = latest.get(key)
-            if val and val > 0:
-                p = float(val)
-                (supports if p < current_price else resistances).append(
-                    {'price': p, 'type': 'dynamic', 'score': score})
-
-        supports    = self._dedup_levels(supports)
-        resistances = self._dedup_levels(resistances)
         return supports, resistances
-
-    def _dedup_levels(self, levels: List[Dict], tol_pct: float = 0.01) -> List[Dict]:
-        if not levels:
-            return []
-        levels = sorted(levels, key=lambda x: x['price'])
-        merged = [levels[0]]
-        for lv in levels[1:]:
-            if abs(lv['price'] - merged[-1]['price']) / max(merged[-1]['price'], 1) <= tol_pct:
-                # 保留评分更高的
-                if lv.get('score', 0) > merged[-1].get('score', 0):
-                    merged[-1] = lv
-            else:
-                merged.append(lv)
-        return merged
 
     # ── 单笔交易模拟 ────────────────────────────────────────────────────
 
@@ -340,9 +256,12 @@ class SRBacktester:
 
             # 每隔 sr_recalc_interval 根 K 线重新计算支撑阻力位
             if i - last_sr_calc_idx >= self.cfg['sr_recalc_interval']:
-                history = all_bars[max(0, i - self.cfg['sr_lookback_bars']):i]
                 try:
-                    supports, resistances = self._calc_sr_levels(history, bar['close'])
+                    supports, resistances = self._calc_sr_levels(
+                        before_ts=bar['timestamp'],
+                        current_price=bar['close'],
+                        symbol=symbol
+                    )
                     if i == start_idx:
                         logger.info(f"🔍 首次位点计算: {len(supports)}支撑, {len(resistances)}阻力, "
                                     f"价格={bar['close']:.0f}, ATR={atr:.0f}")

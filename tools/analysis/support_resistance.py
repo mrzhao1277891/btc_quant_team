@@ -71,6 +71,8 @@ class SupportResistanceAnalyzerPhase1:
             'charset': 'utf8mb4'
         }
         self.connection = None
+        # 回测用：限制所有查询只看此时间戳之前的数据（毫秒），None 表示不限制
+        self.before_ts: Optional[int] = None
         
         # 时间框架配置（金字塔决策）
         self.timeframe_config = {
@@ -302,16 +304,25 @@ class SupportResistanceAnalyzerPhase1:
             cursor = self.connection.cursor(dictionary=True)
             
             # 获取价格数据
-            query = """
-                SELECT timestamp, high, low, close, volume
-                FROM klines 
-                WHERE symbol = %s AND timeframe = %s
-                ORDER BY timestamp DESC
-                LIMIT %s
-            """
-            
             lookback = self.timeframe_config[timeframe]['lookback'] * 3
-            cursor.execute(query, (symbol, timeframe, lookback))
+            if self.before_ts:
+                query = """
+                    SELECT timestamp, high, low, close, volume
+                    FROM klines
+                    WHERE symbol = %s AND timeframe = %s AND timestamp < %s
+                    ORDER BY timestamp DESC
+                    LIMIT %s
+                """
+                cursor.execute(query, (symbol, timeframe, self.before_ts, lookback))
+            else:
+                query = """
+                    SELECT timestamp, high, low, close, volume
+                    FROM klines
+                    WHERE symbol = %s AND timeframe = %s
+                    ORDER BY timestamp DESC
+                    LIMIT %s
+                """
+                cursor.execute(query, (symbol, timeframe, lookback))
             data = cursor.fetchall()
             
             if not data:
@@ -456,16 +467,28 @@ class SupportResistanceAnalyzerPhase1:
         try:
             cursor = self.connection.cursor(dictionary=True)
             
-            query = """
-                SELECT timestamp, close,
-                       ema7, ema12, ema25, ema50,
-                       boll, boll_up, boll_md, boll_dn
-                FROM klines 
-                WHERE symbol = %s AND timeframe = %s
-                ORDER BY timestamp DESC
-                LIMIT 100
-            """
-            cursor.execute(query, (symbol, timeframe))
+            if self.before_ts:
+                query = """
+                    SELECT timestamp, close,
+                           ema7, ema12, ema25, ema50,
+                           boll, boll_up, boll_md, boll_dn
+                    FROM klines
+                    WHERE symbol = %s AND timeframe = %s AND timestamp < %s
+                    ORDER BY timestamp DESC
+                    LIMIT 100
+                """
+                cursor.execute(query, (symbol, timeframe, self.before_ts))
+            else:
+                query = """
+                    SELECT timestamp, close,
+                           ema7, ema12, ema25, ema50,
+                           boll, boll_up, boll_md, boll_dn
+                    FROM klines
+                    WHERE symbol = %s AND timeframe = %s
+                    ORDER BY timestamp DESC
+                    LIMIT 100
+                """
+                cursor.execute(query, (symbol, timeframe))
             data = cursor.fetchall()
             
             if not data:
@@ -622,15 +645,24 @@ class SupportResistanceAnalyzerPhase1:
             cursor = self.connection.cursor(dictionary=True)
             
             # 获取价格数据（同时取当前价格）
-            query = """
-                SELECT timestamp, close, volume
-                FROM klines 
-                WHERE symbol = %s AND timeframe = %s
-                ORDER BY timestamp ASC
-                LIMIT 200
-            """
-            
-            cursor.execute(query, (symbol, timeframe))
+            if self.before_ts:
+                query = """
+                    SELECT timestamp, close, volume
+                    FROM klines
+                    WHERE symbol = %s AND timeframe = %s AND timestamp < %s
+                    ORDER BY timestamp ASC
+                    LIMIT 200
+                """
+                cursor.execute(query, (symbol, timeframe, self.before_ts))
+            else:
+                query = """
+                    SELECT timestamp, close, volume
+                    FROM klines
+                    WHERE symbol = %s AND timeframe = %s
+                    ORDER BY timestamp ASC
+                    LIMIT 200
+                """
+                cursor.execute(query, (symbol, timeframe))
             data = cursor.fetchall()
             cursor.close()
             
@@ -832,11 +864,18 @@ class SupportResistanceAnalyzerPhase1:
         """直接从 klines 表的 atr 字段读取最新 ATR(14)"""
         try:
             cursor = self.connection.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT atr FROM klines WHERE symbol = %s AND timeframe = %s "
-                "AND atr IS NOT NULL ORDER BY timestamp DESC LIMIT 1",
-                (symbol, timeframe)
-            )
+            if self.before_ts:
+                cursor.execute(
+                    "SELECT atr FROM klines WHERE symbol = %s AND timeframe = %s "
+                    "AND atr IS NOT NULL AND timestamp < %s ORDER BY timestamp DESC LIMIT 1",
+                    (symbol, timeframe, self.before_ts)
+                )
+            else:
+                cursor.execute(
+                    "SELECT atr FROM klines WHERE symbol = %s AND timeframe = %s "
+                    "AND atr IS NOT NULL ORDER BY timestamp DESC LIMIT 1",
+                    (symbol, timeframe)
+                )
             result = cursor.fetchone()
             cursor.close()
             return float(result['atr']) if result and result['atr'] else 0.0
@@ -1092,12 +1131,20 @@ class SupportResistanceAnalyzerPhase1:
         """获取当前价格（使用最新4H数据）"""
         try:
             cursor = self.connection.cursor(dictionary=True)
-            query = """
-                SELECT close FROM klines 
-                WHERE symbol = %s AND timeframe = '4h'
-                ORDER BY timestamp DESC LIMIT 1
-            """
-            cursor.execute(query, (symbol,))
+            if self.before_ts:
+                query = """
+                    SELECT close FROM klines
+                    WHERE symbol = %s AND timeframe = '4h' AND timestamp < %s
+                    ORDER BY timestamp DESC LIMIT 1
+                """
+                cursor.execute(query, (symbol, self.before_ts))
+            else:
+                query = """
+                    SELECT close FROM klines
+                    WHERE symbol = %s AND timeframe = '4h'
+                    ORDER BY timestamp DESC LIMIT 1
+                """
+                cursor.execute(query, (symbol,))
             result = cursor.fetchone()
             cursor.close()
             
