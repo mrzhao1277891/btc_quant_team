@@ -228,6 +228,34 @@ class SRBacktester:
 
         return result
 
+    def _get_monthly_trend(self, monthly_bars: List[Dict], ts: int) -> Optional[str]:
+        """
+        根据时间戳查找对应月线K线的趋势方向。
+        返回 'bull'（多头）、'bear'（空头）或 None（数据不足）。
+        判断逻辑：close > ema25 或 close > ema50 → 多头；反之 → 空头。
+        """
+        # 找到 ts 之前最近一根月线（二分查找）
+        lo, hi = 0, len(monthly_bars) - 1
+        idx = -1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if monthly_bars[mid]['timestamp'] < ts:
+                idx = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if idx < 0:
+            return None
+        bar = monthly_bars[idx]
+        close = bar.get('close') or 0
+        ema25 = bar.get('ema25')
+        ema50 = bar.get('ema50')
+        if close <= 0:
+            return None
+        # close > ema25 或 close > ema50 任一满足即视为多头
+        bull = (ema25 and close > ema25) or (ema50 and close > ema50)
+        return 'bull' if bull else 'bear'
+
     # ── 主回测循环 ──────────────────────────────────────────────────────
 
     def run(self, symbol: str = 'BTCUSDT') -> Dict[str, Any]:
@@ -237,6 +265,10 @@ class SRBacktester:
         all_bars = self._fetch_klines(symbol, self.cfg['exec_timeframe'])
         if len(all_bars) < self.cfg['sr_lookback_bars'] + self.cfg['max_bars'] + 10:
             raise ValueError(f"数据不足，只有 {len(all_bars)} 根 K 线")
+
+        # 加载月线数据用于趋势过滤（一次性，避免循环内查询）
+        monthly_bars = self._fetch_klines(symbol, '1M')
+        logger.info(f"📅 月线数据: {len(monthly_bars)} 根，用于趋势过滤")
 
         # 打印数据覆盖范围
         first_dt = datetime.fromtimestamp(all_bars[0]['timestamp'] / 1000).strftime('%Y-%m-%d')
@@ -278,98 +310,110 @@ class SRBacktester:
             if i < next_trade_idx:
                 continue
 
+            # ── 趋势过滤（4H均线）────────────────────────────────────
+            ema7  = bar.get('ema7')
+            ema25 = bar.get('ema25')
+            ema50 = bar.get('ema50')
+            close = bar['close']
+            # 多头条件：EMA7 > EMA25 或 close > EMA50
+            bull_trend = (ema7 and ema25 and ema7 > ema25) or (ema50 and close > ema50)
+            # 空头条件：EMA7 < EMA25 或 close < EMA50
+            bear_trend = (ema7 and ema25 and ema7 < ema25) or (ema50 and close < ema50)
+
             # ── 做多：检查支撑位触及，挂限价单 ──────────────────────
-            for sup in supports:
-                if sup.get('score', 0) < self.cfg['min_score']:
-                    continue
-                touch_zone = atr * self.cfg['touch_atr_mult']
-                if abs(bar['low'] - sup['price']) > touch_zone:
-                    continue
+            if bull_trend:
+                for sup in supports:
+                    if sup.get('score', 0) < self.cfg['min_score']:
+                        continue
+                    touch_zone = atr * self.cfg['touch_atr_mult']
+                    if abs(bar['low'] - sup['price']) > touch_zone:
+                        continue
 
-                # 限价单入场：支撑位稍上方，止损在支撑位下方 1×ATR
-                entry = sup['price'] + atr * self.cfg['entry_buffer_mult']
-                stop  = sup['price'] - atr * self.cfg['stop_atr_mult']
-                stop_dist = entry - stop
-                if stop_dist <= 0:
-                    continue
+                    # 限价单入场：支撑位稍上方，止损在支撑位下方 1×ATR
+                    entry = sup['price'] + atr * self.cfg['entry_buffer_mult']
+                    stop  = sup['price'] - atr * self.cfg['stop_atr_mult']
+                    stop_dist = entry - stop
+                    if stop_dist <= 0:
+                        continue
 
-                # 目标：最近阻力位 或 entry + min_rr×stop_dist
-                default_target = entry + self.cfg['min_rr'] * stop_dist
-                res_above = [r for r in resistances if r['price'] > entry]
-                if res_above:
-                    nearest_res = min(res_above, key=lambda x: x['price'])
-                    target = min(nearest_res['price'], default_target * 1.05)
-                    target = max(target, default_target)
-                else:
-                    target = default_target
+                    # 目标：最近阻力位 或 entry + min_rr×stop_dist
+                    default_target = entry + self.cfg['min_rr'] * stop_dist
+                    res_above = [r for r in resistances if r['price'] > entry]
+                    if res_above:
+                        nearest_res = min(res_above, key=lambda x: x['price'])
+                        target = min(nearest_res['price'], default_target * 1.05)
+                        target = max(target, default_target)
+                    else:
+                        target = default_target
 
-                rr = (target - entry) / stop_dist
-                if rr < self.cfg['min_rr']:
-                    continue
+                    rr = (target - entry) / stop_dist
+                    if rr < self.cfg['min_rr']:
+                        continue
 
-                # 下一根K线判断限价单是否成交（low <= entry 才成交）
-                future = all_bars[i + 1: i + 1 + self.cfg['max_bars']]
-                if not future or future[0]['low'] > entry:
-                    continue  # 限价单未成交，跳过
+                    # 下一根K线判断限价单是否成交（low <= entry 才成交）
+                    future = all_bars[i + 1: i + 1 + self.cfg['max_bars']]
+                    if not future or future[0]['low'] > entry:
+                        continue
 
-                trade = self._simulate_trade('long', entry, stop, target, future)
-                trade.update({
-                    'bar_idx': i,
-                    'timestamp': bar['timestamp'],
-                    'level_price': sup['price'],
-                    'level_score': sup.get('score', 0),
-                    'level_type': sup.get('type', ''),
-                    'atr': atr,
-                })
-                trades.append(trade)
-                next_trade_idx = i + 1 + trade['bars_held']
-                break
+                    trade = self._simulate_trade('long', entry, stop, target, future)
+                    trade.update({
+                        'bar_idx': i,
+                        'timestamp': bar['timestamp'],
+                        'level_price': sup['price'],
+                        'level_score': sup.get('score', 0),
+                        'level_type': sup.get('type', ''),
+                        'atr': atr,
+                    })
+                    trades.append(trade)
+                    next_trade_idx = i + 1 + trade['bars_held']
+                    break
 
             # ── 做空：检查阻力位触及，挂限价单 ──────────────────────
-            for res in resistances:
-                if res.get('score', 0) < self.cfg['min_score']:
-                    continue
-                touch_zone = atr * self.cfg['touch_atr_mult']
-                if abs(bar['high'] - res['price']) > touch_zone:
-                    continue
+            if bear_trend:
+                for res in resistances:
+                    if res.get('score', 0) < self.cfg['min_score']:
+                        continue
+                    touch_zone = atr * self.cfg['touch_atr_mult']
+                    if abs(bar['high'] - res['price']) > touch_zone:
+                        continue
 
-                # 限价单入场：阻力位稍下方，止损在阻力位上方 1×ATR
-                entry = res['price'] - atr * self.cfg['entry_buffer_mult']
-                stop  = res['price'] + atr * self.cfg['stop_atr_mult']
-                stop_dist = stop - entry
-                if stop_dist <= 0:
-                    continue
+                    # 限价单入场：阻力位稍下方，止损在阻力位上方 1×ATR
+                    entry = res['price'] - atr * self.cfg['entry_buffer_mult']
+                    stop  = res['price'] + atr * self.cfg['stop_atr_mult']
+                    stop_dist = stop - entry
+                    if stop_dist <= 0:
+                        continue
 
-                default_target = entry - self.cfg['min_rr'] * stop_dist
-                sup_below = [s for s in supports if s['price'] < entry]
-                if sup_below:
-                    nearest_sup = max(sup_below, key=lambda x: x['price'])
-                    target = max(nearest_sup['price'], default_target * 0.95)
-                    target = min(target, default_target)
-                else:
-                    target = default_target
+                    default_target = entry - self.cfg['min_rr'] * stop_dist
+                    sup_below = [s for s in supports if s['price'] < entry]
+                    if sup_below:
+                        nearest_sup = max(sup_below, key=lambda x: x['price'])
+                        target = max(nearest_sup['price'], default_target * 0.95)
+                        target = min(target, default_target)
+                    else:
+                        target = default_target
 
-                rr = (entry - target) / stop_dist
-                if rr < self.cfg['min_rr']:
-                    continue
+                    rr = (entry - target) / stop_dist
+                    if rr < self.cfg['min_rr']:
+                        continue
 
-                # 下一根K线判断限价单是否成交（high >= entry 才成交）
-                future = all_bars[i + 1: i + 1 + self.cfg['max_bars']]
-                if not future or future[0]['high'] < entry:
-                    continue  # 限价单未成交，跳过
+                    # 下一根K线判断限价单是否成交（high >= entry 才成交）
+                    future = all_bars[i + 1: i + 1 + self.cfg['max_bars']]
+                    if not future or future[0]['high'] < entry:
+                        continue
 
-                trade = self._simulate_trade('short', entry, stop, target, future)
-                trade.update({
-                    'bar_idx': i,
-                    'timestamp': bar['timestamp'],
-                    'level_price': res['price'],
-                    'level_score': res.get('score', 0),
-                    'level_type': res.get('type', ''),
-                    'atr': atr,
-                })
-                trades.append(trade)
-                next_trade_idx = i + 1 + trade['bars_held']
-                break
+                    trade = self._simulate_trade('short', entry, stop, target, future)
+                    trade.update({
+                        'bar_idx': i,
+                        'timestamp': bar['timestamp'],
+                        'level_price': res['price'],
+                        'level_score': res.get('score', 0),
+                        'level_type': res.get('type', ''),
+                        'atr': atr,
+                    })
+                    trades.append(trade)
+                    next_trade_idx = i + 1 + trade['bars_held']
+                    break
 
         logger.info(f"✅ 回测完成，共触发 {len(trades)} 笔交易")
         return self._build_report(trades)
