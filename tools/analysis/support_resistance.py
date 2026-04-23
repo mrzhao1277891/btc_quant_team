@@ -128,10 +128,10 @@ class SupportResistanceAnalyzerPhase1:
             'fib_lookback': {'1M': 24, '1w': 52, '1d': 120, '4h': 144},
             # 波段最小振幅（相对幅度），低于此不计算 fib
             'fib_min_wave_amplitude': 0.03,       # 3%
-            # 回撤比例列表（黄金分割 0.382/0.618 强度+1）
-            'fib_retracement_ratios': [0.236, 0.382, 0.5, 0.618, 0.786],
+            # 回撤比例列表（只保留最重要的黄金分割位，减少噪音）
+            'fib_retracement_ratios': [0.382, 0.5, 0.618],
             # 延伸比例列表
-            'fib_extension_ratios': [1.272, 1.618, 2.0],
+            'fib_extension_ratios': [1.272, 1.618],
             
             # ── 动态位（均线/布林带）────────────────────────────────────
             # 历史触碰验证容差：均线价格 ± 此比例内算"触碰"
@@ -1280,16 +1280,22 @@ class SupportResistanceAnalyzerPhase1:
         score_factors['confidence'] = confidence_score
 
         # 2. 多时间框架共振（30%）
-        # source_count：合并时来自几个独立位点
-        # timeframes：覆盖几个不同周期
-        source_count = level.get('source_count', 1)
+        # 只统计真实周期（1M/1w/1d/4h），排除心理位的 'all'
+        REAL_TFS = {'1M', '1w', '1d', '4h'}
         timeframes   = level.get('timeframes', [level.get('timeframe', '')])
-        tf_count     = len(set(timeframes)) if timeframes else 1
-        # source_count 越多、跨越周期越多，共振越强
-        # 1个来源=0.2，2个=0.5，3个=0.75，4个以上=1.0
-        confluence_score = min(0.25 * source_count, 1.0)
-        # 跨周期加成：跨2个周期+0.1，跨3个+0.2，跨4个+0.3
-        confluence_score = min(confluence_score + max(0, tf_count - 1) * 0.1, 1.0)
+        real_tfs     = [tf for tf in set(timeframes) if tf in REAL_TFS]
+        tf_count     = len(real_tfs)
+
+        # 只统计来自真实周期的 source_count
+        sources      = level.get('sources', [])
+        real_sources = [s for s in sources if s.get('timeframe') in REAL_TFS] if sources else []
+        real_source_count = len(real_sources) if real_sources else (1 if tf_count > 0 else 0)
+
+        # 1个真实来源=0.2，2个=0.45，3个=0.65，4个以上=0.8（上限降低，留出区分空间）
+        confluence_score = min(0.2 + (real_source_count - 1) * 0.25, 0.8) if real_source_count > 0 else 0.0
+        # 跨真实周期加成：跨2个+0.1，跨3个+0.15，跨4个+0.2
+        tf_bonus = {0: 0, 1: 0, 2: 0.1, 3: 0.15, 4: 0.2}.get(tf_count, 0.2)
+        confluence_score = min(confluence_score + tf_bonus, 1.0)
         score += confluence_score * self.params['score_weight_confluence']
         score_factors['confluence'] = confluence_score
 

@@ -28,6 +28,7 @@ import logging
 # 导入支撑阻力分析器
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'analysis'))
 from support_resistance import SupportResistanceAnalyzerPhase1
+from market_regime import MarketRegimeAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,9 @@ BACKTEST_CONFIG = {
     # 支撑阻力位计算间隔（每隔多少根 K 线重新计算一次，节省时间）
     # 数据量大了适当加密，每4根重算一次（约16小时）
     'sr_recalc_interval': 4,
+    # 市场状态重算间隔（每隔多少根4H K线重新判断一次）
+    # 24根=4天，市场状态变化慢，不需要频繁重算
+    'regime_recalc_interval': 24,
 }
 
 
@@ -88,19 +92,22 @@ class SRBacktester:
             host=host, port=port, user=user,
             password=password, database=database
         )
+        # 市场状态分析器（共享数据库连接）
+        self.regime_analyzer = MarketRegimeAnalyzer()
 
     # ── 数据库 ──────────────────────────────────────────────────────────
 
     def connect(self):
         self.conn = mysql.connector.connect(**self.db_config)
-        # 分析器共享同一个连接，避免重复建连
         self.sr_analyzer.connection = self.conn
+        self.regime_analyzer.connection = self.conn
         logger.info("✅ 数据库连接成功")
 
     def disconnect(self):
         if self.conn and self.conn.is_connected():
             self.conn.close()
         self.sr_analyzer.connection = None
+        self.regime_analyzer.connection = None
 
     def _fetch_klines(self, symbol: str, timeframe: str,
                       limit: int = None, before_ts: int = None) -> List[Dict]:
@@ -278,8 +285,10 @@ class SRBacktester:
 
         trades: List[Dict] = []
         last_sr_calc_idx = -999
+        last_regime_calc_idx = -999
         supports, resistances = [], []
-        next_trade_idx = 0   # 下一笔可开仓的 K 线索引（上笔出场后才能开新仓）
+        regime = {'allow_long': True, 'allow_short': True, 'overall': 'range'}
+        next_trade_idx = 0
 
         start_idx = self.cfg['sr_lookback_bars']
         end_idx   = len(all_bars) - self.cfg['max_bars'] - 1
@@ -289,6 +298,21 @@ class SRBacktester:
         for i in range(start_idx, end_idx):
             bar = all_bars[i]
             atr = bar.get('atr') or 500.0   # 兜底值
+
+            # 每隔 regime_recalc_interval 根 K 线重新判断市场状态
+            if i - last_regime_calc_idx >= self.cfg['regime_recalc_interval']:
+                try:
+                    regime = self.regime_analyzer.analyze(
+                        symbol=symbol,
+                        before_ts=bar['timestamp']
+                    )
+                    if i == start_idx:
+                        logger.info(f"🌍 首次市场状态: {regime['overall'].upper()} "
+                                    f"(得分:{regime['weighted_score']:+.1f}) "
+                                    f"多:{regime['allow_long']} 空:{regime['allow_short']}")
+                except Exception as e:
+                    logger.debug(f"市场状态判断失败 i={i}: {e}")
+                last_regime_calc_idx = i
 
             # 每隔 sr_recalc_interval 根 K 线重新计算支撑阻力位
             if i - last_sr_calc_idx >= self.cfg['sr_recalc_interval']:
@@ -310,18 +334,20 @@ class SRBacktester:
             if i < next_trade_idx:
                 continue
 
-            # ── 趋势过滤（4H均线）────────────────────────────────────
+            # ── 趋势过滤（多周期市场状态 + 4H均线双重确认）────────
             ema7  = bar.get('ema7')
             ema25 = bar.get('ema25')
             ema50 = bar.get('ema50')
             close = bar['close']
-            # 多头条件：EMA7 > EMA25 或 close > EMA50
-            bull_trend = (ema7 and ema25 and ema7 > ema25) or (ema50 and close > ema50)
-            # 空头条件：EMA7 < EMA25 或 close < EMA50
-            bear_trend = (ema7 and ema25 and ema7 < ema25) or (ema50 and close < ema50)
+            # 4H均线确认（执行层）
+            bull_4h = (ema7 and ema25 and ema7 > ema25) or (ema50 and close > ema50)
+            bear_4h = (ema7 and ema25 and ema7 < ema25) or (ema50 and close < ema50)
+            # 综合：市场状态允许 且 4H均线同向
+            allow_long  = regime['allow_long']  and bull_4h
+            allow_short = regime['allow_short'] and bear_4h
 
             # ── 做多：检查支撑位触及，挂限价单 ──────────────────────
-            if bull_trend:
+            if allow_long:
                 for sup in supports:
                     if sup.get('score', 0) < self.cfg['min_score']:
                         continue
@@ -363,13 +389,14 @@ class SRBacktester:
                         'level_score': sup.get('score', 0),
                         'level_type': sup.get('type', ''),
                         'atr': atr,
+                        'regime': regime['overall'],
                     })
                     trades.append(trade)
                     next_trade_idx = i + 1 + trade['bars_held']
                     break
 
             # ── 做空：检查阻力位触及，挂限价单 ──────────────────────
-            if bear_trend:
+            if allow_short:
                 for res in resistances:
                     if res.get('score', 0) < self.cfg['min_score']:
                         continue
@@ -410,6 +437,7 @@ class SRBacktester:
                         'level_score': res.get('score', 0),
                         'level_type': res.get('type', ''),
                         'atr': atr,
+                        'regime': regime['overall'],
                     })
                     trades.append(trade)
                     next_trade_idx = i + 1 + trade['bars_held']
