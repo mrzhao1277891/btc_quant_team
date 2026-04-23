@@ -273,10 +273,6 @@ class SRBacktester:
         if len(all_bars) < self.cfg['sr_lookback_bars'] + self.cfg['max_bars'] + 10:
             raise ValueError(f"数据不足，只有 {len(all_bars)} 根 K 线")
 
-        # 加载月线数据用于趋势过滤（一次性，避免循环内查询）
-        monthly_bars = self._fetch_klines(symbol, '1M')
-        logger.info(f"📅 月线数据: {len(monthly_bars)} 根，用于趋势过滤")
-
         # 打印数据覆盖范围
         first_dt = datetime.fromtimestamp(all_bars[0]['timestamp'] / 1000).strftime('%Y-%m-%d')
         last_dt  = datetime.fromtimestamp(all_bars[-1]['timestamp'] / 1000).strftime('%Y-%m-%d')
@@ -307,8 +303,8 @@ class SRBacktester:
                         before_ts=bar['timestamp']
                     )
                     if i == start_idx:
-                        logger.info(f"🌍 首次市场状态: {regime['overall'].upper()} "
-                                    f"(得分:{regime['weighted_score']:+.1f}) "
+                        direction = regime.get('decision', {}).get('direction', '?')
+                        logger.info(f"🌍 首次市场状态: {direction} "
                                     f"多:{regime['allow_long']} 空:{regime['allow_short']}")
                 except Exception as e:
                     logger.debug(f"市场状态判断失败 i={i}: {e}")
@@ -389,7 +385,7 @@ class SRBacktester:
                         'level_score': sup.get('score', 0),
                         'level_type': sup.get('type', ''),
                         'atr': atr,
-                        'regime': regime['overall'],
+                        'regime': regime.get('decision', {}).get('direction', '?'),
                     })
                     trades.append(trade)
                     next_trade_idx = i + 1 + trade['bars_held']
@@ -437,7 +433,7 @@ class SRBacktester:
                         'level_score': res.get('score', 0),
                         'level_type': res.get('type', ''),
                         'atr': atr,
-                        'regime': regime['overall'],
+                        'regime': regime.get('decision', {}).get('direction', '?'),
                     })
                     trades.append(trade)
                     next_trade_idx = i + 1 + trade['bars_held']
