@@ -58,7 +58,7 @@ BACKTEST_CONFIG = {
     # 最大持仓根数（4H K线数），超过强制平仓
     'max_bars': 24,          # 24根4H = 96小时（4天）
     # 位点最低评分（final_score，1-15分），低于此不交易
-    'min_score': 7,
+    'min_score': 10,
     # 反弹/回落成立的最小幅度（相对入场价）
     'min_move_pct': 0.005,   # 0.5%
     # 回测用的 K 线时间框架
