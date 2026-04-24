@@ -1004,15 +1004,16 @@ class SupportResistanceAnalyzerPhase1:
         strengths = [self._extract_strength(level) for level in group]
         max_strength = max(strengths) if strengths else 0
         
-        # 收集时间框架，取最高权重
+        # 收集时间框架，改为取平均权重（而非最高权重）
+        # 这样月线+4h共振位点 和 纯月线位点 能区分开
         timeframes = set()
-        max_tf_weight = 1
+        tf_weights = []
         for level in group:
             if 'timeframe' in level:
                 timeframes.add(level['timeframe'])
             tw = level.get('timeframe_weight', 1)
-            if tw > max_tf_weight:
-                max_tf_weight = tw
+            tf_weights.append(tw)
+        avg_tf_weight = sum(tf_weights) / len(tf_weights) if tf_weights else 1
         
         types = set()
         for level in group:
@@ -1032,7 +1033,7 @@ class SupportResistanceAnalyzerPhase1:
             'sources': group,
             'is_merged': True,
             # 关键：保留权重和触碰信息供评分使用
-            'timeframe_weight': max_tf_weight,
+            'timeframe_weight': avg_tf_weight,
             'base_strength': max_strength,
             'touch_count': total_touch,
         }
@@ -1279,65 +1280,67 @@ class SupportResistanceAnalyzerPhase1:
 
         权重分配（总100%）：
         - 触碰/置信度         50%  （历史验证次数，最能预测位点有效性）
-        - 多时间框架共振      30%  （同一价格区域在多个周期都有位点）
-        - 时间框架权威性      20%  （大周期更可靠，但不再主导评分）
+        - 多时间框架共振      30%  （跨越几个不同周期，越多越可靠）
+        - 时间框架权威性      20%  （平均周期权重，区分纯月线 vs 多周期融合）
         """
         score = 0.0
         score_factors = {}
 
-        # 1. 触碰/置信度（50%）
-        if 'confidence' in level:
-            confidence_score = float(level['confidence'])
-        elif 'touch_count' in level:
-            # 触碰1次=0.3，2次=0.55，3次=0.75，4次=0.9，5次以上=1.0
-            tc = level['touch_count']
+        # ── 1. 触碰/置信度（50%）────────────────────────────────
+        # 优先用 touch_count（最直接的历史验证），
+        # 优化器的 confidence 作为辅助参考而非覆盖
+        tc = level.get('touch_count', 0)
+        if tc > 0:
+            # 1次=0.3, 2次=0.5, 3次=0.7, 4次=0.9, 5次以上=1.0
             confidence_score = min(0.2 * tc + 0.1, 1.0)
+            # 优化器有 confidence 时，取两者均值（互相印证）
+            if 'confidence' in level:
+                confidence_score = (confidence_score + float(level['confidence'])) / 2
+        elif 'confidence' in level:
+            confidence_score = float(level['confidence'])
         elif 'base_strength' in level:
             confidence_score = min(level['base_strength'] / 5.0, 1.0)
         elif 'importance' in level:
             confidence_score = level['importance'] / 3.0
         else:
-            confidence_score = 0.3
+            confidence_score = 0.2  # 无任何历史验证，给低分
+
         score += confidence_score * self.params['score_weight_confidence']
-        score_factors['confidence'] = confidence_score
+        score_factors['confidence'] = round(confidence_score, 3)
 
-        # 2. 多时间框架共振（30%）
-        # 只统计真实周期（1M/1w/1d/4h），排除心理位的 'all'
+        # ── 2. 多时间框架共振（30%）─────────────────────────────
+        # 只看跨了几个不同的真实周期，不看来源数量（避免同周期多类型双重计算）
         REAL_TFS = {'1M', '1w', '1d', '4h'}
-        timeframes   = level.get('timeframes', [level.get('timeframe', '')])
-        real_tfs     = [tf for tf in set(timeframes) if tf in REAL_TFS]
-        tf_count     = len(real_tfs)
+        timeframes = level.get('timeframes', [level.get('timeframe', '')])
+        tf_count   = len({tf for tf in timeframes if tf in REAL_TFS})
 
-        # 只统计来自真实周期的 source_count
-        sources      = level.get('sources', [])
-        real_sources = [s for s in sources if s.get('timeframe') in REAL_TFS] if sources else []
-        real_source_count = len(real_sources) if real_sources else (1 if tf_count > 0 else 0)
+        # 1个周期=0.2, 2个=0.4, 3个=0.65, 4个=1.0
+        confluence_map = {0: 0.0, 1: 0.2, 2: 0.4, 3: 0.65, 4: 1.0}
+        confluence_score = confluence_map.get(tf_count, 1.0)
 
-        # 1个真实来源=0.2，2个=0.45，3个=0.65，4个以上=0.8（上限降低，留出区分空间）
-        confluence_score = min(0.2 + (real_source_count - 1) * 0.25, 0.8) if real_source_count > 0 else 0.0
-        # 跨真实周期加成：跨2个+0.1，跨3个+0.15，跨4个+0.2
-        tf_bonus = {0: 0, 1: 0, 2: 0.1, 3: 0.15, 4: 0.2}.get(tf_count, 0.2)
-        confluence_score = min(confluence_score + tf_bonus, 1.0)
         score += confluence_score * self.params['score_weight_confluence']
-        score_factors['confluence'] = confluence_score
+        score_factors['confluence'] = round(confluence_score, 3)
+        score_factors['tf_count']   = tf_count
 
-        # 3. 时间框架权威性（20%）
+        # ── 3. 时间框架权威性（20%）─────────────────────────────
+        # 用平均权重（_merge_group 已改为存 avg_tf_weight）
+        # 范围 1~4，归一化到 0~1
         timeframe_weight = level.get('timeframe_weight', 1)
-        timeframe_score  = timeframe_weight / 4.0
+        timeframe_score  = (timeframe_weight - 1) / 3.0  # 1→0, 2→0.33, 3→0.67, 4→1.0
         score += timeframe_score * self.params['score_weight_timeframe']
-        score_factors['timeframe'] = timeframe_score
+        score_factors['timeframe'] = round(timeframe_score, 3)
 
-        # 归一化到 0-1，转换为 1-15 分
+        # ── 转换为 1~15 分（用 round 避免 int 向下取整的分布不均）──
         final_score = max(0.0, min(score, 1.0))
-        final_score_15 = int(final_score * 14) + 1
+        final_score_15 = max(1, min(15, round(final_score * 14) + 1))
 
         strength_level = self._map_score_to_level(final_score_15)
 
-        level['final_score'] = final_score_15
-        level['final_score_normalized'] = final_score
-        level['score_factors'] = score_factors
-        level['strength_level'] = strength_level['level']
-        level['strength_symbol'] = strength_level['symbol']
+        level['final_score']            = final_score_15
+        level['final_score_normalized'] = round(final_score, 4)
+        level['score_factors']          = score_factors
+        level['strength_level']         = strength_level['level']
+        level['strength_symbol']        = strength_level['symbol']
         level['stop_buffer_multiplier'] = strength_level['buffer_multiplier']
 
         return level
