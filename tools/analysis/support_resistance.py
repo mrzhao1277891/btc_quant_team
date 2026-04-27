@@ -553,9 +553,13 @@ class SupportResistanceAnalyzerPhase1:
             
             if not data:
                 return {'supports': [], 'resistances': []}
-            
+
             latest = data[0]
             current_price = ensure_float(latest['close'])
+
+            # 实盘模式下，均线值用倒数第二根（已收盘），避免未收盘K线数据不稳定
+            # 回测模式（before_ts不为None）数据已截止，直接用最新一根
+            ma_bar = data[1] if (self.before_ts is None and len(data) >= 2) else data[0]
             
             # 动态位配置
             dynamic_level_defs = [
@@ -578,7 +582,7 @@ class SupportResistanceAnalyzerPhase1:
             resistances = []
 
             for defn in dynamic_level_defs:
-                raw_price = latest.get(defn['key'])
+                raw_price = ma_bar.get(defn['key'])
                 if raw_price is None:
                     continue
                 level_price = ensure_float(raw_price)
@@ -611,7 +615,7 @@ class SupportResistanceAnalyzerPhase1:
                 
                 level_info = {
                     'price': level_price,
-                    'timestamp': latest['timestamp'],
+                    'timestamp': ma_bar['timestamp'],
                     'type': 'dynamic',
                     'subtype': defn['name'],
                     'timeframe': timeframe,
