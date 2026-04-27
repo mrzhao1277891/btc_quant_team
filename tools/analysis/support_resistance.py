@@ -1580,20 +1580,35 @@ class SupportResistanceAnalyzerPhase1:
         }
 
         def _level_desc(level: Dict) -> str:
-            """生成位点的简洁描述"""
-            # 合并后的位点有 types/sources，单周期位点有 type/subtype
-            types    = level.get('types', [level.get('type', '')])
-            sources  = level.get('sources', [level])
-            subtypes = list({s.get('subtype', '') for s in sources if s.get('subtype')})
+            """生成位点的详细描述，显示每个周期的具体贡献"""
+            sources = level.get('sources', [])
 
-            type_str = '+'.join(
-                TYPE_LABELS.get(t, t) for t in types if t and t != 'all'
-            ) or '未知'
+            if sources:
+                # 合并后的位点：按周期分组显示
+                tf_map: Dict[str, List[str]] = {}
+                for s in sources:
+                    tf = s.get('timeframe', 'all')
+                    subtype = s.get('subtype', '')
+                    type_  = s.get('type', '')
+                    label = SUBTYPE_LABELS.get(subtype, '') or TYPE_LABELS.get(type_, type_)
+                    tf_map.setdefault(tf, [])
+                    if label and label not in tf_map[tf]:
+                        tf_map[tf].append(label)
 
-            sub_str = '+'.join(
-                SUBTYPE_LABELS.get(st, st) for st in subtypes if st
-            )
-            return f"{type_str}({sub_str})" if sub_str else type_str
+                parts = []
+                for tf in ['1M', '1w', '1d', '4h', 'all']:
+                    if tf not in tf_map:
+                        continue
+                    labels = '+'.join(tf_map[tf])
+                    tf_label = {'1M': '月', '1w': '周', '1d': '日', '4h': '4H', 'all': '通用'}.get(tf, tf)
+                    parts.append(f"{tf_label}:{labels}")
+                return '  '.join(parts) if parts else '未知'
+            else:
+                # 单周期位点
+                subtype = level.get('subtype', '')
+                type_   = level.get('type', '')
+                label = SUBTYPE_LABELS.get(subtype, '') or TYPE_LABELS.get(type_, type_)
+                return label or '未知'
 
         def _vol_tag(level: Dict) -> str:
             """成交量确认标签"""
