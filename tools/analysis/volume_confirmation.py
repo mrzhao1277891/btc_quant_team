@@ -50,8 +50,10 @@ class VolumeConfirmationSystem:
             成交量分析结果
         """
         if len(prices) != len(volumes):
-            logger.warning("价格和成交量序列长度不一致")
-            volumes = volumes[:len(prices)] if len(volumes) > len(prices) else volumes
+            logger.debug("价格和成交量序列长度不一致，自动截断到最短长度")
+            min_len = min(len(prices), len(volumes))
+            prices  = prices[:min_len]
+            volumes = volumes[:min_len]
         
         if volumes is None or len(volumes) == 0:
             return VolumeAnalysis(0, 0, 0, 0, 0, {})
@@ -482,10 +484,17 @@ class VolumeConfirmationSystem:
     ) -> Tuple[List[Dict], List[Dict]]:
         """
         将成交量确认集成到支撑阻力分析中
-        
+
         返回:
             (confirmed_supports, confirmed_resistances): 经过成交量确认的位点
         """
+        # 统一所有序列长度，取最短的
+        min_len = min(len(prices), len(highs), len(lows), len(closes), len(volumes), len(timestamps))
+        prices, highs, lows, closes, volumes, timestamps = (
+            prices[:min_len], highs[:min_len], lows[:min_len],
+            closes[:min_len], volumes[:min_len], timestamps[:min_len]
+        )
+
         confirmed_supports = []
         confirmed_resistances = []
         

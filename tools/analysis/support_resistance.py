@@ -153,16 +153,16 @@ class SupportResistanceAnalyzerPhase1:
             # 调大 → 合并更激进（位点更少），调小 → 保留更多独立位点
             'merge_atr_multiplier': 1.0,
             
-            # ── 评分权重（四项之和应为 1.0）────────────────────────────
+            # ── 评分权重（总和 1.0）────────────────────────────────
             # 触碰/置信度：历史验证次数，最能预测位点有效性
-            'score_weight_confidence': 0.45,
-            # 多时间框架共振：同一价格区域在多个周期都有位点，可靠性大幅提升
-            'score_weight_confluence': 0.25,
-            # 时间框架权威性：大周期位点更可靠（降权，避免月线固定高分）
-            'score_weight_timeframe': 0.15,
+            'score_weight_confidence': 0.55,
+            # 多时间框架共振：改为报告层 ⚡ 标注，不再参与评分
+            'score_weight_confluence': 0.0,
+            # 时间框架权威性：大周期位点更可靠
+            'score_weight_timeframe': 0.25,
             # 成交量确认：有量才有效
-            'score_weight_volume': 0.15,
-            # 距离当前价格：去掉
+            'score_weight_volume': 0.20,
+            # 距离当前价格：不参与评分
             'score_weight_distance': 0.0,
             # 无成交量数据时的默认分（0~1）
             'score_volume_default': 0.3,
@@ -1004,45 +1004,50 @@ class SupportResistanceAnalyzerPhase1:
         """合并一个组内的位点"""
         if not group:
             return {}
-        
-        prices = [float(level['price']) for level in group]
-        avg_price = sum(prices) / len(prices)
-        
+
+        prices    = [float(level['price']) for level in group]
         strengths = [self._extract_strength(level) for level in group]
         max_strength = max(strengths) if strengths else 0
-        
-        # 收集时间框架，改为取平均权重（而非最高权重）
-        # 这样月线+4h共振位点 和 纯月线位点 能区分开
+
+        # 代表价：取强度最高的位点价格（而非平均值，避免漂移到无意义的虚构价格）
+        # 同强度时取时间框架权重最高的
+        best_level = max(
+            group,
+            key=lambda l: (
+                self._extract_strength(l),
+                l.get('timeframe_weight', 1)
+            )
+        )
+        representative_price = float(best_level['price'])
+
+        # 收集时间框架，取平均权重
         timeframes = set()
         tf_weights = []
         for level in group:
             if 'timeframe' in level:
                 timeframes.add(level['timeframe'])
-            tw = level.get('timeframe_weight', 1)
-            tf_weights.append(tw)
+            tf_weights.append(level.get('timeframe_weight', 1))
         avg_tf_weight = sum(tf_weights) / len(tf_weights) if tf_weights else 1
-        
+
         types = set()
         for level in group:
             if 'type' in level:
                 types.add(level['type'])
-        
-        # 触碰次数累加（多个来源叠加）
+
         total_touch = sum(level.get('touch_count', 0) for level in group)
-        
+
         return {
-            'price': avg_price,
-            'price_range': [min(prices), max(prices)],
-            'strength': max_strength,
-            'timeframes': list(timeframes),
-            'types': list(types),
+            'price':        representative_price,
+            'price_range':  [min(prices), max(prices)],
+            'strength':     max_strength,
+            'timeframes':   list(timeframes),
+            'types':        list(types),
             'source_count': len(group),
-            'sources': group,
-            'is_merged': True,
-            # 关键：保留权重和触碰信息供评分使用
+            'sources':      group,
+            'is_merged':    True,
             'timeframe_weight': avg_tf_weight,
-            'base_strength': max_strength,
-            'touch_count': total_touch,
+            'base_strength':    max_strength,
+            'touch_count':      total_touch,
         }
     
     def _extract_strength(self, level: Dict) -> int:
@@ -1180,74 +1185,86 @@ class SupportResistanceAnalyzerPhase1:
             all_supports.extend(tf_supports_corrected)
             all_resistances.extend(tf_resistances_corrected)
         
-        # 2. 添加心理位（只有整5000以上参与合并，整千只做标注）
+        # 2. 添加心理位（整5000以上加入汇总，整千只做标注）
         psychological_levels = self.identify_psychological_levels(current_price, symbol)
         for level in psychological_levels['supports'] + psychological_levels['resistances']:
             level['timeframe_weight'] = 1
             level['timeframe'] = 'all'
 
-        # 参与合并的心理位（整5000）
-        psych_merge_sup = [l for l in psychological_levels['supports'] if l.get('merge_eligible', False)]
-        psych_merge_res = [l for l in psychological_levels['resistances'] if l.get('merge_eligible', False)]
-        all_supports.extend(psych_merge_sup)
-        all_resistances.extend(psych_merge_res)
+        for lv in psychological_levels['supports']:
+            if lv.get('merge_eligible', False):
+                lv_scored = self.calculate_strength_score(lv, 'support', current_price)
+                all_supports.append(lv_scored)
+        for lv in psychological_levels['resistances']:
+            if lv.get('merge_eligible', False):
+                lv_scored = self.calculate_strength_score(lv, 'resistance', current_price)
+                all_resistances.append(lv_scored)
 
-        # 整千关口单独保存，用于报告标注（不参与合并）
-        psych_annotation_sup = [l for l in psychological_levels['supports'] if not l.get('merge_eligible', False)]
-        psych_annotation_res = [l for l in psychological_levels['resistances'] if not l.get('merge_eligible', False)]
-        
-        # 3. 计算综合ATR（使用4H ATR作为基准）
+        # 3. 对所有位点评分（各周期位点已在循环里评分，这里补评未评分的）
+        for lv in all_supports:
+            if 'final_score' not in lv:
+                self.calculate_strength_score(lv, 'support', current_price)
+        for lv in all_resistances:
+            if 'final_score' not in lv:
+                self.calculate_strength_score(lv, 'resistance', current_price)
+
+        # 4. 标注共振：相近位点（1.5%以内）互相标注来自哪些周期
+        CONFLUENCE_TOL = 0.015
+        SUBTYPE_LABELS = {
+            'EMA7': 'EMA7', 'EMA12': 'EMA12', 'EMA25': 'EMA25', 'EMA50': 'EMA50',
+            'BOLL_MD': '布林中轨', 'BOLL_UP': '布林上轨', 'BOLL_DN': '布林下轨',
+            'swing_low': '摆动低点', 'swing_high': '摆动高点',
+            'swing_low_optimized': '摆动低点', 'swing_high_optimized': '摆动高点',
+            'retracement_0.382': 'Fib38.2%', 'retracement_0.5': 'Fib50%',
+            'retracement_0.618': 'Fib61.8%', 'extension_1.272': 'Fib127.2%',
+            'extension_1.618': 'Fib161.8%', 'major': '整五千关口', 'standard': '整千关口',
+        }
+        TYPE_LABELS = {
+            'technical': '技术位', 'dynamic': '动态位',
+            'fibonacci': '斐波那契', 'psychological': '心理位',
+        }
+
+        def _mark_confluence(levels: List[Dict]):
+            for i, lv in enumerate(levels):
+                p = lv['price']
+                resonant = []
+                for j, other in enumerate(levels):
+                    if i == j:
+                        continue
+                    if abs(other['price'] - p) / p <= CONFLUENCE_TOL:
+                        tf = other.get('timeframe', '')
+                        sub = other.get('subtype', '')
+                        label = SUBTYPE_LABELS.get(sub, '') or TYPE_LABELS.get(other.get('type', ''), '')
+                        tf_label = {'1M': '月', '1w': '周', '1d': '日', '4h': '4H', 'all': '通用'}.get(tf, tf)
+                        resonant.append(f"{tf_label}:{label}" if label else tf_label)
+                lv['confluence_notes'] = list(dict.fromkeys(resonant))  # 去重保序
+
+        _mark_confluence(all_supports)
+        _mark_confluence(all_resistances)
+
+        # 5. 按距离当前价格排序，取最近各5个
+        all_supports.sort(key=lambda x: current_price - x['price'])     # 最近的在前
+        all_resistances.sort(key=lambda x: x['price'] - current_price)  # 最近的在前
+        top_supports    = all_supports[:5]
+        top_resistances = all_resistances[:5]
+
         base_atr = self.calculate_atr('4h', symbol)
-        
-        # 4. 合并相近位点，合并后按当前价格重新校正方向
-        merged_supports_raw = self.merge_nearby_levels(all_supports, base_atr, atr_multiplier=self.params['merge_atr_multiplier'])
-        merged_resistances_raw = self.merge_nearby_levels(all_resistances, base_atr, atr_multiplier=self.params['merge_atr_multiplier'])
-        
-        # 合并后重新校正：支撑必须在当前价格下方，阻力必须在上方
-        merged_supports = []
-        merged_resistances = []
-        for level in merged_supports_raw:
-            if level.get('price', 0) < current_price:
-                merged_supports.append(level)
-            else:
-                merged_resistances.append(level)  # 合并后跑到上方，归为阻力
-        for level in merged_resistances_raw:
-            if level.get('price', 0) > current_price:
-                merged_resistances.append(level)
-            else:
-                merged_supports.append(level)  # 合并后跑到下方，归为支撑
-        
-        # 5. 计算综合强度评分
-        scored_supports = [self.calculate_strength_score(level, 'support', current_price) 
-                          for level in merged_supports]
-        scored_resistances = [self.calculate_strength_score(level, 'resistance', current_price)
-                             for level in merged_resistances]
-        
-        # 6. 按强度排序，同分时距离近的优先
-        scored_supports.sort(key=lambda x: (-x.get('final_score', 0), -(x.get('price', 0))))
-        scored_resistances.sort(key=lambda x: (-x.get('final_score', 0), x.get('price', 0)))
-        
-        # 7. 过滤弱位点
-        strong_supports = [s for s in scored_supports
-                           if s.get('final_score_normalized', 0) >= self.params['filter_min_score']]
-        strong_resistances = [r for r in scored_resistances
-                              if r.get('final_score_normalized', 0) >= self.params['filter_min_score']]
-        
-        logger.info(f"✅ 分析完成: {len(strong_supports)}强支撑, {len(strong_resistances)}强阻力")
-        
+
+        logger.info(f"✅ 分析完成: 上方{len(top_resistances)}阻力, 下方{len(top_supports)}支撑")
+
         return {
-            'symbol': symbol,
+            'symbol':        symbol,
             'current_price': current_price,
-            'base_atr': base_atr,
-            'supports': strong_supports,
-            'resistances': strong_resistances,
+            'base_atr':      base_atr,
+            'supports':      top_supports,
+            'resistances':   top_resistances,
             'timeframe_results': timeframe_results,
             'analysis_time': datetime.now().isoformat(),
             'timeframes_analyzed': list(self.timeframe_config.keys()),
             'optimizations': {
-                'swing_point_filter': self.swing_optimizer is not None,
+                'swing_point_filter':   self.swing_optimizer is not None,
                 'fibonacci_calculation': self.fib_calculator is not None,
-                'volume_confirmation': self.volume_system is not None
+                'volume_confirmation':  self.volume_system is not None,
             }
         }
     
@@ -1389,29 +1406,14 @@ class SupportResistanceAnalyzerPhase1:
         score += confidence_score * self.params['score_weight_confidence']
         score_factors['confidence'] = round(confidence_score, 3)
 
-        # ── 2. 多时间框架共振（30%）─────────────────────────────
-        # 只看跨了几个不同的真实周期，不看来源数量（避免同周期多类型双重计算）
-        REAL_TFS = {'1M', '1w', '1d', '4h'}
-        timeframes = level.get('timeframes', [level.get('timeframe', '')])
-        tf_count   = len({tf for tf in timeframes if tf in REAL_TFS})
-
-        # 1个周期=0.2, 2个=0.4, 3个=0.65, 4个=1.0
-        confluence_map = {0: 0.0, 1: 0.2, 2: 0.4, 3: 0.65, 4: 1.0}
-        confluence_score = confluence_map.get(tf_count, 1.0)
-
-        score += confluence_score * self.params['score_weight_confluence']
-        score_factors['confluence'] = round(confluence_score, 3)
-        score_factors['tf_count']   = tf_count
-
-        # ── 3. 时间框架权威性（15%）─────────────────────────────
-        # 用平均权重（_merge_group 已改为存 avg_tf_weight）
-        # 范围 1~4，归一化到 0~1
+        # ── 2. 时间框架权威性（25%）─────────────────────────────
+        # 范围 1~4，归一化到 0~1：1→0, 2→0.33, 3→0.67, 4→1.0
         timeframe_weight = level.get('timeframe_weight', 1)
-        timeframe_score  = (timeframe_weight - 1) / 3.0  # 1→0, 2→0.33, 3→0.67, 4→1.0
+        timeframe_score  = (timeframe_weight - 1) / 3.0
         score += timeframe_score * self.params['score_weight_timeframe']
         score_factors['timeframe'] = round(timeframe_score, 3)
 
-        # ── 4. 成交量确认（15%）──────────────────────────────────
+        # ── 3. 成交量确认（20%）──────────────────────────────────
         vol_conf = level.get('volume_confirmation', {})
         if vol_conf:
             if vol_conf.get('confirmed', False):
@@ -1547,68 +1549,28 @@ class SupportResistanceAnalyzerPhase1:
         base_atr = analysis_result.get('base_atr', 0)
         timeframe_results = analysis_result.get('timeframe_results', {})
 
-        # ── 类型描述映射 ────────────────────────────────────────
-        TYPE_LABELS = {
-            'technical':     '技术位',
-            'dynamic':       '动态位',
-            'fibonacci':     '斐波那契',
-            'psychological': '心理位',
-        }
         SUBTYPE_LABELS = {
-            # 动态位
-            'EMA7':    'EMA7',
-            'EMA12':   'EMA12',
-            'EMA25':   'EMA25',
-            'EMA50':   'EMA50',
-            'BOLL_MD': '布林中轨',
-            'BOLL_UP': '布林上轨',
-            'BOLL_DN': '布林下轨',
-            # 技术位
-            'swing_low':              '摆动低点',
-            'swing_high':             '摆动高点',
-            'swing_low_optimized':    '摆动低点',
-            'swing_high_optimized':   '摆动高点',
-            # 斐波那契
-            'retracement_0.382':  'Fib 38.2%',
-            'retracement_0.5':    'Fib 50%',
-            'retracement_0.618':  'Fib 61.8%',
-            'extension_1.272':    'Fib 127.2%',
-            'extension_1.618':    'Fib 161.8%',
-            # 心理位
-            'major':    '整五千关口',
-            'standard': '整千关口',
+            'EMA7': 'EMA7', 'EMA12': 'EMA12', 'EMA25': 'EMA25', 'EMA50': 'EMA50',
+            'BOLL_MD': '布林中轨', 'BOLL_UP': '布林上轨', 'BOLL_DN': '布林下轨',
+            'swing_low': '摆动低点', 'swing_high': '摆动高点',
+            'swing_low_optimized': '摆动低点', 'swing_high_optimized': '摆动高点',
+            'retracement_0.382': 'Fib38.2%', 'retracement_0.5': 'Fib50%',
+            'retracement_0.618': 'Fib61.8%', 'extension_1.272': 'Fib127.2%',
+            'extension_1.618': 'Fib161.8%', 'major': '整五千关口', 'standard': '整千关口',
+        }
+        TYPE_LABELS = {
+            'technical': '技术位', 'dynamic': '动态位',
+            'fibonacci': '斐波那契', 'psychological': '心理位',
         }
 
         def _level_desc(level: Dict) -> str:
-            """生成位点的详细描述，显示每个周期的具体贡献"""
-            sources = level.get('sources', [])
-
-            if sources:
-                # 合并后的位点：按周期分组显示
-                tf_map: Dict[str, List[str]] = {}
-                for s in sources:
-                    tf = s.get('timeframe', 'all')
-                    subtype = s.get('subtype', '')
-                    type_  = s.get('type', '')
-                    label = SUBTYPE_LABELS.get(subtype, '') or TYPE_LABELS.get(type_, type_)
-                    tf_map.setdefault(tf, [])
-                    if label and label not in tf_map[tf]:
-                        tf_map[tf].append(label)
-
-                parts = []
-                for tf in ['1M', '1w', '1d', '4h', 'all']:
-                    if tf not in tf_map:
-                        continue
-                    labels = '+'.join(tf_map[tf])
-                    tf_label = {'1M': '月', '1w': '周', '1d': '日', '4h': '4H', 'all': '通用'}.get(tf, tf)
-                    parts.append(f"{tf_label}:{labels}")
-                return '  '.join(parts) if parts else '未知'
-            else:
-                # 单周期位点
-                subtype = level.get('subtype', '')
-                type_   = level.get('type', '')
-                label = SUBTYPE_LABELS.get(subtype, '') or TYPE_LABELS.get(type_, type_)
-                return label or '未知'
+            """生成位点描述：周期 + 具体类型"""
+            tf     = level.get('timeframe', '')
+            subtype = level.get('subtype', '')
+            type_   = level.get('type', '')
+            tf_label = {'1M': '月线', '1w': '周线', '1d': '日线', '4h': '4H', 'all': '通用'}.get(tf, tf)
+            detail = SUBTYPE_LABELS.get(subtype, '') or TYPE_LABELS.get(type_, type_)
+            return f"{tf_label} {detail}" if detail else tf_label
 
         def _vol_tag(level: Dict) -> str:
             """成交量确认标签"""
@@ -1700,40 +1662,40 @@ class SupportResistanceAnalyzerPhase1:
         resistances = analysis_result.get('resistances', [])
         
         # 综合阻力位
-        report.append("\n  📉 关键阻力位（由近到远）:")
+        report.append("\n  📉 关键阻力位（由近到远，上方最近5个）:")
         res_sorted = sorted(resistances, key=lambda x: x.get('price', 0))
         if res_sorted:
-            for i, r in enumerate(res_sorted[:8], 1):
+            for i, r in enumerate(res_sorted, 1):
                 price = r.get('price', 0)
                 score = r.get('final_score', 0)
                 stars = r.get('strength_symbol', '★')
-                tfs   = ', '.join(r.get('timeframes', [r.get('timeframe', '')]))
                 desc  = _level_desc(r)
                 vol   = _vol_tag(r)
                 psych = _psych_tag(price)
                 dist  = (price - current_price) / current_price * 100
-                report.append(f"  {i:2d}. {stars} ${price:,.2f}  距离+{dist:.1f}%  评分{score}/15")
-                report.append(f"      周期: {tfs}  |  {desc}{vol}{psych}")
+                conf_notes = r.get('confluence_notes', [])
+                conf_str = f"  ⚡共振[{', '.join(conf_notes[:3])}]" if conf_notes else ''
+                report.append(f"  {i}. {stars} ${price:,.2f}  +{dist:.1f}%  评分{score}/15  {desc}{vol}{psych}{conf_str}")
         else:
-            report.append("  未识别到综合阻力位")
-        
+            report.append("  未识别到阻力位")
+
         # 综合支撑位
-        report.append("\n  � 关键支撑位（由近到远）:")
+        report.append("\n  📈 关键支撑位（由近到远，下方最近5个）:")
         sup_sorted = sorted(supports, key=lambda x: x.get('price', 0), reverse=True)
         if sup_sorted:
-            for i, s in enumerate(sup_sorted[:8], 1):
+            for i, s in enumerate(sup_sorted, 1):
                 price = s.get('price', 0)
                 score = s.get('final_score', 0)
                 stars = s.get('strength_symbol', '★')
-                tfs   = ', '.join(s.get('timeframes', [s.get('timeframe', '')]))
                 desc  = _level_desc(s)
                 vol   = _vol_tag(s)
                 psych = _psych_tag(price)
                 dist  = (current_price - price) / current_price * 100
-                report.append(f"  {i:2d}. {stars} ${price:,.2f}  距离-{dist:.1f}%  评分{score}/15")
-                report.append(f"      周期: {tfs}  |  {desc}{vol}{psych}")
+                conf_notes = s.get('confluence_notes', [])
+                conf_str = f"  ⚡共振[{', '.join(conf_notes[:3])}]" if conf_notes else ''
+                report.append(f"  {i}. {stars} ${price:,.2f}  -{dist:.1f}%  评分{score}/15  {desc}{vol}{psych}{conf_str}")
         else:
-            report.append("  未识别到综合支撑位")
+            report.append("  未识别到支撑位")
         
         # 交易建议
         report.append(f"\n{'─'*80}")
