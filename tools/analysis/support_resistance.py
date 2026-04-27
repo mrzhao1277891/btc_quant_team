@@ -744,14 +744,14 @@ class SupportResistanceAnalyzerPhase1:
                 cursor.execute(query, (symbol, timeframe))
             data = cursor.fetchall()
             cursor.close()
-            
+
             if not data or len(data) < 50:
                 logger.warning(f"{timeframe} 数据不足计算斐波那契位")
                 return {'supports': [], 'resistances': []}
-            
-            # 提取数据
-            closes = [ensure_float(row['close']) for row in data]
-            volumes = [ensure_float(row['volume']) for row in data]
+
+            closes     = [ensure_float(row['close'])  for row in data]
+            volumes    = [ensure_float(row['volume']) for row in data]
+            timestamps = [row['timestamp']            for row in data]
             
             # 当前价格取最新收盘价
             current_price = closes[-1]
@@ -759,24 +759,59 @@ class SupportResistanceAnalyzerPhase1:
             # 使用斐波那契计算器
             self._init_optimization_modules()
             if self.fib_calculator is None:
-                # 无计算器时用简单方法：取近期高低点计算 fib 回撤
-                return self._calculate_simple_fibonacci(closes, current_price, timeframe)
+                return self._calculate_simple_fibonacci(closes, timestamps, current_price, timeframe)
             
             # 识别波段
             waves = self.fib_calculator.identify_waves(closes, volumes)
-            
+
             # 计算斐波那契位
             fib_levels = self.fib_calculator.calculate_all_fibonacci_levels(waves)
-            
-            # 根据当前价格修正支撑/阻力方向
+
+            # 时间格式按周期
+            tf_fmt = {'1M': '%Y-%m', '1w': '%Y-%m-%d', '1d': '%Y-%m-%d', '4h': '%m-%d %H:%M'}.get(timeframe, '%m-%d')
+
+            def _find_ts(price_val):
+                """在closes里找最接近price_val的索引，返回对应时间戳"""
+                if not closes:
+                    return None
+                idx = min(range(len(closes)), key=lambda i: abs(closes[i] - price_val))
+                return timestamps[idx]
+
+            def _ts_fmt(ts):
+                if not ts:
+                    return ''
+                try:
+                    return datetime.fromtimestamp(ts / 1000).strftime(tf_fmt)
+                except Exception:
+                    return ''
+
+            # 根据当前价格修正支撑/阻力方向，并补充时间信息
             corrected_supports = []
             corrected_resistances = []
-            
+
             for level in fib_levels.get('supports', []) + fib_levels.get('resistances', []):
                 level['timeframe'] = timeframe
                 price = level.get('price', 0)
                 if price <= 0:
                     continue
+
+                # 从 wave 字段提取波段时间信息
+                wave = level.get('wave', {})
+                wave_start_price = wave.get('start', 0)
+                wave_end_price   = wave.get('end', 0)
+                if wave_start_price and wave_end_price:
+                    ts_start = _find_ts(wave_start_price)
+                    ts_end   = _find_ts(wave_end_price)
+                    wave_time = f"{_ts_fmt(ts_start)}~{_ts_fmt(ts_end)}" if ts_start and ts_end else ''
+                    level['timestamp'] = ts_start
+                    level['metadata'] = {
+                        'ratio':      level.get('ratio'),
+                        'direction':  wave.get('direction', ''),
+                        'wave_high':  max(wave_start_price, wave_end_price),
+                        'wave_low':   min(wave_start_price, wave_end_price),
+                        'wave_time':  wave_time,
+                    }
+
                 if price < current_price:
                     corrected_supports.append(level)
                 else:
@@ -789,7 +824,8 @@ class SupportResistanceAnalyzerPhase1:
             logger.error(f"识别斐波那契位失败: {e}")
             return {'supports': [], 'resistances': []}
     
-    def _calculate_simple_fibonacci(self, closes: List[float], current_price: float, timeframe: str) -> Dict[str, List[Dict]]:
+    def _calculate_simple_fibonacci(self, closes: List[float], timestamps: List[int],
+                                    current_price: float, timeframe: str) -> Dict[str, List[Dict]]:
         """
         基于近期趋势波段的斐波那契计算
         识别最近一次明显的涨跌波段，分别计算回撤位和延伸位
@@ -801,6 +837,16 @@ class SupportResistanceAnalyzerPhase1:
         lookback_map = self.params['fib_lookback']
         lookback = lookback_map.get(timeframe, 100)
         recent = closes[-lookback:] if len(closes) >= lookback else closes
+        recent_ts = timestamps[-lookback:] if len(timestamps) >= lookback else timestamps
+
+        # 时间格式按周期
+        tf_fmt = {'1M': '%Y-%m', '1w': '%Y-%m-%d', '1d': '%Y-%m-%d', '4h': '%m-%d %H:%M'}.get(timeframe, '%m-%d')
+
+        def _ts_str(ts):
+            try:
+                return datetime.fromtimestamp(ts / 1000).strftime(tf_fmt)
+            except Exception:
+                return ''
 
         # 找近期波段：用滑动窗口找局部高低点
         window = max(5, len(recent) // 20)
@@ -808,56 +854,50 @@ class SupportResistanceAnalyzerPhase1:
         local_lows = []
         for i in range(window, len(recent) - window):
             if all(recent[i] >= recent[i-j] and recent[i] >= recent[i+j] for j in range(1, window+1)):
-                local_highs.append((i, recent[i]))
+                local_highs.append((i, recent[i], recent_ts[i]))
             if all(recent[i] <= recent[i-j] and recent[i] <= recent[i+j] for j in range(1, window+1)):
-                local_lows.append((i, recent[i]))
+                local_lows.append((i, recent[i], recent_ts[i]))
 
         if not local_highs or not local_lows:
-            # 兜底：直接用全段高低点
             swing_high = max(recent)
-            swing_low = min(recent)
-            waves = [('down', swing_high, swing_low)]
+            swing_low  = min(recent)
+            waves = [('down', swing_high, swing_low, None, None)]
         else:
-            # 取最近的高点和低点，判断当前趋势方向
-            last_high_idx, last_high_val = local_highs[-1]
-            last_low_idx, last_low_val = local_lows[-1]
+            last_high_idx, last_high_val, last_high_ts = local_highs[-1]
+            last_low_idx,  last_low_val,  last_low_ts  = local_lows[-1]
 
-            # 振幅过滤：波段幅度低于阈值不计算
             min_amplitude = self.params['fib_min_wave_amplitude']
             waves = []
 
             if last_high_idx > last_low_idx:
-                # 最近是上涨波段：从低点涨到高点
                 amp = (last_high_val - last_low_val) / last_low_val
                 if amp >= min_amplitude:
-                    waves.append(('up', last_low_val, last_high_val))
-                # 同时找上一个低点，构造更大的下跌波段
+                    waves.append(('up', last_low_val, last_high_val, last_low_ts, last_high_ts))
                 prev_lows = [l for l in local_lows if l[0] < last_low_idx]
                 if prev_lows:
                     prev_high_candidates = [h for h in local_highs if h[0] < last_low_idx]
                     if prev_high_candidates:
-                        prev_high_val = prev_high_candidates[-1][1]
+                        _, prev_high_val, prev_high_ts = prev_high_candidates[-1]
                         amp2 = (prev_high_val - last_low_val) / prev_high_val
                         if amp2 >= min_amplitude:
-                            waves.append(('down', prev_high_val, last_low_val))
+                            waves.append(('down', prev_high_val, last_low_val, prev_high_ts, last_low_ts))
             else:
-                # 最近是下跌波段：从高点跌到低点
                 amp = (last_high_val - last_low_val) / last_high_val
                 if amp >= min_amplitude:
-                    waves.append(('down', last_high_val, last_low_val))
-                # 同时找上一个高点，构造更大的上涨波段
+                    waves.append(('down', last_high_val, last_low_val, last_high_ts, last_low_ts))
                 prev_highs = [h for h in local_highs if h[0] < last_high_idx]
                 if prev_highs:
                     prev_low_candidates = [l for l in local_lows if l[0] < last_high_idx]
                     if prev_low_candidates:
-                        prev_low_val = prev_low_candidates[-1][1]
+                        _, prev_low_val, prev_low_ts = prev_low_candidates[-1]
                         amp2 = (last_high_val - prev_low_val) / prev_low_val
                         if amp2 >= min_amplitude:
-                            waves.append(('up', prev_low_val, last_high_val))
+                            waves.append(('up', prev_low_val, last_high_val, prev_low_ts, last_high_ts))
 
             if not waves:
                 swing_high = max(recent[-50:])
-                swing_low = min(recent[-50:])
+                swing_low  = min(recent[-50:])
+                waves = [('down', swing_high, swing_low, None, None)]
                 waves = [('down', swing_high, swing_low)]
 
         # 标准斐波那契比例
@@ -867,13 +907,22 @@ class SupportResistanceAnalyzerPhase1:
         supports = []
         resistances = []
 
-        for direction, wave_start, wave_end in waves:
+        for direction, wave_start, wave_end, ts_start, ts_end in waves:
             diff = abs(wave_end - wave_start)
             if diff <= 0:
                 continue
 
+            # 波段时间范围字符串
+            wave_time = ''
+            if ts_start and ts_end:
+                wave_time = f"{_ts_str(ts_start)}~{_ts_str(ts_end)}"
+            elif ts_start:
+                wave_time = _ts_str(ts_start)
+
+            # timestamp 用波段起点时间（方便在图表上定位）
+            level_ts = ts_start or ts_end
+
             if direction == 'up':
-                # 上涨波段：回撤位在下方（支撑），延伸位在上方（阻力）
                 high, low = wave_end, wave_start
                 for ratio in retracement_ratios:
                     price = high - diff * ratio
@@ -884,7 +933,9 @@ class SupportResistanceAnalyzerPhase1:
                         'subtype': f'retracement_{ratio}',
                         'timeframe': timeframe,
                         'base_strength': importance,
-                        'metadata': {'ratio': ratio, 'direction': 'up', 'wave_high': high, 'wave_low': low}
+                        'timestamp': level_ts,
+                        'metadata': {'ratio': ratio, 'direction': 'up',
+                                     'wave_high': high, 'wave_low': low, 'wave_time': wave_time}
                     }
                     if price < current_price:
                         supports.append(level)
@@ -898,13 +949,14 @@ class SupportResistanceAnalyzerPhase1:
                         'subtype': f'extension_{ratio}',
                         'timeframe': timeframe,
                         'base_strength': 2,
-                        'metadata': {'ratio': ratio, 'direction': 'up', 'wave_high': high, 'wave_low': low}
+                        'timestamp': level_ts,
+                        'metadata': {'ratio': ratio, 'direction': 'up',
+                                     'wave_high': high, 'wave_low': low, 'wave_time': wave_time}
                     }
                     if price > current_price:
                         resistances.append(level)
 
             else:
-                # 下跌波段：回撤位在上方（阻力），延伸位在下方（支撑）
                 high, low = wave_start, wave_end
                 for ratio in retracement_ratios:
                     price = low + diff * ratio
@@ -915,7 +967,9 @@ class SupportResistanceAnalyzerPhase1:
                         'subtype': f'retracement_{ratio}',
                         'timeframe': timeframe,
                         'base_strength': importance,
-                        'metadata': {'ratio': ratio, 'direction': 'down', 'wave_high': high, 'wave_low': low}
+                        'timestamp': level_ts,
+                        'metadata': {'ratio': ratio, 'direction': 'down',
+                                     'wave_high': high, 'wave_low': low, 'wave_time': wave_time}
                     }
                     if price > current_price:
                         resistances.append(level)
@@ -929,7 +983,9 @@ class SupportResistanceAnalyzerPhase1:
                         'subtype': f'extension_{ratio}',
                         'timeframe': timeframe,
                         'base_strength': 2,
-                        'metadata': {'ratio': ratio, 'direction': 'down', 'wave_high': high, 'wave_low': low}
+                        'timestamp': level_ts,
+                        'metadata': {'ratio': ratio, 'direction': 'down',
+                                     'wave_high': high, 'wave_low': low, 'wave_time': wave_time}
                     }
                     if price < current_price:
                         supports.append(level)
@@ -1235,7 +1291,8 @@ class SupportResistanceAnalyzerPhase1:
                     if abs(other_p - p) / p <= CONFLUENCE_TOL:
                         tf = other.get('timeframe', '')
                         sub = other.get('subtype', '')
-                        label = SUBTYPE_LABELS.get(sub, '') or TYPE_LABELS.get(other.get('type', ''), '')
+                        type_ = other.get('type', '')
+                        label = SUBTYPE_LABELS.get(sub, '') or TYPE_LABELS.get(type_, '')
                         tf_label = {'1M': '月', '1w': '周', '1d': '日', '4h': '4H', 'all': '通用'}.get(tf, tf)
                         diff_pts = other_p - p
                         diff_pct = diff_pts / p * 100
@@ -1247,7 +1304,19 @@ class SupportResistanceAnalyzerPhase1:
                             time_str = datetime.fromtimestamp(ts / 1000).strftime(tf_fmt)
                         else:
                             time_str = ''
-                        note = f"{tf_label}:{label}@${other_p:,.0f}({dist_str}{' ' + time_str if time_str else ''})" if label else f"{tf_label}@${other_p:,.0f}({dist_str}{' ' + time_str if time_str else ''})"
+                        # 斐波那契附加波段时间范围
+                        wave_str = ''
+                        if type_ == 'fibonacci':
+                            meta = other.get('metadata', {})
+                            wave_time = meta.get('wave_time', '')
+                            wave_high = meta.get('wave_high', 0)
+                            wave_low  = meta.get('wave_low', 0)
+                            if wave_high and wave_low:
+                                wave_str = f" 波段${wave_low:,.0f}~${wave_high:,.0f}"
+                                if wave_time:
+                                    wave_str += f" {wave_time}"
+                        time_part = f" {time_str}" if time_str else ''
+                        note = f"{tf_label}:{label}@${other_p:,.0f}({dist_str}{time_part}{wave_str})" if label else f"{tf_label}@${other_p:,.0f}({dist_str}{time_part}{wave_str})"
                         resonant.append(note)
                 lv['confluence_notes'] = list(dict.fromkeys(resonant))  # 去重保序
 
@@ -1295,7 +1364,18 @@ class SupportResistanceAnalyzerPhase1:
                         time_str = datetime.fromtimestamp(ts / 1000).strftime(tf_fmt)
                     else:
                         time_str = ''
-                    note = f"{tf_label}:{label}@${o['price']:,.0f}({dist_str}{' ' + time_str if time_str else ''})" if label else f"{tf_label}@${o['price']:,.0f}({dist_str}{' ' + time_str if time_str else ''})"
+                    wave_str = ''
+                    if type_ == 'fibonacci':
+                        meta = o.get('metadata', {})
+                        wave_time = meta.get('wave_time', '')
+                        wave_high = meta.get('wave_high', 0)
+                        wave_low  = meta.get('wave_low', 0)
+                        if wave_high and wave_low:
+                            wave_str = f" 波段${wave_low:,.0f}~${wave_high:,.0f}"
+                            if wave_time:
+                                wave_str += f" {wave_time}"
+                    time_part = f" {time_str}" if time_str else ''
+                    note = f"{tf_label}:{label}@${o['price']:,.0f}({dist_str}{time_part}{wave_str})" if label else f"{tf_label}@${o['price']:,.0f}({dist_str}{time_part}{wave_str})"
                     extra_notes.append(note)
                 existing = best.get('confluence_notes', [])
                 best['confluence_notes'] = list(dict.fromkeys(existing + extra_notes))
@@ -1626,12 +1706,27 @@ class SupportResistanceAnalyzerPhase1:
         }
 
         def _level_desc(level: Dict) -> str:
-            """生成位点描述：周期 + 具体类型"""
-            tf     = level.get('timeframe', '')
+            """生成位点描述：周期 + 具体类型（斐波那契加波段时间范围）"""
+            tf      = level.get('timeframe', '')
             subtype = level.get('subtype', '')
             type_   = level.get('type', '')
             tf_label = {'1M': '月线', '1w': '周线', '1d': '日线', '4h': '4H', 'all': '通用'}.get(tf, tf)
-            detail = SUBTYPE_LABELS.get(subtype, '') or TYPE_LABELS.get(type_, type_)
+            detail   = SUBTYPE_LABELS.get(subtype, '') or TYPE_LABELS.get(type_, type_)
+
+            # 斐波那契：附加波段时间范围和高低点
+            if type_ == 'fibonacci':
+                meta = level.get('metadata', {})
+                wave_time = meta.get('wave_time', '')
+                wave_high = meta.get('wave_high', 0)
+                wave_low  = meta.get('wave_low', 0)
+                wave_info = ''
+                if wave_high and wave_low:
+                    wave_info = f"[波段${wave_low:,.0f}~${wave_high:,.0f}"
+                    if wave_time:
+                        wave_info += f" {wave_time}"
+                    wave_info += ']'
+                return f"{tf_label} {detail} {wave_info}".strip()
+
             return f"{tf_label} {detail}" if detail else tf_label
 
         def _vol_tag(level: Dict) -> str:
