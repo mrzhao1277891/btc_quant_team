@@ -1209,7 +1209,7 @@ class SupportResistanceAnalyzerPhase1:
                 self.calculate_strength_score(lv, 'resistance', current_price)
 
         # 4. 标注共振：相近位点（1.5%以内）互相标注来自哪些周期
-        CONFLUENCE_TOL = 0.015
+        CONFLUENCE_TOL = 0.006  # 0.6%
         SUBTYPE_LABELS = {
             'EMA7': 'EMA7', 'EMA12': 'EMA12', 'EMA25': 'EMA25', 'EMA50': 'EMA50',
             'BOLL_MD': '布林中轨', 'BOLL_UP': '布林上轨', 'BOLL_DN': '布林下轨',
@@ -1231,20 +1231,82 @@ class SupportResistanceAnalyzerPhase1:
                 for j, other in enumerate(levels):
                     if i == j:
                         continue
-                    if abs(other['price'] - p) / p <= CONFLUENCE_TOL:
+                    other_p = other['price']
+                    if abs(other_p - p) / p <= CONFLUENCE_TOL:
                         tf = other.get('timeframe', '')
                         sub = other.get('subtype', '')
                         label = SUBTYPE_LABELS.get(sub, '') or TYPE_LABELS.get(other.get('type', ''), '')
                         tf_label = {'1M': '月', '1w': '周', '1d': '日', '4h': '4H', 'all': '通用'}.get(tf, tf)
-                        resonant.append(f"{tf_label}:{label}" if label else tf_label)
+                        diff_pts = other_p - p
+                        diff_pct = diff_pts / p * 100
+                        sign = '+' if diff_pts >= 0 else ''
+                        dist_str = f"{sign}{diff_pts:,.0f}点/{sign}{diff_pct:.2f}%"
+                        ts = other.get('timestamp')
+                        if ts:
+                            tf_fmt = {'1M': '%Y-%m', '1w': '%Y-%m-%d', '1d': '%Y-%m-%d', '4h': '%m-%d %H:%M'}.get(tf, '%m-%d')
+                            time_str = datetime.fromtimestamp(ts / 1000).strftime(tf_fmt)
+                        else:
+                            time_str = ''
+                        note = f"{tf_label}:{label}@${other_p:,.0f}({dist_str}{' ' + time_str if time_str else ''})" if label else f"{tf_label}@${other_p:,.0f}({dist_str}{' ' + time_str if time_str else ''})"
+                        resonant.append(note)
                 lv['confluence_notes'] = list(dict.fromkeys(resonant))  # 去重保序
 
         _mark_confluence(all_supports)
         _mark_confluence(all_resistances)
 
-        # 5. 按距离当前价格排序，取最近各5个
-        all_supports.sort(key=lambda x: current_price - x['price'])     # 最近的在前
-        all_resistances.sort(key=lambda x: x['price'] - current_price)  # 最近的在前
+        # 5. 相近位点合并（差距 < $500 合并为一个，保留评分最高的作代表）
+        MERGE_THRESHOLD = 500  # 美元
+
+        def _merge_close_levels(levels: List[Dict]) -> List[Dict]:
+            if not levels:
+                return []
+            # 按价格排序
+            sorted_lvs = sorted(levels, key=lambda x: x['price'])
+            merged = []
+            group = [sorted_lvs[0]]
+            for lv in sorted_lvs[1:]:
+                if abs(lv['price'] - group[-1]['price']) < MERGE_THRESHOLD:
+                    group.append(lv)
+                else:
+                    merged.append(_pick_best(group))
+                    group = [lv]
+            merged.append(_pick_best(group))
+            return merged
+
+        def _pick_best(group: List[Dict]) -> Dict:
+            """取评分最高的作代表，其余作为合并注释"""
+            best = max(group, key=lambda x: x.get('final_score', 0))
+            if len(group) > 1:
+                others = [l for l in group if l is not best]
+                extra_notes = []
+                for o in others:
+                    tf = o.get('timeframe', '')
+                    sub = o.get('subtype', '')
+                    type_ = o.get('type', '')
+                    tf_label = {'1M': '月', '1w': '周', '1d': '日', '4h': '4H', 'all': '通用'}.get(tf, tf)
+                    label = SUBTYPE_LABELS.get(sub, '') or TYPE_LABELS.get(type_, type_)
+                    diff_pts = o['price'] - best['price']
+                    diff_pct = diff_pts / best['price'] * 100
+                    sign = '+' if diff_pts >= 0 else ''
+                    dist_str = f"{sign}{diff_pts:,.0f}点/{sign}{diff_pct:.2f}%"
+                    ts = o.get('timestamp')
+                    if ts:
+                        tf_fmt = {'1M': '%Y-%m', '1w': '%Y-%m-%d', '1d': '%Y-%m-%d', '4h': '%m-%d %H:%M'}.get(tf, '%m-%d')
+                        time_str = datetime.fromtimestamp(ts / 1000).strftime(tf_fmt)
+                    else:
+                        time_str = ''
+                    note = f"{tf_label}:{label}@${o['price']:,.0f}({dist_str}{' ' + time_str if time_str else ''})" if label else f"{tf_label}@${o['price']:,.0f}({dist_str}{' ' + time_str if time_str else ''})"
+                    extra_notes.append(note)
+                existing = best.get('confluence_notes', [])
+                best['confluence_notes'] = list(dict.fromkeys(existing + extra_notes))
+            return best
+
+        all_supports   = _merge_close_levels(all_supports)
+        all_resistances = _merge_close_levels(all_resistances)
+
+        # 6. 按距离当前价格排序，取最近各5个
+        all_supports.sort(key=lambda x: current_price - x['price'])
+        all_resistances.sort(key=lambda x: x['price'] - current_price)
         top_supports    = all_supports[:5]
         top_resistances = all_resistances[:5]
 
@@ -1583,14 +1645,6 @@ class SupportResistanceAnalyzerPhase1:
             return ' 📊量未确认'
 
         def _psych_tag(price: float) -> str:
-            """标注附近的整千关口（不参与合并的心理位）"""
-            # 找最近的整千关口
-            nearest_k = round(price / 1000) * 1000
-            dist_pct = abs(price - nearest_k) / price
-            if dist_pct <= 0.008:  # 0.8% 以内才标注
-                if nearest_k % 5000 == 0:
-                    return f" 🔑整{nearest_k//1000}K"
-                return f" 📍整{nearest_k//1000}K"
             return ''
         
         report = []
