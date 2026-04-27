@@ -155,17 +155,17 @@ class SupportResistanceAnalyzerPhase1:
             
             # ── 评分权重（四项之和应为 1.0）────────────────────────────
             # 触碰/置信度：历史验证次数，最能预测位点有效性
-            'score_weight_confidence': 0.50,
+            'score_weight_confidence': 0.45,
             # 多时间框架共振：同一价格区域在多个周期都有位点，可靠性大幅提升
-            'score_weight_confluence': 0.30,
+            'score_weight_confluence': 0.25,
             # 时间框架权威性：大周期位点更可靠（降权，避免月线固定高分）
-            'score_weight_timeframe': 0.20,
-            # 距离当前价格：去掉（在回测触及判定里已经保证了距离，这里加反而有害）
+            'score_weight_timeframe': 0.15,
+            # 成交量确认：有量才有效
+            'score_weight_volume': 0.15,
+            # 距离当前价格：去掉
             'score_weight_distance': 0.0,
-            # 成交量确认：暂无数据，权重归零
-            'score_weight_volume': 0.0,
             # 无成交量数据时的默认分（0~1）
-            'score_volume_default': 0.4,
+            'score_volume_default': 0.3,
             
             # ── 距离评分档位（distance_pct → score）────────────────────
             # 格式：[(距离上限, 得分), ...]，从近到远
@@ -1093,18 +1093,58 @@ class SupportResistanceAnalyzerPhase1:
             technical_levels = self.identify_technical_levels(timeframe, symbol, use_optimizer=True)
             dynamic_levels = self.identify_dynamic_levels(timeframe, symbol)
             fib_levels = self.identify_fibonacci_levels(timeframe, symbol)
-            
+
             # 合并当前时间框架的位点
             timeframe_supports = (
-                technical_levels['supports'] + 
-                dynamic_levels['supports'] + 
+                technical_levels['supports'] +
+                dynamic_levels['supports'] +
                 fib_levels['supports']
             )
             timeframe_resistances = (
-                technical_levels['resistances'] + 
-                dynamic_levels['resistances'] + 
+                technical_levels['resistances'] +
+                dynamic_levels['resistances'] +
                 fib_levels['resistances']
             )
+
+            # 成交量验证：用该时间框架自己的数据，在合并前做
+            self._init_optimization_modules()
+            if self.volume_system is not None and timeframe_supports + timeframe_resistances:
+                ohlcv = self._fetch_ohlcv_for_volume(timeframe, symbol)
+                if ohlcv and len(ohlcv.get('closes', [])) >= 20:
+                    try:
+                        confirmed_sup, confirmed_res = self.volume_system.integrate_with_support_resistance(
+                            support_levels=timeframe_supports,
+                            resistance_levels=timeframe_resistances,
+                            prices=ohlcv['prices'],
+                            highs=ohlcv['highs'],
+                            lows=ohlcv['lows'],
+                            closes=ohlcv['closes'],
+                            volumes=ohlcv['volumes'],
+                            timestamps=ohlcv['timestamps'],
+                        )
+                        # 成交量未确认的位点保留但降低置信度，不直接丢弃
+                        confirmed_prices_sup = {l['price'] for l in confirmed_sup}
+                        confirmed_prices_res = {l['price'] for l in confirmed_res}
+                        for lv in timeframe_supports:
+                            if lv['price'] not in confirmed_prices_sup:
+                                lv.setdefault('volume_confirmation', {'confirmed': False, 'confidence': 0.1})
+                        for lv in timeframe_resistances:
+                            if lv['price'] not in confirmed_prices_res:
+                                lv.setdefault('volume_confirmation', {'confirmed': False, 'confidence': 0.1})
+                        # 把确认信息写回原列表
+                        for lv in confirmed_sup:
+                            for orig in timeframe_supports:
+                                if orig['price'] == lv['price']:
+                                    orig['volume_confirmation'] = lv.get('volume_confirmation', {})
+                                    break
+                        for lv in confirmed_res:
+                            for orig in timeframe_resistances:
+                                if orig['price'] == lv['price']:
+                                    orig['volume_confirmation'] = lv.get('volume_confirmation', {})
+                                    break
+                        logger.debug(f"{timeframe} 成交量验证完成")
+                    except Exception as e:
+                        logger.warning(f"{timeframe} 成交量验证失败: {e}")
             
             # 添加时间框架权重
             for level in timeframe_supports + timeframe_resistances:
@@ -1167,10 +1207,7 @@ class SupportResistanceAnalyzerPhase1:
             else:
                 merged_supports.append(level)  # 合并后跑到下方，归为支撑
         
-        # 5. 成交量确认（当前跳过，volume_confirmation 模块会清空所有位点）
-        # TODO: 修复 volume_confirmation 的序列长度问题后再启用
-        
-        # 6. 计算综合强度评分
+        # 5. 计算综合强度评分
         scored_supports = [self.calculate_strength_score(level, 'support', current_price) 
                           for level in merged_supports]
         scored_resistances = [self.calculate_strength_score(level, 'resistance', current_price)
@@ -1243,7 +1280,37 @@ class SupportResistanceAnalyzerPhase1:
             logger.error(f"获取当前价格失败: {e}")
             return None
     
-    def _get_price_data_for_volume(self, timeframe: str, symbol: str = 'BTCUSDT', limit: int = 300) -> Optional[Dict]:
+    def _fetch_ohlcv_for_volume(self, timeframe: str, symbol: str, limit: int = 300) -> Dict:
+        """获取某时间框架的 OHLCV 序列，用于成交量验证（正序）"""
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            if self.before_ts:
+                cursor.execute(
+                    "SELECT timestamp, high, low, close, volume FROM klines "
+                    "WHERE symbol=%s AND timeframe=%s AND timestamp<%s "
+                    "ORDER BY timestamp DESC LIMIT %s",
+                    (symbol, timeframe, self.before_ts, limit)
+                )
+            else:
+                cursor.execute(
+                    "SELECT timestamp, high, low, close, volume FROM klines "
+                    "WHERE symbol=%s AND timeframe=%s "
+                    "ORDER BY timestamp DESC LIMIT %s",
+                    (symbol, timeframe, limit)
+                )
+            rows = list(reversed(cursor.fetchall()))
+            cursor.close()
+            return {
+                'prices':     [ensure_float(r['close']) for r in rows],
+                'highs':      [ensure_float(r['high'])  for r in rows],
+                'lows':       [ensure_float(r['low'])   for r in rows],
+                'closes':     [ensure_float(r['close']) for r in rows],
+                'volumes':    [ensure_float(r['volume']) for r in rows],
+                'timestamps': [r['timestamp'] for r in rows],
+            }
+        except Exception as e:
+            logger.warning(f"获取 {timeframe} OHLCV 失败: {e}")
+            return {}
         """获取价格数据用于成交量分析"""
         try:
             cursor = self.connection.cursor(dictionary=True)
@@ -1326,13 +1393,25 @@ class SupportResistanceAnalyzerPhase1:
         score_factors['confluence'] = round(confluence_score, 3)
         score_factors['tf_count']   = tf_count
 
-        # ── 3. 时间框架权威性（20%）─────────────────────────────
+        # ── 3. 时间框架权威性（15%）─────────────────────────────
         # 用平均权重（_merge_group 已改为存 avg_tf_weight）
         # 范围 1~4，归一化到 0~1
         timeframe_weight = level.get('timeframe_weight', 1)
         timeframe_score  = (timeframe_weight - 1) / 3.0  # 1→0, 2→0.33, 3→0.67, 4→1.0
         score += timeframe_score * self.params['score_weight_timeframe']
         score_factors['timeframe'] = round(timeframe_score, 3)
+
+        # ── 4. 成交量确认（15%）──────────────────────────────────
+        vol_conf = level.get('volume_confirmation', {})
+        if vol_conf:
+            if vol_conf.get('confirmed', False):
+                volume_score = min(0.4 + vol_conf.get('confidence', 0.5) * 0.6, 1.0)
+            else:
+                volume_score = max(vol_conf.get('confidence', 0.1) * 0.4, 0.05)
+        else:
+            volume_score = self.params['score_volume_default']
+        score += volume_score * self.params['score_weight_volume']
+        score_factors['volume'] = round(volume_score, 3)
 
         # ── 转换为 1~15 分（用 round 避免 int 向下取整的分布不均）──
         final_score = max(0.0, min(score, 1.0))
