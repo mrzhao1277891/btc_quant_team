@@ -680,18 +680,21 @@ class SupportResistanceAnalyzerPhase1:
                     level_type = 'resistance'
                 
                 strength = 2
-                if base % self.params['psych_major_interval'] == 0:
+                is_major = (base % self.params['psych_major_interval'] == 0)
+                if is_major:
                     strength = 3
-                if abs(current_price - base) / current_price < 0.01:  # 接近当前价格
+                if abs(current_price - base) / current_price < 0.01:
                     strength += 1
-                
+
                 level_info = {
                     'price': float(base),
                     'timestamp': int(datetime.now().timestamp() * 1000),
                     'type': 'psychological',
-                    'subtype': 'major' if base % self.params['psych_major_interval'] == 0 else 'standard',
-                    'timeframe': 'all',  # 心理位适用于所有时间框架
+                    'subtype': 'major' if is_major else 'standard',
+                    'timeframe': 'all',
                     'base_strength': strength,
+                    # 只有整5000及以上才参与多时间框架合并，整千太密会污染所有位点
+                    'merge_eligible': is_major,
                     'metadata': {
                         'current_price': current_price,
                         'distance_pct': abs(current_price - base) / current_price * 100
@@ -1177,14 +1180,21 @@ class SupportResistanceAnalyzerPhase1:
             all_supports.extend(tf_supports_corrected)
             all_resistances.extend(tf_resistances_corrected)
         
-        # 2. 添加心理位（适用于所有时间框架）
+        # 2. 添加心理位（只有整5000以上参与合并，整千只做标注）
         psychological_levels = self.identify_psychological_levels(current_price, symbol)
         for level in psychological_levels['supports'] + psychological_levels['resistances']:
-            level['timeframe_weight'] = 1  # 心理位基础权重
+            level['timeframe_weight'] = 1
             level['timeframe'] = 'all'
-        
-        all_supports.extend(psychological_levels['supports'])
-        all_resistances.extend(psychological_levels['resistances'])
+
+        # 参与合并的心理位（整5000）
+        psych_merge_sup = [l for l in psychological_levels['supports'] if l.get('merge_eligible', False)]
+        psych_merge_res = [l for l in psychological_levels['resistances'] if l.get('merge_eligible', False)]
+        all_supports.extend(psych_merge_sup)
+        all_resistances.extend(psych_merge_res)
+
+        # 整千关口单独保存，用于报告标注（不参与合并）
+        psych_annotation_sup = [l for l in psychological_levels['supports'] if not l.get('merge_eligible', False)]
+        psych_annotation_res = [l for l in psychological_levels['resistances'] if not l.get('merge_eligible', False)]
         
         # 3. 计算综合ATR（使用4H ATR作为基准）
         base_atr = self.calculate_atr('4h', symbol)
@@ -1536,6 +1546,75 @@ class SupportResistanceAnalyzerPhase1:
         current_price = analysis_result.get('current_price', 0)
         base_atr = analysis_result.get('base_atr', 0)
         timeframe_results = analysis_result.get('timeframe_results', {})
+
+        # ── 类型描述映射 ────────────────────────────────────────
+        TYPE_LABELS = {
+            'technical':     '技术位',
+            'dynamic':       '动态位',
+            'fibonacci':     '斐波那契',
+            'psychological': '心理位',
+        }
+        SUBTYPE_LABELS = {
+            # 动态位
+            'EMA7':    'EMA7',
+            'EMA12':   'EMA12',
+            'EMA25':   'EMA25',
+            'EMA50':   'EMA50',
+            'BOLL_MD': '布林中轨',
+            'BOLL_UP': '布林上轨',
+            'BOLL_DN': '布林下轨',
+            # 技术位
+            'swing_low':              '摆动低点',
+            'swing_high':             '摆动高点',
+            'swing_low_optimized':    '摆动低点',
+            'swing_high_optimized':   '摆动高点',
+            # 斐波那契
+            'retracement_0.382':  'Fib 38.2%',
+            'retracement_0.5':    'Fib 50%',
+            'retracement_0.618':  'Fib 61.8%',
+            'extension_1.272':    'Fib 127.2%',
+            'extension_1.618':    'Fib 161.8%',
+            # 心理位
+            'major':    '整五千关口',
+            'standard': '整千关口',
+        }
+
+        def _level_desc(level: Dict) -> str:
+            """生成位点的简洁描述"""
+            # 合并后的位点有 types/sources，单周期位点有 type/subtype
+            types    = level.get('types', [level.get('type', '')])
+            sources  = level.get('sources', [level])
+            subtypes = list({s.get('subtype', '') for s in sources if s.get('subtype')})
+
+            type_str = '+'.join(
+                TYPE_LABELS.get(t, t) for t in types if t and t != 'all'
+            ) or '未知'
+
+            sub_str = '+'.join(
+                SUBTYPE_LABELS.get(st, st) for st in subtypes if st
+            )
+            return f"{type_str}({sub_str})" if sub_str else type_str
+
+        def _vol_tag(level: Dict) -> str:
+            """成交量确认标签"""
+            vc = level.get('volume_confirmation', {})
+            if not vc:
+                return ''
+            if vc.get('confirmed'):
+                conf = vc.get('confidence', 0)
+                return f" 📊量确认{conf:.0%}"
+            return ' 📊量未确认'
+
+        def _psych_tag(price: float) -> str:
+            """标注附近的整千关口（不参与合并的心理位）"""
+            # 找最近的整千关口
+            nearest_k = round(price / 1000) * 1000
+            dist_pct = abs(price - nearest_k) / price
+            if dist_pct <= 0.008:  # 0.8% 以内才标注
+                if nearest_k % 5000 == 0:
+                    return f" 🔑整{nearest_k//1000}K"
+                return f" 📍整{nearest_k//1000}K"
+            return ''
         
         report = []
         report.append("=" * 80)
@@ -1573,9 +1652,11 @@ class SupportResistanceAnalyzerPhase1:
                     price = level.get('price', 0)
                     score = level.get('final_score', 0)
                     stars = level.get('strength_symbol', '★')
-                    types = ', '.join(level.get('types', [level.get('type', '')]))
-                    dist = (price - current_price) / current_price * 100
-                    report.append(f"    {stars} ${price:,.2f}  距离+{dist:.1f}%  评分{score}/15  [{types}]")
+                    desc  = _level_desc(level)
+                    vol   = _vol_tag(level)
+                    psych = _psych_tag(price)
+                    dist  = (price - current_price) / current_price * 100
+                    report.append(f"    {stars} ${price:,.2f}  距离+{dist:.1f}%  评分{score}/15  [{desc}]{vol}{psych}")
             else:
                 report.append("    暂无识别到阻力位")
             
@@ -1587,9 +1668,11 @@ class SupportResistanceAnalyzerPhase1:
                     price = level.get('price', 0)
                     score = level.get('final_score', 0)
                     stars = level.get('strength_symbol', '★')
-                    types = ', '.join(level.get('types', [level.get('type', '')]))
-                    dist = (current_price - price) / current_price * 100
-                    report.append(f"    {stars} ${price:,.2f}  距离-{dist:.1f}%  评分{score}/15  [{types}]")
+                    desc  = _level_desc(level)
+                    vol   = _vol_tag(level)
+                    psych = _psych_tag(price)
+                    dist  = (current_price - price) / current_price * 100
+                    report.append(f"    {stars} ${price:,.2f}  距离-{dist:.1f}%  评分{score}/15  [{desc}]{vol}{psych}")
             else:
                 report.append("    暂无识别到支撑位")
         
@@ -1609,11 +1692,13 @@ class SupportResistanceAnalyzerPhase1:
                 price = r.get('price', 0)
                 score = r.get('final_score', 0)
                 stars = r.get('strength_symbol', '★')
-                tfs = ', '.join(r.get('timeframes', [r.get('timeframe', '')]))
-                types = ', '.join(r.get('types', [r.get('type', '')]))
-                dist = (price - current_price) / current_price * 100
+                tfs   = ', '.join(r.get('timeframes', [r.get('timeframe', '')]))
+                desc  = _level_desc(r)
+                vol   = _vol_tag(r)
+                psych = _psych_tag(price)
+                dist  = (price - current_price) / current_price * 100
                 report.append(f"  {i:2d}. {stars} ${price:,.2f}  距离+{dist:.1f}%  评分{score}/15")
-                report.append(f"      时间框架: {tfs}  |  类型: {types}")
+                report.append(f"      周期: {tfs}  |  {desc}{vol}{psych}")
         else:
             report.append("  未识别到综合阻力位")
         
@@ -1625,11 +1710,13 @@ class SupportResistanceAnalyzerPhase1:
                 price = s.get('price', 0)
                 score = s.get('final_score', 0)
                 stars = s.get('strength_symbol', '★')
-                tfs = ', '.join(s.get('timeframes', [s.get('timeframe', '')]))
-                types = ', '.join(s.get('types', [s.get('type', '')]))
-                dist = (current_price - price) / current_price * 100
+                tfs   = ', '.join(s.get('timeframes', [s.get('timeframe', '')]))
+                desc  = _level_desc(s)
+                vol   = _vol_tag(s)
+                psych = _psych_tag(price)
+                dist  = (current_price - price) / current_price * 100
                 report.append(f"  {i:2d}. {stars} ${price:,.2f}  距离-{dist:.1f}%  评分{score}/15")
-                report.append(f"      时间框架: {tfs}  |  类型: {types}")
+                report.append(f"      周期: {tfs}  |  {desc}{vol}{psych}")
         else:
             report.append("  未识别到综合支撑位")
         
