@@ -238,18 +238,6 @@ class SupportResistanceAnalyzerPhase1:
             try:
                 from volume_confirmation import VolumeConfirmationSystem
                 self.volume_system = VolumeConfirmationSystem()
-                # 调整参数
-                self.volume_system.config.update({
-                    'confirmation_window': 3,
-                    'volume_thresholds': {
-                        'strong_confirmation': 1.5,
-                        'confirmation': 1.2,
-                        'weak_confirmation': 1.0,
-                        'no_confirmation': 0.8,
-                    },
-                    'price_tolerance_pct': 0.015,    # 增加价格容差
-                    'min_test_count': 1,             # 减少最小测试次数
-                })
                 logger.info("✅ 成交量确认系统初始化完成")
             except ImportError as e:
                 logger.warning(f"无法导入成交量确认系统: {e}")
@@ -1804,7 +1792,7 @@ class SupportResistanceAnalyzerPhase1:
                 rsi_str = f" RSI{rsi_val:.0f}{' ' + rsi_icon if rsi_icon else ''}"
 
             if not vc:
-                return f" 📊无历史触及{rsi_str}"
+                return rsi_str  # 没有成交量数据，只显示RSI
 
             klines   = vc.get('klines_count', 0)
             total    = vc.get('test_count', 0)
@@ -1813,10 +1801,13 @@ class SupportResistanceAnalyzerPhase1:
             conf     = vc.get('confidence', 0)
             confirmed = vc.get('confirmed', False)
 
+            if klines == 0:
+                return rsi_str  # klines_count为0说明没有经过验证，不显示量信息
+
             # 构建有效触及摘要
             test_results = vc.get('test_results', [])
             detail_parts = []
-            for tr in test_results[:3]:  # 最多显示3次
+            for tr in test_results[:3]:
                 pa  = tr.get('price_action', '')
                 vr  = tr.get('volume_ratio', 0)
                 pa_label = {'bounce': '反弹↑', 'reject': '回落↓',
@@ -1824,7 +1815,6 @@ class SupportResistanceAnalyzerPhase1:
                 detail_parts.append(f"{pa_label}{vr:.1f}x")
             detail_str = '/'.join(detail_parts) if detail_parts else ''
 
-            # 组装说明
             if total == 0:
                 vol_str = f" 📊{klines}根内无触及"
             elif valid == 0:

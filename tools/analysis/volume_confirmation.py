@@ -40,10 +40,10 @@ class VolumeConfirmationSystem:
             # 各周期成交量验证使用的K线数量
             # 4H: 500根≈83天  1d: 365根≈1年  1w/1M: 取全量
             'klines_limit_by_tf': {
-                '4h': 500,
-                '1d': 365,
-                '1w': 300,
-                '1M': 100,
+                '4h': 84,
+                '1d': 120,
+                '1w': 52,
+                '1M': 36,
             },
             'klines_limit_default': 300,  # 未匹配周期时的默认值
         }
