@@ -1178,36 +1178,38 @@ class SupportResistanceAnalyzerPhase1:
                 ohlcv = self._fetch_ohlcv_for_volume(timeframe, symbol)
                 if ohlcv and len(ohlcv.get('closes', [])) >= 20:
                     try:
-                        confirmed_sup, confirmed_res = self.volume_system.integrate_with_support_resistance(
-                            support_levels=timeframe_supports,
-                            resistance_levels=timeframe_resistances,
-                            prices=ohlcv['prices'],
-                            highs=ohlcv['highs'],
-                            lows=ohlcv['lows'],
-                            closes=ohlcv['closes'],
-                            volumes=ohlcv['volumes'],
-                            timestamps=ohlcv['timestamps'],
-                        )
-                        # 成交量未确认的位点保留但降低置信度，不直接丢弃
-                        confirmed_prices_sup = {l['price'] for l in confirmed_sup}
-                        confirmed_prices_res = {l['price'] for l in confirmed_res}
+                        confirmed_sup, confirmed_res, all_sup, all_res = \
+                            self.volume_system.integrate_with_support_resistance(
+                                support_levels=timeframe_supports,
+                                resistance_levels=timeframe_resistances,
+                                prices=ohlcv['prices'],
+                                highs=ohlcv['highs'],
+                                lows=ohlcv['lows'],
+                                closes=ohlcv['closes'],
+                                volumes=ohlcv['volumes'],
+                                timestamps=ohlcv['timestamps'],
+                            )
+                        # 用 all_updated 写回所有位点的 volume_confirmation（含未确认的真实数据）
+                        sup_map = {l['price']: l for l in all_sup}
+                        res_map = {l['price']: l for l in all_res}
                         for lv in timeframe_supports:
-                            if lv['price'] not in confirmed_prices_sup:
-                                lv.setdefault('volume_confirmation', {'confirmed': False, 'confidence': 0.1})
+                            if lv['price'] in sup_map:
+                                lv['volume_confirmation'] = sup_map[lv['price']].get('volume_confirmation', {})
+                            else:
+                                lv.setdefault('volume_confirmation', {
+                                    'confirmed': False, 'confidence': 0.1,
+                                    'klines_count': len(ohlcv.get('closes', [])),
+                                    'test_count': 0, 'valid_test_count': 0,
+                                })
                         for lv in timeframe_resistances:
-                            if lv['price'] not in confirmed_prices_res:
-                                lv.setdefault('volume_confirmation', {'confirmed': False, 'confidence': 0.1})
-                        # 把确认信息写回原列表
-                        for lv in confirmed_sup:
-                            for orig in timeframe_supports:
-                                if orig['price'] == lv['price']:
-                                    orig['volume_confirmation'] = lv.get('volume_confirmation', {})
-                                    break
-                        for lv in confirmed_res:
-                            for orig in timeframe_resistances:
-                                if orig['price'] == lv['price']:
-                                    orig['volume_confirmation'] = lv.get('volume_confirmation', {})
-                                    break
+                            if lv['price'] in res_map:
+                                lv['volume_confirmation'] = res_map[lv['price']].get('volume_confirmation', {})
+                            else:
+                                lv.setdefault('volume_confirmation', {
+                                    'confirmed': False, 'confidence': 0.1,
+                                    'klines_count': len(ohlcv.get('closes', [])),
+                                    'test_count': 0, 'valid_test_count': 0,
+                                })
                         logger.debug(f"{timeframe} 成交量验证完成")
                     except Exception as e:
                         logger.warning(f"{timeframe} 成交量验证失败: {e}")
@@ -1787,22 +1789,51 @@ class SupportResistanceAnalyzerPhase1:
             return f"{tf_label} {detail}" if detail else tf_label
 
         def _vol_tag(level: Dict) -> str:
-            """成交量确认标签"""
+            """成交量确认标签，含判断说明"""
             vc = level.get('volume_confirmation', {})
-            vol_str = ''
-            if vc:
-                if vc.get('confirmed'):
-                    vol_str = f" 📊量确认{vc.get('confidence', 0):.0%}"
-                else:
-                    vol_str = ' 📊量未确认'
-            # RSI 标注
             rsi_signal = level.get('rsi_signal', '')
             rsi_val    = level.get('rsi14')
+
+            # RSI 标注
             rsi_str = ''
             if rsi_val:
-                rsi_icon = {'oversold': '🔵超卖', 'overbought': '🔴超买',
-                            'neutral_low': '', 'neutral_high': ''}.get(rsi_signal, '')
+                rsi_icon = {'oversold': '🔵超卖', 'overbought': '🔴超买'}.get(rsi_signal, '')
                 rsi_str = f" RSI{rsi_val:.0f}{' ' + rsi_icon if rsi_icon else ''}"
+
+            if not vc:
+                return f" 📊无历史触及{rsi_str}"
+
+            klines   = vc.get('klines_count', 0)
+            total    = vc.get('test_count', 0)
+            valid    = vc.get('valid_test_count', 0)
+            skipped  = total - valid
+            conf     = vc.get('confidence', 0)
+            confirmed = vc.get('confirmed', False)
+
+            # 构建有效触及摘要
+            test_results = vc.get('test_results', [])
+            detail_parts = []
+            for tr in test_results[:3]:  # 最多显示3次
+                pa  = tr.get('price_action', '')
+                vr  = tr.get('volume_ratio', 0)
+                pa_label = {'bounce': '反弹↑', 'reject': '回落↓',
+                            'consolidate': '震荡~', 'break': '跌破✗'}.get(pa, pa)
+                detail_parts.append(f"{pa_label}{vr:.1f}x")
+            detail_str = '/'.join(detail_parts) if detail_parts else ''
+
+            # 组装说明
+            if total == 0:
+                vol_str = f" 📊{klines}根内无触及"
+            elif valid == 0:
+                vol_str = f" 📊{klines}根内触及{total}次全缩量跳过"
+            else:
+                skip_str = f"缩量跳过{skipped}次" if skipped > 0 else ''
+                detail_full = f"({detail_str})" if detail_str else ''
+                if confirmed:
+                    vol_str = f" 📊{klines}根内有效{valid}次{detail_full}{' ' + skip_str if skip_str else ''} → 量确认{conf:.0%}"
+                else:
+                    vol_str = f" 📊{klines}根内有效{valid}次{detail_full}{' ' + skip_str if skip_str else ''} → 量未确认{conf:.0%}"
+
             return vol_str + rsi_str
 
         def _psych_tag(price: float) -> str:

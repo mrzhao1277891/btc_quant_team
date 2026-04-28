@@ -142,17 +142,18 @@ class VolumeConfirmationSystem:
             确认结果
         """
         if len(prices) < 20:
-            return {'confirmed': False, 'confidence': 0, 'reason': '数据不足'}
-        
+            return {'confirmed': False, 'confidence': 0, 'reason': '数据不足',
+                    'klines_count': len(prices), 'test_count': 0, 'valid_test_count': 0}
+
         # 1. 寻找测试该支撑位的K线
         test_indices = self._find_price_tests(support_price, lows, 'support')
-        
+
         if len(test_indices) < self.config['min_test_count']:
             return {
-                'confirmed': False,
-                'confidence': 0,
+                'confirmed': False, 'confidence': 0,
                 'reason': f'测试次数不足 ({len(test_indices)}次)',
-                'test_count': len(test_indices)
+                'klines_count': len(prices),
+                'test_count': len(test_indices), 'valid_test_count': 0,
             }
         
         # 2. 分析每次测试的成交量（过滤缩量触及）
@@ -184,17 +185,19 @@ class VolumeConfirmationSystem:
         confirmed = avg_confidence >= self.config.get('min_confidence', 0.65)
         
         result = {
-            'confirmed': confirmed,
-            'confidence': avg_confidence,
-            'test_count': len(test_indices),
-            'test_results': test_results,
+            'confirmed':        confirmed,
+            'confidence':       avg_confidence,
+            'test_count':       len(test_indices),
+            'valid_test_count': len(test_results),
+            'klines_count':     len(prices),       # 统计所用的K线总数
+            'test_results':     test_results,
             'rebound_analysis': rebound_analysis,
-            'volume_profile': self._get_volume_at_price(support_price, prices, volumes),
-            'recommendation': self._generate_recommendation(confirmed, avg_confidence, len(test_indices))
+            'volume_profile':   self._get_volume_at_price(support_price, prices, volumes),
+            'recommendation':   self._generate_recommendation(confirmed, avg_confidence, len(test_indices))
         }
-        
+
         return result
-    
+
     def check_resistance_confirmation(
         self,
         resistance_price: float,
@@ -209,17 +212,18 @@ class VolumeConfirmationSystem:
         检查阻力位成交量确认
         """
         if len(prices) < 20:
-            return {'confirmed': False, 'confidence': 0, 'reason': '数据不足'}
-        
+            return {'confirmed': False, 'confidence': 0, 'reason': '数据不足',
+                    'klines_count': len(prices), 'test_count': 0, 'valid_test_count': 0}
+
         # 寻找测试该阻力位的K线
         test_indices = self._find_price_tests(resistance_price, highs, 'resistance')
-        
+
         if len(test_indices) < self.config['min_test_count']:
             return {
-                'confirmed': False,
-                'confidence': 0,
+                'confirmed': False, 'confidence': 0,
                 'reason': f'测试次数不足 ({len(test_indices)}次)',
-                'test_count': len(test_indices)
+                'klines_count': len(prices),
+                'test_count': len(test_indices), 'valid_test_count': 0,
             }
         
         # 分析每次测试（过滤缩量触及）
@@ -250,12 +254,14 @@ class VolumeConfirmationSystem:
         confirmed = avg_confidence >= self.config.get('min_confidence', 0.65)
         
         result = {
-            'confirmed': confirmed,
-            'confidence': avg_confidence,
-            'test_count': len(test_indices),
-            'test_results': test_results,
+            'confirmed':        confirmed,
+            'confidence':       avg_confidence,
+            'test_count':       len(test_indices),
+            'valid_test_count': len(test_results),
+            'klines_count':     len(prices),
+            'test_results':     test_results,
             'decline_analysis': decline_analysis,
-            'volume_profile': self._get_volume_at_price(resistance_price, prices, volumes),
+            'volume_profile':   self._get_volume_at_price(resistance_price, prices, volumes),
             'recommendation': self._generate_recommendation(confirmed, avg_confidence, len(test_indices))
         }
         
@@ -529,53 +535,56 @@ class VolumeConfirmationSystem:
 
         confirmed_supports = []
         confirmed_resistances = []
-        
+        all_updated_supports = []
+        all_updated_resistances = []
+
         # 分析支撑位
         for support in support_levels:
             support_price = support.get('price', 0)
             if support_price <= 0:
                 continue
-            
+
             confirmation = self.check_support_confirmation(
                 support_price, prices, highs, lows, closes, volumes, timestamps
             )
-            
-            # 更新支撑位信息
+
             updated_support = support.copy()
             updated_support['volume_confirmation'] = confirmation
-            updated_support['confirmed'] = confirmation['confirmed']
+            updated_support['confirmed']  = confirmation['confirmed']
             updated_support['confidence'] = confirmation['confidence']
-            
-            # 如果确认，添加到结果列表
+
+            all_updated_supports.append(updated_support)
             if confirmation['confirmed']:
                 confirmed_supports.append(updated_support)
-        
+
         # 分析阻力位
         for resistance in resistance_levels:
             resistance_price = resistance.get('price', 0)
             if resistance_price <= 0:
                 continue
-            
+
             confirmation = self.check_resistance_confirmation(
                 resistance_price, prices, highs, lows, closes, volumes, timestamps
             )
-            
+
             updated_resistance = resistance.copy()
             updated_resistance['volume_confirmation'] = confirmation
-            updated_resistance['confirmed'] = confirmation['confirmed']
+            updated_resistance['confirmed']  = confirmation['confirmed']
             updated_resistance['confidence'] = confirmation['confidence']
-            
+
+            all_updated_resistances.append(updated_resistance)
             if confirmation['confirmed']:
                 confirmed_resistances.append(updated_resistance)
         
         # 按置信度排序
         confirmed_supports.sort(key=lambda x: x.get('confidence', 0), reverse=True)
         confirmed_resistances.sort(key=lambda x: x.get('confidence', 0), reverse=True)
-        
+
         logger.info(f"成交量确认: {len(confirmed_supports)}/{len(support_levels)}支撑位, "
-                   f"{len(confirmed_resistances)}/{len(resistance_levels)}阻力位")
-        
-        return confirmed_supports, confirmed_resistances
+                    f"{len(confirmed_resistances)}/{len(resistance_levels)}阻力位")
+
+        # 返回：(确认通过的, 确认通过的, 所有含volume_confirmation的支撑, 所有含volume_confirmation的阻力)
+        return confirmed_supports, confirmed_resistances, all_updated_supports, all_updated_resistances
 
 
 # 测试函数
