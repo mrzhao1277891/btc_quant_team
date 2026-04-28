@@ -1304,7 +1304,7 @@ class SupportResistanceAnalyzerPhase1:
                             time_str = datetime.fromtimestamp(ts / 1000).strftime(tf_fmt)
                         else:
                             time_str = ''
-                        # 斐波那契附加波段时间范围
+                        # 斐波那契附加波段时间范围，去掉单独的时间戳（波段时间已包含）
                         wave_str = ''
                         if type_ == 'fibonacci':
                             meta = other.get('metadata', {})
@@ -1315,6 +1315,7 @@ class SupportResistanceAnalyzerPhase1:
                                 wave_str = f" 波段${wave_low:,.0f}~${wave_high:,.0f}"
                                 if wave_time:
                                     wave_str += f" {wave_time}"
+                            time_str = ''  # 波段时间已包含，不再单独显示
                         time_part = f" {time_str}" if time_str else ''
                         note = f"{tf_label}:{label}@${other_p:,.0f}({dist_str}{time_part}{wave_str})" if label else f"{tf_label}@${other_p:,.0f}({dist_str}{time_part}{wave_str})"
                         resonant.append(note)
@@ -1374,6 +1375,7 @@ class SupportResistanceAnalyzerPhase1:
                             wave_str = f" 波段${wave_low:,.0f}~${wave_high:,.0f}"
                             if wave_time:
                                 wave_str += f" {wave_time}"
+                        time_str = ''  # 波段时间已包含
                     time_part = f" {time_str}" if time_str else ''
                     note = f"{tf_label}:{label}@${o['price']:,.0f}({dist_str}{time_part}{wave_str})" if label else f"{tf_label}@${o['price']:,.0f}({dist_str}{time_part}{wave_str})"
                     extra_notes.append(note)
@@ -1743,127 +1745,103 @@ class SupportResistanceAnalyzerPhase1:
             return ''
         
         report = []
-        report.append("=" * 80)
+        report.append("=" * 60)
         report.append(f"📊 {symbol} 支撑阻力分析报告")
-        report.append(f"分析时间: {analysis_result.get('analysis_time', 'N/A')}")
-        report.append(f"当前价格: ${current_price:,.2f}  |  基准ATR(14): ${base_atr:,.2f}")
-        report.append("=" * 80)
-        
-        # ── 各周期独立分析 ──
+        report.append(f"时间: {analysis_result.get('analysis_time', 'N/A')[:19]}")
+        report.append("=" * 60)
+
         tf_order = ['1M', '1w', '1d', '4h']
         tf_labels = {
-            '1M': '月线 1M（战略层，权重×4）',
-            '1w': '周线 1w（战役层，权重×3）',
-            '1d': '日线 1d（战术层，权重×2）',
-            '4h': '4小时 4h（执行层，权重×1）',
+            '1M': '月线 1M（战略层）',
+            '1w': '周线 1w（战役层）',
+            '1d': '日线 1d（战术层）',
+            '4h': '4H（执行层）',
         }
-        
+
         for tf in tf_order:
             if tf not in timeframe_results:
                 continue
             tf_data = timeframe_results[tf]
-            tf_supports = tf_data.get('supports', [])
+            tf_supports    = tf_data.get('supports', [])
             tf_resistances = tf_data.get('resistances', [])
             atr_val = tf_data.get('atr', 0)
-            
-            report.append(f"\n{'─'*80}")
-            report.append(f"【{tf_labels[tf]}】  ATR={atr_val:,.2f}")
-            report.append(f"{'─'*80}")
-            
-            # 阻力位（从低到高，最近的在前）
-            report.append("  📉 阻力位（由近到远）:")
-            tf_res_sorted = sorted(tf_resistances, key=lambda x: x.get('price', 0))
-            if tf_res_sorted:
-                for level in tf_res_sorted[:5]:
-                    price = level.get('price', 0)
-                    score = level.get('final_score', 0)
-                    stars = level.get('strength_symbol', '★')
-                    desc  = _level_desc(level)
-                    vol   = _vol_tag(level)
-                    psych = _psych_tag(price)
-                    dist  = (price - current_price) / current_price * 100
-                    report.append(f"    {stars} ${price:,.2f}  距离+{dist:.1f}%  评分{score}/15  [{desc}]{vol}{psych}")
-            else:
-                report.append("    暂无识别到阻力位")
-            
-            # 支撑位（从高到低，最近的在前）
-            report.append("  📈 支撑位（由近到远）:")
-            tf_sup_sorted = sorted(tf_supports, key=lambda x: x.get('price', 0), reverse=True)
-            if tf_sup_sorted:
-                for level in tf_sup_sorted[:5]:
-                    price = level.get('price', 0)
-                    score = level.get('final_score', 0)
-                    stars = level.get('strength_symbol', '★')
-                    desc  = _level_desc(level)
-                    vol   = _vol_tag(level)
-                    psych = _psych_tag(price)
-                    dist  = (current_price - price) / current_price * 100
-                    report.append(f"    {stars} ${price:,.2f}  距离-{dist:.1f}%  评分{score}/15  [{desc}]{vol}{psych}")
-            else:
-                report.append("    暂无识别到支撑位")
+
+            report.append(f"\n【{tf_labels[tf]}】  ATR={atr_val:,.0f}")
+            report.append(f"{'─'*60}")
+
+            report.append("  📉 阻力:")
+            for level in sorted(tf_resistances, key=lambda x: x.get('price', 0))[:5]:
+                price = level.get('price', 0)
+                score = level.get('final_score', 0)
+                stars = level.get('strength_symbol', '★')
+                desc  = _level_desc(level)
+                vol   = _vol_tag(level)
+                dist  = (price - current_price) / current_price * 100
+                report.append(f"    {stars} ${price:,.2f}  +{dist:.1f}%  [{score}/15]  {desc}{vol}")
+
+            report.append("  📈 支撑:")
+            for level in sorted(tf_supports, key=lambda x: x.get('price', 0), reverse=True)[:5]:
+                price = level.get('price', 0)
+                score = level.get('final_score', 0)
+                stars = level.get('strength_symbol', '★')
+                desc  = _level_desc(level)
+                vol   = _vol_tag(level)
+                dist  = (current_price - price) / current_price * 100
+                report.append(f"    {stars} ${price:,.2f}  -{dist:.1f}%  [{score}/15]  {desc}{vol}")
         
-        # ── 综合分析（多时间框架加权融合）──
-        report.append(f"\n{'='*80}")
-        report.append("🔥 综合分析（多时间框架加权融合）")
-        report.append(f"{'='*80}")
-        
-        supports = analysis_result.get('supports', [])
+        # ── 综合分析 ──
+        report.append(f"\n{'='*60}")
+        report.append(f"🔥 综合分析  当前价格: ${current_price:,.2f}  ATR: ${base_atr:,.2f}")
+        report.append(f"{'='*60}")
+
+        supports   = analysis_result.get('supports', [])
         resistances = analysis_result.get('resistances', [])
-        
-        # 综合阻力位
-        report.append("\n  📉 关键阻力位（由近到远，上方最近5个）:")
+
+        def _fmt_level(i, level, direction):
+            price  = level.get('price', 0)
+            score  = level.get('final_score', 0)
+            stars  = level.get('strength_symbol', '★')
+            desc   = _level_desc(level)
+            vol    = _vol_tag(level)
+            dist   = abs(price - current_price) / current_price * 100
+            sign   = '+' if direction == 'res' else '-'
+            lines  = [f"  {i}. {stars} ${price:,.2f}  {sign}{dist:.1f}%  [{score}/15]  {desc}{vol}"]
+            notes  = level.get('confluence_notes', [])
+            if notes:
+                lines.append(f"     ⚡ " + '\n       '.join(notes[:3]))
+            return lines
+
+        report.append("\n  � 阻力位（由近到远）")
+        report.append(f"  {'─'*56}")
         res_sorted = sorted(resistances, key=lambda x: x.get('price', 0))
         if res_sorted:
             for i, r in enumerate(res_sorted, 1):
-                price = r.get('price', 0)
-                score = r.get('final_score', 0)
-                stars = r.get('strength_symbol', '★')
-                desc  = _level_desc(r)
-                vol   = _vol_tag(r)
-                psych = _psych_tag(price)
-                dist  = (price - current_price) / current_price * 100
-                conf_notes = r.get('confluence_notes', [])
-                conf_str = f"  ⚡共振[{', '.join(conf_notes[:3])}]" if conf_notes else ''
-                report.append(f"  {i}. {stars} ${price:,.2f}  +{dist:.1f}%  评分{score}/15  {desc}{vol}{psych}{conf_str}")
+                for line in _fmt_level(i, r, 'res'):
+                    report.append(line)
         else:
             report.append("  未识别到阻力位")
 
-        # 综合支撑位
-        report.append("\n  📈 关键支撑位（由近到远，下方最近5个）:")
+        report.append(f"\n  📈 支撑位（由近到远）")
+        report.append(f"  {'─'*56}")
         sup_sorted = sorted(supports, key=lambda x: x.get('price', 0), reverse=True)
         if sup_sorted:
             for i, s in enumerate(sup_sorted, 1):
-                price = s.get('price', 0)
-                score = s.get('final_score', 0)
-                stars = s.get('strength_symbol', '★')
-                desc  = _level_desc(s)
-                vol   = _vol_tag(s)
-                psych = _psych_tag(price)
-                dist  = (current_price - price) / current_price * 100
-                conf_notes = s.get('confluence_notes', [])
-                conf_str = f"  ⚡共振[{', '.join(conf_notes[:3])}]" if conf_notes else ''
-                report.append(f"  {i}. {stars} ${price:,.2f}  -{dist:.1f}%  评分{score}/15  {desc}{vol}{psych}{conf_str}")
+                for line in _fmt_level(i, s, 'sup'):
+                    report.append(line)
         else:
             report.append("  未识别到支撑位")
-        
+
         # 交易建议
-        report.append(f"\n{'─'*80}")
-        report.append("💡 交易建议:")
+        report.append(f"\n{'─'*60}")
         nearest_res = res_sorted[0] if res_sorted else None
         nearest_sup = sup_sorted[0] if sup_sorted else None
-        
-        if nearest_res:
-            dist = (nearest_res['price'] - current_price) / current_price * 100
-            report.append(f"  上方最近阻力: ${nearest_res['price']:,.2f}  (+{dist:.1f}%)  {nearest_res.get('strength_symbol','★')}")
-        if nearest_sup:
-            dist = (current_price - nearest_sup['price']) / current_price * 100
-            report.append(f"  下方最近支撑: ${nearest_sup['price']:,.2f}  (-{dist:.1f}%)  {nearest_sup.get('strength_symbol','★')}")
-        
         if nearest_res and nearest_sup:
             rr = (nearest_res['price'] - current_price) / (current_price - nearest_sup['price'])
-            report.append(f"  当前位置盈亏比（做多）: {rr:.2f}  {'✅ 可考虑做多' if rr >= 2 else '⚠️ 盈亏比不足2，谨慎'}")
-        
-        report.append("=" * 80)
+            rr_str = f"盈亏比(做多): {rr:.2f}  {'✅ 可做多' if rr >= 2 else '⚠️ 盈亏比不足'}"
+            report.append(f"💡 上方阻力: ${nearest_res['price']:,.2f} ({nearest_res.get('strength_symbol','★')})  "
+                          f"下方支撑: ${nearest_sup['price']:,.2f} ({nearest_sup.get('strength_symbol','★')})  "
+                          f"{rr_str}")
+        report.append(f"{'='*60}")
         return "\n".join(report)
     
     def save_report(self, analysis_result: Dict, filepath: str = None):
