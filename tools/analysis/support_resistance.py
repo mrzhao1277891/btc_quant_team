@@ -1886,38 +1886,43 @@ class SupportResistanceAnalyzerPhase1:
         resistances = analysis_result.get('resistances', [])
 
         def _score_desc(level: Dict, direction: str) -> str:
-            """生成评分维度说明"""
+            """生成评分维度说明，含子评分"""
             sf = level.get('score_factors', {})
             if not sf:
                 return ''
+
+            W_CONF = self.params['score_weight_confidence']
+            W_TF   = self.params['score_weight_timeframe']
+            W_VOL  = self.params['score_weight_volume']
+            W_RSI  = self.params['score_weight_rsi']
+
             parts = []
 
             # 触碰/置信度
             conf = sf.get('confidence', 0)
             tc   = level.get('touch_count', 0)
-            if tc > 0:
-                parts.append(f"触碰{tc}次({conf:.0%})")
-            else:
-                parts.append(f"置信{conf:.0%}")
+            sub_conf = round(conf * W_CONF * 14 + 1)  # 换算到1-15子分
+            sub_conf = round(conf * W_CONF, 2)
+            label = f"触碰{tc}次" if tc > 0 else "置信"
+            parts.append(f"{label}({conf:.0%})×{W_CONF:.0%}={sub_conf:.2f}")
 
             # 时间框架
             tf_score = sf.get('timeframe', 0)
-            tf_label = {1.0: '月线', 0.67: '周线', 0.33: '日线', 0.0: '4H'}.get(
-                round(tf_score, 2), f"TF{tf_score:.0%}")
-            parts.append(f"周期权威{tf_label}")
+            sub_tf   = round(tf_score * W_TF, 2)
+            tf_label = {1.0: '月', 0.67: '周', 0.33: '日', 0.0: '4H'}.get(
+                round(tf_score, 2), f"{tf_score:.0%}")
+            parts.append(f"周期{tf_label}({tf_score:.0%})×{W_TF:.0%}={sub_tf:.2f}")
 
             # 成交量
-            vol = sf.get('volume', 0)
-            if vol >= 0.7:
-                parts.append(f"量强({vol:.0%})")
-            elif vol >= 0.4:
-                parts.append(f"量中({vol:.0%})")
-            else:
-                parts.append(f"量弱({vol:.0%})")
+            vol    = sf.get('volume', 0)
+            sub_vol = round(vol * W_VOL, 2)
+            parts.append(f"量({vol:.0%})×{W_VOL:.0%}={sub_vol:.2f}")
 
             # RSI
             rsi_score = sf.get('rsi', 0)
             rsi_val   = sf.get('rsi14')
+            sub_rsi   = round(rsi_score * W_RSI, 2)
+            rsi_tag = ''
             if rsi_val:
                 if rsi_score >= 0.8:
                     rsi_tag = '超卖✅' if direction == 'sup' else '超买✅'
@@ -1925,10 +1930,15 @@ class SupportResistanceAnalyzerPhase1:
                     rsi_tag = '中性'
                 else:
                     rsi_tag = '不利'
-                parts.append(f"RSI{rsi_val:.0f}{rsi_tag}")
+            rsi_label = f"RSI{rsi_val:.0f}{rsi_tag}" if rsi_val else "RSI无"
+            parts.append(f"{rsi_label}({rsi_score:.0%})×{W_RSI:.0%}={sub_rsi:.2f}")
 
+            total_raw = round(sf.get('confidence', 0) * W_CONF +
+                              sf.get('timeframe', 0) * W_TF +
+                              sf.get('volume', 0) * W_VOL +
+                              sf.get('rsi', 0) * W_RSI, 2)
             score = level.get('final_score', 0)
-            return f"     📐 {' | '.join(parts)} → [{score}/15]"
+            return f"     📐 {' | '.join(parts)} → 合计{total_raw:.2f} [{score}/15]"
 
         def _fmt_level(i, level, direction):
             price  = level.get('price', 0)
