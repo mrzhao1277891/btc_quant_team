@@ -155,13 +155,15 @@ class SupportResistanceAnalyzerPhase1:
             
             # ── 评分权重（总和 1.0）────────────────────────────────
             # 触碰/置信度：历史验证次数，最能预测位点有效性
-            'score_weight_confidence': 0.55,
+            'score_weight_confidence': 0.50,
             # 多时间框架共振：改为报告层 ⚡ 标注，不再参与评分
             'score_weight_confluence': 0.0,
             # 时间框架权威性：大周期位点更可靠
-            'score_weight_timeframe': 0.25,
+            'score_weight_timeframe': 0.20,
             # 成交量确认：有量才有效
-            'score_weight_volume': 0.20,
+            'score_weight_volume': 0.15,
+            # RSI 确认：超买超卖增强可靠性
+            'score_weight_rsi': 0.15,
             # 距离当前价格：不参与评分
             'score_weight_distance': 0.0,
             # 无成交量数据时的默认分（0~1）
@@ -1209,6 +1211,32 @@ class SupportResistanceAnalyzerPhase1:
                         logger.debug(f"{timeframe} 成交量验证完成")
                     except Exception as e:
                         logger.warning(f"{timeframe} 成交量验证失败: {e}")
+
+            # RSI 验证：用最新一根K线的RSI判断超买超卖
+            rsi_list = ohlcv.get('rsi14', []) if ohlcv else []
+            # 取倒数第二根（已收盘），实盘模式下避免未收盘数据
+            rsi_idx = -2 if (self.before_ts is None and len(rsi_list) >= 2) else -1
+            latest_rsi = rsi_list[rsi_idx] if rsi_list and rsi_list[rsi_idx] is not None else None
+
+            if latest_rsi is not None:
+                for lv in timeframe_supports:
+                    lv['rsi14'] = latest_rsi
+                    # 支撑位：RSI < 35 超卖，反弹概率高
+                    if latest_rsi < 35:
+                        lv['rsi_signal'] = 'oversold'
+                    elif latest_rsi < 50:
+                        lv['rsi_signal'] = 'neutral_low'
+                    else:
+                        lv['rsi_signal'] = 'neutral_high'
+                for lv in timeframe_resistances:
+                    lv['rsi14'] = latest_rsi
+                    # 阻力位：RSI > 65 超买，回落概率高
+                    if latest_rsi > 65:
+                        lv['rsi_signal'] = 'overbought'
+                    elif latest_rsi > 50:
+                        lv['rsi_signal'] = 'neutral_high'
+                    else:
+                        lv['rsi_signal'] = 'neutral_low'
             
             # 添加时间框架权重
             for level in timeframe_supports + timeframe_resistances:
@@ -1452,19 +1480,19 @@ class SupportResistanceAnalyzerPhase1:
             return None
     
     def _fetch_ohlcv_for_volume(self, timeframe: str, symbol: str, limit: int = 300) -> Dict:
-        """获取某时间框架的 OHLCV 序列，用于成交量验证（正序）"""
+        """获取某时间框架的 OHLCV+RSI 序列，用于成交量和RSI验证（正序）"""
         try:
             cursor = self.connection.cursor(dictionary=True)
             if self.before_ts:
                 cursor.execute(
-                    "SELECT timestamp, high, low, close, volume FROM klines "
+                    "SELECT timestamp, high, low, close, volume, rsi14 FROM klines "
                     "WHERE symbol=%s AND timeframe=%s AND timestamp<%s "
                     "ORDER BY timestamp DESC LIMIT %s",
                     (symbol, timeframe, self.before_ts, limit)
                 )
             else:
                 cursor.execute(
-                    "SELECT timestamp, high, low, close, volume FROM klines "
+                    "SELECT timestamp, high, low, close, volume, rsi14 FROM klines "
                     "WHERE symbol=%s AND timeframe=%s "
                     "ORDER BY timestamp DESC LIMIT %s",
                     (symbol, timeframe, limit)
@@ -1472,12 +1500,13 @@ class SupportResistanceAnalyzerPhase1:
             rows = list(reversed(cursor.fetchall()))
             cursor.close()
             return {
-                'prices':     [ensure_float(r['close']) for r in rows],
-                'highs':      [ensure_float(r['high'])  for r in rows],
-                'lows':       [ensure_float(r['low'])   for r in rows],
-                'closes':     [ensure_float(r['close']) for r in rows],
+                'prices':     [ensure_float(r['close'])  for r in rows],
+                'highs':      [ensure_float(r['high'])   for r in rows],
+                'lows':       [ensure_float(r['low'])    for r in rows],
+                'closes':     [ensure_float(r['close'])  for r in rows],
                 'volumes':    [ensure_float(r['volume']) for r in rows],
-                'timestamps': [r['timestamp'] for r in rows],
+                'timestamps': [r['timestamp']            for r in rows],
+                'rsi14':      [ensure_float(r['rsi14']) if r['rsi14'] is not None else None for r in rows],
             }
         except Exception as e:
             logger.warning(f"获取 {timeframe} OHLCV 失败: {e}")
@@ -1557,7 +1586,7 @@ class SupportResistanceAnalyzerPhase1:
         score += timeframe_score * self.params['score_weight_timeframe']
         score_factors['timeframe'] = round(timeframe_score, 3)
 
-        # ── 3. 成交量确认（20%）──────────────────────────────────
+        # ── 3. 成交量确认（15%）──────────────────────────────────
         vol_conf = level.get('volume_confirmation', {})
         if vol_conf:
             if vol_conf.get('confirmed', False):
@@ -1568,6 +1597,32 @@ class SupportResistanceAnalyzerPhase1:
             volume_score = self.params['score_volume_default']
         score += volume_score * self.params['score_weight_volume']
         score_factors['volume'] = round(volume_score, 3)
+
+        # ── 4. RSI 确认（15%）────────────────────────────────────
+        rsi_signal = level.get('rsi_signal', '')
+        rsi_val    = level.get('rsi14')
+        if level_type == 'support':
+            if rsi_signal == 'oversold':       # RSI < 35，超卖，支撑有效性高
+                rsi_score = 1.0
+            elif rsi_signal == 'neutral_low':  # RSI 35-50，中性偏低
+                rsi_score = 0.6
+            elif rsi_signal == 'neutral_high': # RSI > 50，偏高，支撑效果打折
+                rsi_score = 0.3
+            else:
+                rsi_score = 0.5                # 无数据，中性
+        else:  # resistance
+            if rsi_signal == 'overbought':     # RSI > 65，超买，阻力有效性高
+                rsi_score = 1.0
+            elif rsi_signal == 'neutral_high': # RSI 50-65，中性偏高
+                rsi_score = 0.6
+            elif rsi_signal == 'neutral_low':  # RSI < 50，偏低，阻力效果打折
+                rsi_score = 0.3
+            else:
+                rsi_score = 0.5
+        score += rsi_score * self.params['score_weight_rsi']
+        score_factors['rsi'] = round(rsi_score, 3)
+        if rsi_val:
+            score_factors['rsi14'] = round(rsi_val, 1)
 
         # ── 转换为 1~15 分（用 round 避免 int 向下取整的分布不均）──
         final_score = max(0.0, min(score, 1.0))
@@ -1734,12 +1789,21 @@ class SupportResistanceAnalyzerPhase1:
         def _vol_tag(level: Dict) -> str:
             """成交量确认标签"""
             vc = level.get('volume_confirmation', {})
-            if not vc:
-                return ''
-            if vc.get('confirmed'):
-                conf = vc.get('confidence', 0)
-                return f" 📊量确认{conf:.0%}"
-            return ' 📊量未确认'
+            vol_str = ''
+            if vc:
+                if vc.get('confirmed'):
+                    vol_str = f" 📊量确认{vc.get('confidence', 0):.0%}"
+                else:
+                    vol_str = ' 📊量未确认'
+            # RSI 标注
+            rsi_signal = level.get('rsi_signal', '')
+            rsi_val    = level.get('rsi14')
+            rsi_str = ''
+            if rsi_val:
+                rsi_icon = {'oversold': '🔵超卖', 'overbought': '🔴超买',
+                            'neutral_low': '', 'neutral_high': ''}.get(rsi_signal, '')
+                rsi_str = f" RSI{rsi_val:.0f}{' ' + rsi_icon if rsi_icon else ''}"
+            return vol_str + rsi_str
 
         def _psych_tag(price: float) -> str:
             return ''
@@ -1860,6 +1924,121 @@ class SupportResistanceAnalyzerPhase1:
             logger.error(f"保存报告失败: {e}")
             return None
     
+    def print_volume_detail(self, symbol: str = 'BTCUSDT'):
+        """
+        打印每个位点的成交量确认详情，用于业务验证。
+        输出每次触及的：时间、价格、成交量比率、价格行为、置信度。
+        """
+        self._init_optimization_modules()
+        if self.volume_system is None:
+            print("❌ 成交量确认模块未加载")
+            return
+
+        current_price = self.get_current_price(symbol)
+        print(f"\n当前价格: ${current_price:,.2f}")
+
+        tf_fmt_map = {'1M': '%Y-%m', '1w': '%Y-%m-%d', '1d': '%Y-%m-%d', '4h': '%m-%d %H:%M'}
+
+        for tf in ['1M', '1w', '1d', '4h']:
+            print(f"\n{'='*60}")
+            print(f"【{tf}】成交量确认详情")
+            print(f"{'='*60}")
+
+            # 取该周期所有位点
+            tech  = self.identify_technical_levels(tf, symbol, use_optimizer=False)
+            dyn   = self.identify_dynamic_levels(tf, symbol)
+            fib   = self.identify_fibonacci_levels(tf, symbol)
+            all_levels = (tech['supports'] + tech['resistances'] +
+                          dyn['supports']  + dyn['resistances'] +
+                          fib['supports']  + fib['resistances'])
+
+            if not all_levels:
+                print("  无位点")
+                continue
+
+            # 取该周期 OHLCV
+            ohlcv = self._fetch_ohlcv_for_volume(tf, symbol)
+            if not ohlcv or len(ohlcv.get('closes', [])) < 20:
+                print("  数据不足")
+                continue
+
+            prices     = ohlcv['prices']
+            highs      = ohlcv['highs']
+            lows       = ohlcv['lows']
+            closes     = ohlcv['closes']
+            volumes    = ohlcv['volumes']
+            timestamps = ohlcv['timestamps']
+            tf_fmt     = tf_fmt_map.get(tf, '%m-%d')
+
+            for lv in all_levels[:8]:  # 每个周期最多显示8个位点
+                price   = lv['price']
+                subtype = lv.get('subtype', '')
+                ltype   = lv.get('type', '')
+                label   = f"{ltype}/{subtype}" if subtype else ltype
+                direction = '支撑' if price < current_price else '阻力'
+
+                print(f"\n  [{direction}] ${price:,.2f}  {label}")
+                print(f"  {'─'*50}")
+
+                # 找触及K线
+                tol = price * self.volume_system.config['price_tolerance_pct']
+                test_series = lows if direction == '支撑' else highs
+                test_indices = [i for i, v in enumerate(test_series)
+                                if abs(v - price) <= tol]
+
+                if not test_indices:
+                    print(f"    历史无触及记录（容差±{tol:,.0f}）")
+                    continue
+
+                print(f"    触及次数: {len(test_indices)}  容差: ±{tol:,.0f}")
+                print(f"    {'时间':18} {'触及价':>10} {'量比':>6} {'价格行为':>8} {'置信度':>6}")
+                print(f"    {'─'*18} {'─'*10} {'─'*6} {'─'*8} {'─'*6}")
+
+                confidences = []
+                for idx in test_indices:
+                    ts_str = datetime.fromtimestamp(timestamps[idx]/1000).strftime(tf_fmt)
+                    touch_price = test_series[idx]
+
+                    # 成交量比率（用前20根均量）
+                    lb = max(0, idx - 20)
+                    avg_vol = sum(volumes[lb:idx]) / max(len(volumes[lb:idx]), 1)
+                    vol_ratio = volumes[idx] / avg_vol if avg_vol > 0 else 1.0
+
+                    # 价格行为
+                    if idx == 0 or idx >= len(closes) - 1:
+                        pa = 'unknown'
+                    else:
+                        cur_c  = closes[idx]
+                        next_c = closes[idx+1] if idx+1 < len(closes) else cur_c
+                        if direction == '支撑':
+                            if cur_c > price and next_c > cur_c:
+                                pa = 'bounce ✅'
+                            elif cur_c < price and next_c < cur_c:
+                                pa = 'break  ❌'
+                            else:
+                                pa = 'consol ~'
+                        else:
+                            if cur_c < price and next_c < cur_c:
+                                pa = 'reject ✅'
+                            elif cur_c > price and next_c > cur_c:
+                                pa = 'break  ❌'
+                            else:
+                                pa = 'consol ~'
+
+                    # 置信度（原算法）
+                    test_result = self.volume_system._analyze_single_test(
+                        idx, price, prices, highs, lows, closes, volumes,
+                        'support' if direction == '支撑' else 'resistance'
+                    )
+                    conf = test_result.get('confidence', 0)
+                    confidences.append(conf)
+
+                    print(f"    {ts_str:18} ${touch_price:>9,.0f} {vol_ratio:>5.1f}x {pa:>10} {conf:>5.0%}")
+
+                avg_conf = sum(confidences) / len(confidences) if confidences else 0
+                confirmed = avg_conf >= 0.6
+                print(f"    → 平均置信度: {avg_conf:.0%}  {'✅ 确认' if confirmed else '❌ 未确认'}")
+
     def run_analysis(self, symbol: str = 'BTCUSDT', output_file: str = None) -> Dict[str, Any]:
         """
         运行完整的支撑阻力分析
@@ -1918,6 +2097,7 @@ def main():
     parser.add_argument('--symbol', default='BTCUSDT', help='交易对')
     parser.add_argument('--output', help='输出文件路径')
     parser.add_argument('--test', action='store_true', help='测试模式')
+    parser.add_argument('--volume-detail', action='store_true', help='打印成交量确认详情（用于业务验证）')
     
     args = parser.parse_args()
     
@@ -1930,8 +2110,19 @@ def main():
         database=args.database
     )
     
+    if getattr(args, 'volume_detail', False):
+        analyzer = SupportResistanceAnalyzerPhase1(
+            host=args.host, port=args.port, user=args.user,
+            password=args.password, database=args.database
+        )
+        if analyzer.connect():
+            try:
+                analyzer.print_volume_detail(args.symbol)
+            finally:
+                analyzer.disconnect()
+        return
+
     if args.test:
-        # 测试模式
         print("🧪 测试模式 - 验证核心功能")
         
         # 连接数据库
