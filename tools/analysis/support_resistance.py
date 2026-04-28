@@ -1885,6 +1885,51 @@ class SupportResistanceAnalyzerPhase1:
         supports   = analysis_result.get('supports', [])
         resistances = analysis_result.get('resistances', [])
 
+        def _score_desc(level: Dict, direction: str) -> str:
+            """生成评分维度说明"""
+            sf = level.get('score_factors', {})
+            if not sf:
+                return ''
+            parts = []
+
+            # 触碰/置信度
+            conf = sf.get('confidence', 0)
+            tc   = level.get('touch_count', 0)
+            if tc > 0:
+                parts.append(f"触碰{tc}次({conf:.0%})")
+            else:
+                parts.append(f"置信{conf:.0%}")
+
+            # 时间框架
+            tf_score = sf.get('timeframe', 0)
+            tf_label = {1.0: '月线', 0.67: '周线', 0.33: '日线', 0.0: '4H'}.get(
+                round(tf_score, 2), f"TF{tf_score:.0%}")
+            parts.append(f"周期权威{tf_label}")
+
+            # 成交量
+            vol = sf.get('volume', 0)
+            if vol >= 0.7:
+                parts.append(f"量强({vol:.0%})")
+            elif vol >= 0.4:
+                parts.append(f"量中({vol:.0%})")
+            else:
+                parts.append(f"量弱({vol:.0%})")
+
+            # RSI
+            rsi_score = sf.get('rsi', 0)
+            rsi_val   = sf.get('rsi14')
+            if rsi_val:
+                if rsi_score >= 0.8:
+                    rsi_tag = '超卖✅' if direction == 'sup' else '超买✅'
+                elif rsi_score >= 0.5:
+                    rsi_tag = '中性'
+                else:
+                    rsi_tag = '不利'
+                parts.append(f"RSI{rsi_val:.0f}{rsi_tag}")
+
+            score = level.get('final_score', 0)
+            return f"     📐 {' | '.join(parts)} → [{score}/15]"
+
         def _fmt_level(i, level, direction):
             price  = level.get('price', 0)
             score  = level.get('final_score', 0)
@@ -1893,11 +1938,14 @@ class SupportResistanceAnalyzerPhase1:
             vol    = _vol_tag(level)
             dist   = abs(price - current_price) / current_price * 100
             sign   = '+' if direction == 'res' else '-'
-            lines  = [f"  {i}. {stars} ${price:,.2f}  {sign}{dist:.1f}%  [{score}/15]  {desc}{vol}"]
+            lines  = [
+                f"  {i}. {stars} ${price:,.2f}  {sign}{dist:.1f}%  {desc}{vol}",
+                _score_desc(level, direction),
+            ]
             notes  = level.get('confluence_notes', [])
             if notes:
                 lines.append(f"     ⚡ " + '\n       '.join(notes[:3]))
-            return lines
+            return [l for l in lines if l.strip()]
 
         report.append("\n  � 阻力位（由近到远）")
         report.append(f"  {'─'*56}")
