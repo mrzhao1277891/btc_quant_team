@@ -24,18 +24,19 @@ class VolumeAnalysis:
 
 class VolumeConfirmationSystem:
     """成交量确认系统"""
-    
+
     def __init__(self):
         self.config = {
-            'confirmation_window': 5,  # 确认窗口（前后N根K线）
+            'confirmation_window': 5,
             'volume_thresholds': {
-                'strong_confirmation': 2.0,  # 强确认：成交量>2倍平均
-                'confirmation': 1.5,         # 确认：成交量>1.5倍平均
-                'weak_confirmation': 1.2,    # 弱确认：成交量>1.2倍平均
-                'no_confirmation': 1.0,      # 无确认：成交量<=平均
+                'strong_confirmation': 2.0,   # 强放量：>2倍均量
+                'confirmation':        1.5,   # 放量：>1.5倍均量
+                'weak_confirmation':   1.2,   # 正常量：>1.2倍均量
+                'no_confirmation':     0.8,   # 缩量门槛：<0.8倍均量直接跳过
             },
-            'price_tolerance_pct': 0.005,  # 价格容差0.5%
-            'min_test_count': 2,           # 最小测试次数
+            'price_tolerance_pct': 0.005,
+            'min_test_count':      1,         # 降为1，缩量触及已被过滤，有效触及更少
+            'min_confidence':      0.65,      # 确认门槛提高到65%
         }
     
     def analyze_volume_profile(self, prices: List[float], volumes: List[float]) -> VolumeAnalysis:
@@ -154,16 +155,25 @@ class VolumeConfirmationSystem:
                 'test_count': len(test_indices)
             }
         
-        # 2. 分析每次测试的成交量
+        # 2. 分析每次测试的成交量（过滤缩量触及）
         test_results = []
         total_confidence = 0
-        
+
         for idx in test_indices:
             test_result = self._analyze_single_test(
                 idx, support_price, prices, highs, lows, closes, volumes, 'support'
             )
+            if test_result.get('skipped', False):
+                continue  # 缩量触及不计入
             test_results.append(test_result)
             total_confidence += test_result['confidence']
+
+        if not test_results:
+            return {
+                'confirmed': False, 'confidence': 0,
+                'reason': '所有触及均为缩量，无有效验证',
+                'test_count': 0
+            }
         
         avg_confidence = total_confidence / len(test_results) if test_results else 0
         
@@ -171,7 +181,7 @@ class VolumeConfirmationSystem:
         rebound_analysis = self._analyze_rebound_volume(test_indices, volumes, closes, 'support')
         
         # 4. 综合判断
-        confirmed = avg_confidence >= 0.6  # 平均置信度>=60%
+        confirmed = avg_confidence >= self.config.get('min_confidence', 0.65)
         
         result = {
             'confirmed': confirmed,
@@ -212,23 +222,32 @@ class VolumeConfirmationSystem:
                 'test_count': len(test_indices)
             }
         
-        # 分析每次测试
+        # 分析每次测试（过滤缩量触及）
         test_results = []
         total_confidence = 0
-        
+
         for idx in test_indices:
             test_result = self._analyze_single_test(
                 idx, resistance_price, prices, highs, lows, closes, volumes, 'resistance'
             )
+            if test_result.get('skipped', False):
+                continue
             test_results.append(test_result)
             total_confidence += test_result['confidence']
+
+        if not test_results:
+            return {
+                'confirmed': False, 'confidence': 0,
+                'reason': '所有触及均为缩量，无有效验证',
+                'test_count': 0
+            }
         
         avg_confidence = total_confidence / len(test_results) if test_results else 0
         
         # 分析回落成交量
         decline_analysis = self._analyze_decline_volume(test_indices, volumes, closes, 'resistance')
         
-        confirmed = avg_confidence >= 0.6
+        confirmed = avg_confidence >= self.config.get('min_confidence', 0.65)
         
         result = {
             'confirmed': confirmed,
@@ -272,29 +291,44 @@ class VolumeConfirmationSystem:
     ) -> Dict[str, any]:
         """分析单次测试"""
         if idx >= len(volumes) or idx >= len(closes):
-            return {'confidence': 0, 'volume_ratio': 0, 'price_action': 'unknown'}
-        
+            return {'confidence': 0, 'volume_ratio': 0, 'price_action': 'unknown', 'skipped': True}
+
         current_volume = volumes[idx]
-        current_close = closes[idx]
-        
-        # 计算成交量比率
-        volume_analysis = self.analyze_volume_profile(prices[:idx+1], volumes[:idx+1])
-        volume_ratio = current_volume / volume_analysis.avg_volume if volume_analysis.avg_volume > 0 else 1
-        
-        # 分析价格行为
+        current_close  = closes[idx]
+
+        # 成交量比率（用前20根中位值，对异常放量不敏感）
+        lb = max(0, idx - 20)
+        recent_vols = sorted(volumes[lb:idx])
+        n = len(recent_vols)
+        if n == 0:
+            median_vol = current_volume
+        elif n % 2 == 0:
+            median_vol = (recent_vols[n//2 - 1] + recent_vols[n//2]) / 2
+        else:
+            median_vol = recent_vols[n//2]
+        volume_ratio = current_volume / median_vol if median_vol > 0 else 1.0
+
+        # 缩量触及直接跳过（不算有效验证）
+        min_vol = self.config['volume_thresholds']['no_confirmation']
+        if volume_ratio < min_vol:
+            return {'confidence': 0, 'volume_ratio': round(volume_ratio, 2),
+                    'price_action': 'skipped_low_volume', 'skipped': True}
+
+        # 价格行为：用影线+开盘收盘判断
+        opens = prices  # prices 传入的是 closes，这里用 closes 作为参考
         price_action = self._analyze_price_action(idx, target_price, highs, lows, closes, level_type)
-        
-        # 计算置信度
+
+        # 置信度计算
         confidence = self._calculate_test_confidence(volume_ratio, price_action, level_type)
-        
+
         return {
-            'index': idx,
-            'volume': current_volume,
-            'volume_ratio': volume_ratio,
-            'close': current_close,
+            'index':        idx,
+            'volume':       current_volume,
+            'volume_ratio': round(volume_ratio, 2),
+            'close':        current_close,
             'price_action': price_action,
-            'confidence': confidence,
-            'timestamp': idx  # 实际应用中应该是真实时间戳
+            'confidence':   confidence,
+            'skipped':      False,
         }
     
     def _analyze_price_action(
@@ -306,62 +340,60 @@ class VolumeConfirmationSystem:
         closes: List[float],
         level_type: str
     ) -> str:
-        """分析价格行为"""
+        """
+        分析价格行为（改用影线+阴阳线判断，更准确）
+        支撑位 bounce：low 触及支撑 且 收盘 > 开盘（阳线，买方占优）
+        阻力位 reject：high 触及阻力 且 收盘 < 开盘（阴线，卖方占优）
+        """
         if idx == 0 or idx >= len(closes) - 1:
             return 'unknown'
-        
-        prev_close = closes[idx-1]
+
         current_close = closes[idx]
-        next_close = closes[idx+1] if idx + 1 < len(closes) else current_close
-        
+        prev_close    = closes[idx - 1]  # 用前一根收盘作为近似开盘
+
         if level_type == 'support':
-            # 支撑位：检查是否反弹
-            if current_close > target_price and next_close > current_close:
-                return 'bounce'  # 反弹
-            elif current_close < target_price and next_close < current_close:
-                return 'break'   # 跌破
-            else:
-                return 'consolidate'  # 震荡
+            # 影线触及支撑位（low 在支撑位附近）
+            touched = lows[idx] <= target_price * 1.005  # 允许0.5%容差
+            if touched:
+                if current_close > prev_close:   # 收盘高于前收 → 阳线反弹
+                    return 'bounce'
+                elif current_close < target_price:  # 收盘跌破支撑
+                    return 'break'
+                else:
+                    return 'consolidate'
+            return 'consolidate'
         else:  # resistance
-            # 阻力位：检查是否回落
-            if current_close < target_price and next_close < current_close:
-                return 'reject'  # 拒绝
-            elif current_close > target_price and next_close > current_close:
-                return 'break'   # 突破
-            else:
-                return 'consolidate'  # 震荡
+            touched = highs[idx] >= target_price * 0.995
+            if touched:
+                if current_close < prev_close:   # 收盘低于前收 → 阴线回落
+                    return 'reject'
+                elif current_close > target_price:
+                    return 'break'
+                else:
+                    return 'consolidate'
+            return 'consolidate'
     
     def _calculate_test_confidence(self, volume_ratio: float, price_action: str, level_type: str) -> float:
         """计算单次测试置信度"""
-        confidence = 0.0
-        
-        # 成交量得分
-        if volume_ratio >= self.config['volume_thresholds']['strong_confirmation']:
-            confidence += 0.5
-        elif volume_ratio >= self.config['volume_thresholds']['confirmation']:
-            confidence += 0.4
-        elif volume_ratio >= self.config['volume_thresholds']['weak_confirmation']:
-            confidence += 0.3
+        thresholds = self.config['volume_thresholds']
+
+        # 成交量得分（最高0.5）
+        if volume_ratio >= thresholds['strong_confirmation']:
+            vol_score = 0.5
+        elif volume_ratio >= thresholds['confirmation']:
+            vol_score = 0.4
+        elif volume_ratio >= thresholds['weak_confirmation']:
+            vol_score = 0.3
         else:
-            confidence += 0.1
-        
-        # 价格行为得分
+            vol_score = 0.1
+
+        # 价格行为得分：consolidate 不给分，只有明确反转才加分
         if level_type == 'support':
-            if price_action == 'bounce':
-                confidence += 0.5
-            elif price_action == 'consolidate':
-                confidence += 0.3
-            else:  # break
-                confidence += 0.0
-        else:  # resistance
-            if price_action == 'reject':
-                confidence += 0.5
-            elif price_action == 'consolidate':
-                confidence += 0.3
-            else:  # break
-                confidence += 0.0
-        
-        return min(confidence, 1.0)
+            pa_score = 0.5 if price_action == 'bounce' else 0.0
+        else:
+            pa_score = 0.5 if price_action == 'reject' else 0.0
+
+        return min(vol_score + pa_score, 1.0)
     
     def _analyze_rebound_volume(self, test_indices: List[int], volumes: List[float], closes: List[float], level_type: str) -> Dict[str, any]:
         """分析反弹成交量"""

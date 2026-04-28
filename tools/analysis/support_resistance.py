@@ -1999,10 +1999,17 @@ class SupportResistanceAnalyzerPhase1:
                     ts_str = datetime.fromtimestamp(timestamps[idx]/1000).strftime(tf_fmt)
                     touch_price = test_series[idx]
 
-                    # 成交量比率（用前20根均量）
+                    # 成交量比率（用前20根中位值）
                     lb = max(0, idx - 20)
-                    avg_vol = sum(volumes[lb:idx]) / max(len(volumes[lb:idx]), 1)
-                    vol_ratio = volumes[idx] / avg_vol if avg_vol > 0 else 1.0
+                    recent_vols = sorted(volumes[lb:idx])
+                    n = len(recent_vols)
+                    if n == 0:
+                        median_vol = volumes[idx]
+                    elif n % 2 == 0:
+                        median_vol = (recent_vols[n//2 - 1] + recent_vols[n//2]) / 2
+                    else:
+                        median_vol = recent_vols[n//2]
+                    vol_ratio = volumes[idx] / median_vol if median_vol > 0 else 1.0
 
                     # 价格行为
                     if idx == 0 or idx >= len(closes) - 1:
