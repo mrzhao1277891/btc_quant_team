@@ -122,6 +122,19 @@ class SupportResistanceAnalyzerPhase1:
             'swing_min_amplitude': 0.003,
             # 原始方法（无优化器时）的最小幅度，稍高一点过滤更多噪音
             'swing_min_amplitude_fallback': 0.005,
+
+            # ── 技术位触碰统计 ───────────────────────────────────────────
+            # 各周期统计触碰次数时使用的K线数量（与量确认对齐）
+            'touch_klines_by_tf': {
+                '4h': 84,
+                '1d': 120,
+                '1w': 52,
+                '1M': 36,
+            },
+            # 触及容差（价格进入位点 ±此比例内算触及）
+            'touch_tolerance_pct': 0.005,
+            # 接近方向过滤：触及前3根K线的均价需距位点 >此比例，避免震荡区间内虚高计数
+            'touch_min_approach_pct': 0.008,
             
             # ── 斐波那契计算 ─────────────────────────────────────────────
             # 各周期用于寻找近期波段的回溯K线数
@@ -247,26 +260,40 @@ class SupportResistanceAnalyzerPhase1:
 
     def _count_touches(self, level_price: float,
                        highs: List[float], lows: List[float], closes: List[float],
-                       tolerance_pct: float = 0.005,
+                       tolerance_pct: float = None,
                        level_type: str = 'support') -> int:
         """
         统计历史K线中价格触及某个位点并有效反转的次数。
 
-        触及条件：K线的 high/low 进入位点 ±tolerance 范围
-        反转条件（与量确认逻辑一致）：
-          支撑位：low 触及 且 收盘 > 前一根收盘（阳线，买方占优）
-          阻力位：high 触及 且 收盘 < 前一根收盘（阴线，卖方占优）
+        触及条件：low/high 进入位点 ±tolerance 范围
+        接近方向过滤：触及前3根K线均价需距位点 >min_approach_pct，
+                      避免价格在位点附近震荡时每根阳/阴线都被计入
+        反转条件：当根阳线（支撑）/ 阴线（阻力）
         """
-        tolerance = level_price * tolerance_pct
+        if tolerance_pct is None:
+            tolerance_pct = self.params['touch_tolerance_pct']
+        min_approach  = self.params['touch_min_approach_pct']
+        tolerance     = level_price * tolerance_pct
+        approach_dist = level_price * min_approach
         count = 0
-        for i in range(1, len(closes)):
+
+        for i in range(3, len(closes)):
             if level_type == 'support':
-                touched = lows[i] <= level_price + tolerance
-                if touched and closes[i] > closes[i - 1]:   # 阳线反弹
+                if lows[i] > level_price + tolerance:
+                    continue
+                # 接近方向过滤：前3根均价应在位点上方足够远
+                prev_avg = sum(closes[i-3:i]) / 3
+                if prev_avg < level_price + approach_dist:
+                    continue
+                if closes[i] > closes[i - 1]:
                     count += 1
-            else:  # resistance
-                touched = highs[i] >= level_price - tolerance
-                if touched and closes[i] < closes[i - 1]:   # 阴线回落
+            else:
+                if highs[i] < level_price - tolerance:
+                    continue
+                prev_avg = sum(closes[i-3:i]) / 3
+                if prev_avg > level_price - approach_dist:
+                    continue
+                if closes[i] < closes[i - 1]:
                     count += 1
         return count
     
@@ -352,7 +379,9 @@ class SupportResistanceAnalyzerPhase1:
             cursor = self.connection.cursor(dictionary=True)
             
             # 获取价格数据
-            lookback = self.timeframe_config[timeframe]['lookback'] * 3
+            # 摆动点识别用 lookback*3，触碰统计用 touch_klines_by_tf（单独控制）
+            lookback       = self.timeframe_config[timeframe]['lookback'] * 3
+            touch_klines   = self.params['touch_klines_by_tf'].get(timeframe, lookback)
             if self.before_ts:
                 query = """
                     SELECT timestamp, high, low, close, volume
@@ -411,6 +440,10 @@ class SupportResistanceAnalyzerPhase1:
                 # 摆动低点：价格下方 → 支撑，价格上方 → 阻力
                 for swing_low in swing_lows:
                     price = swing_low['price']
+                    touch_count = self._count_touches(
+                        price, highs[-touch_klines:], lows[-touch_klines:], closes[-touch_klines:],
+                        level_type='support'
+                    )
                     level = {
                         'price': price,
                         'timestamp': swing_low['timestamp'],
@@ -418,6 +451,7 @@ class SupportResistanceAnalyzerPhase1:
                         'subtype': 'swing_low_optimized',
                         'timeframe': timeframe,
                         'confidence': swing_low.get('confidence', 0.5),
+                        'touch_count': touch_count,
                         'metadata': {
                             'amplitude': swing_low.get('amplitude', 0),
                             'volume_ratio': swing_low.get('volume_ratio', 1),
@@ -428,10 +462,14 @@ class SupportResistanceAnalyzerPhase1:
                         supports.append(level)
                     else:
                         resistances.append(level)
-                
+
                 # 摆动高点：价格上方 → 阻力，价格下方 → 支撑
                 for swing_high in swing_highs:
                     price = swing_high['price']
+                    touch_count = self._count_touches(
+                        price, highs[-touch_klines:], lows[-touch_klines:], closes[-touch_klines:],
+                        level_type='resistance'
+                    )
                     level = {
                         'price': price,
                         'timestamp': swing_high['timestamp'],
@@ -439,6 +477,7 @@ class SupportResistanceAnalyzerPhase1:
                         'subtype': 'swing_high_optimized',
                         'timeframe': timeframe,
                         'confidence': swing_high.get('confidence', 0.5),
+                        'touch_count': touch_count,
                         'metadata': {
                             'amplitude': swing_high.get('amplitude', 0),
                             'volume_ratio': swing_high.get('volume_ratio', 1),
@@ -462,7 +501,11 @@ class SupportResistanceAnalyzerPhase1:
                 
                 for idx in swing_lows_idx:
                     price = lows[idx]
-                    touch_count = self._count_touches(price, highs, lows, closes, level_type='support')
+                    # 只用最近 touch_klines 根做触碰统计
+                    touch_count = self._count_touches(
+                        price, highs[-touch_klines:], lows[-touch_klines:], closes[-touch_klines:],
+                        level_type='support'
+                    )
                     level = {
                         'price': price,
                         'timestamp': timestamps[idx],
@@ -485,7 +528,10 @@ class SupportResistanceAnalyzerPhase1:
                 
                 for idx in swing_highs_idx:
                     price = highs[idx]
-                    touch_count = self._count_touches(price, highs, lows, closes, level_type='resistance')
+                    touch_count = self._count_touches(
+                        price, highs[-touch_klines:], lows[-touch_klines:], closes[-touch_klines:],
+                        level_type='resistance'
+                    )
                     level = {
                         'price': price,
                         'timestamp': timestamps[idx],
