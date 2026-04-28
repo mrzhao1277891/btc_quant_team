@@ -1080,7 +1080,7 @@ class SupportResistanceAnalyzerPhase1:
             if 'type' in level:
                 types.add(level['type'])
 
-        total_touch = sum(level.get('touch_count', 0) for level in group)
+        total_touch = best_level.get('touch_count', 0)  # 用代表位点的触碰次数，不累加
 
         return {
             'price':        representative_price,
