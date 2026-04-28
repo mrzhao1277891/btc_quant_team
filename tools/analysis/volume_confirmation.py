@@ -37,6 +37,15 @@ class VolumeConfirmationSystem:
             'price_tolerance_pct': 0.005,
             'min_test_count':      1,         # 降为1，缩量触及已被过滤，有效触及更少
             'min_confidence':      0.65,      # 确认门槛提高到65%
+            # 各周期成交量验证使用的K线数量
+            # 4H: 500根≈83天  1d: 365根≈1年  1w/1M: 取全量
+            'klines_limit_by_tf': {
+                '4h': 500,
+                '1d': 365,
+                '1w': 300,
+                '1M': 100,
+            },
+            'klines_limit_default': 300,  # 未匹配周期时的默认值
         }
     
     def analyze_volume_profile(self, prices: List[float], volumes: List[float]) -> VolumeAnalysis:

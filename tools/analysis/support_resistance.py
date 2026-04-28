@@ -1175,7 +1175,10 @@ class SupportResistanceAnalyzerPhase1:
             # 成交量验证：用该时间框架自己的数据，在合并前做
             self._init_optimization_modules()
             if self.volume_system is not None and timeframe_supports + timeframe_resistances:
-                ohlcv = self._fetch_ohlcv_for_volume(timeframe, symbol)
+                vol_limit = self.volume_system.config['klines_limit_by_tf'].get(
+                    timeframe, self.volume_system.config['klines_limit_default']
+                )
+                ohlcv = self._fetch_ohlcv_for_volume(timeframe, symbol, limit=vol_limit)
                 if ohlcv and len(ohlcv.get('closes', [])) >= 20:
                     try:
                         confirmed_sup, confirmed_res, all_sup, all_res = \
