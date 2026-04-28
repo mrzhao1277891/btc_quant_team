@@ -1317,7 +1317,7 @@ class SupportResistanceAnalyzerPhase1:
                                     wave_str += f" {wave_time}"
                             time_str = ''  # 波段时间已包含，不再单独显示
                         time_part = f" {time_str}" if time_str else ''
-                        note = f"{tf_label}:{label}@${other_p:,.0f}({dist_str}{time_part}{wave_str})" if label else f"{tf_label}@${other_p:,.0f}({dist_str}{time_part}{wave_str})"
+                        note = f"{tf_label}:{label} | ${other_p:,.0f}({dist_str}{time_part}{wave_str})" if label else f"{tf_label} | ${other_p:,.0f}({dist_str}{time_part}{wave_str})"
                         resonant.append(note)
                 lv['confluence_notes'] = list(dict.fromkeys(resonant))  # 去重保序
 
@@ -1377,7 +1377,7 @@ class SupportResistanceAnalyzerPhase1:
                                 wave_str += f" {wave_time}"
                         time_str = ''  # 波段时间已包含
                     time_part = f" {time_str}" if time_str else ''
-                    note = f"{tf_label}:{label}@${o['price']:,.0f}({dist_str}{time_part}{wave_str})" if label else f"{tf_label}@${o['price']:,.0f}({dist_str}{time_part}{wave_str})"
+                    note = f"{tf_label}:{label} | ${o['price']:,.0f}({dist_str}{time_part}{wave_str})" if label else f"{tf_label} | ${o['price']:,.0f}({dist_str}{time_part}{wave_str})"
                     extra_notes.append(note)
                 existing = best.get('confluence_notes', [])
                 best['confluence_notes'] = list(dict.fromkeys(existing + extra_notes))
