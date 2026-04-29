@@ -1191,21 +1191,18 @@ class SupportResistanceAnalyzerPhase1:
             # 计算ATR
             atr = self.calculate_atr(timeframe, symbol)
             
-            # 识别各种位点
+            # 识别各种位点（去掉斐波那契，自动识别波段不准确）
             technical_levels = self.identify_technical_levels(timeframe, symbol, use_optimizer=True)
-            dynamic_levels = self.identify_dynamic_levels(timeframe, symbol)
-            fib_levels = self.identify_fibonacci_levels(timeframe, symbol)
+            dynamic_levels   = self.identify_dynamic_levels(timeframe, symbol)
 
             # 合并当前时间框架的位点
             timeframe_supports = (
                 technical_levels['supports'] +
-                dynamic_levels['supports'] +
-                fib_levels['supports']
+                dynamic_levels['supports']
             )
             timeframe_resistances = (
                 technical_levels['resistances'] +
-                dynamic_levels['resistances'] +
-                fib_levels['resistances']
+                dynamic_levels['resistances']
             )
 
             # 成交量验证：用该时间框架自己的数据，在合并前做
@@ -1610,8 +1607,6 @@ class SupportResistanceAnalyzerPhase1:
         elif ltype == 'dynamic':
             # 动态位：用 base_strength（均线权重），无触碰次数
             confidence_score = min(level.get('base_strength', 1) / 5.0, 1.0)
-        elif ltype == 'fibonacci':
-            confidence_score = min(level.get('base_strength', 2) / 5.0, 1.0)
         elif ltype == 'psychological':
             confidence_score = min(level.get('base_strength', 2) / 5.0, 1.0)
         elif 'confidence' in level:
