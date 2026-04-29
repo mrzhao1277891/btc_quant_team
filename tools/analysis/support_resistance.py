@@ -1589,23 +1589,24 @@ class SupportResistanceAnalyzerPhase1:
         score_factors = {}
 
         # ── 1. 触碰/置信度（50%）────────────────────────────────
-        # 优先用 touch_count（最直接的历史验证），
-        # 优化器的 confidence 作为辅助参考而非覆盖
         tc = level.get('touch_count', 0)
-        if tc > 0:
-            # 1次=0.3, 2次=0.5, 3次=0.7, 4次=0.9, 5次以上=1.0
-            confidence_score = min(0.2 * tc + 0.1, 1.0)
-            # 优化器有 confidence 时，取两者均值（互相印证）
-            if 'confidence' in level:
-                confidence_score = (confidence_score + float(level['confidence'])) / 2
+        ltype = level.get('type', '')
+
+        if ltype == 'technical':
+            # 技术位：只用触碰次数，不用优化器confidence
+            # 0次=0.1, 1次=0.3, 2次=0.5, 3次=0.7, 4次=0.9, 5次+=1.0
+            confidence_score = min(0.2 * tc + 0.1, 1.0) if tc > 0 else 0.1
+        elif ltype == 'dynamic':
+            # 动态位：用 base_strength（均线权重），无触碰次数
+            confidence_score = min(level.get('base_strength', 1) / 5.0, 1.0)
+        elif ltype == 'fibonacci':
+            confidence_score = min(level.get('base_strength', 2) / 5.0, 1.0)
+        elif ltype == 'psychological':
+            confidence_score = min(level.get('base_strength', 2) / 5.0, 1.0)
         elif 'confidence' in level:
             confidence_score = float(level['confidence'])
-        elif 'base_strength' in level:
-            confidence_score = min(level['base_strength'] / 5.0, 1.0)
-        elif 'importance' in level:
-            confidence_score = level['importance'] / 3.0
         else:
-            confidence_score = 0.2  # 无任何历史验证，给低分
+            confidence_score = 0.2
 
         score += confidence_score * self.params['score_weight_confidence']
         score_factors['confidence'] = round(confidence_score, 3)
@@ -1937,11 +1938,19 @@ class SupportResistanceAnalyzerPhase1:
             parts = []
 
             # 触碰/置信度
-            conf = sf.get('confidence', 0)
-            tc   = level.get('touch_count', 0)
-            sub_conf = round(conf * W_CONF * 14 + 1)  # 换算到1-15子分
+            conf  = sf.get('confidence', 0)
+            tc    = level.get('touch_count', 0)
+            ltype = level.get('type', '')
             sub_conf = round(conf * W_CONF, 2)
-            label = f"触碰{tc}次" if tc > 0 else "置信"
+            if ltype == 'technical':
+                label = f"触碰{tc}次" if tc > 0 else "触碰0次"
+            elif ltype == 'dynamic':
+                bs = level.get('base_strength', 1)
+                label = f"均线权重{bs}"
+            elif ltype == 'fibonacci':
+                label = f"Fib强度{level.get('base_strength', 2)}"
+            else:
+                label = f"强度{level.get('base_strength', 2)}"
             parts.append(f"{label}({conf:.0%})×{W_CONF:.0%}={sub_conf:.2f}")
 
             # 时间框架
