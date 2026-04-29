@@ -165,6 +165,8 @@ class SupportResistanceAnalyzerPhase1:
             # 即：ATR 相对比例 和 固定上限 1.5% 取较小值，防止月线大 ATR 把所有位点合并成一个
             # 调大 → 合并更激进（位点更少），调小 → 保留更多独立位点
             'merge_atr_multiplier': 1.0,
+            # 综合分析里相近位点合并的百分比容差（基于锚点价格）
+            'merge_close_pct': 0.005,  # 0.5%
             
             # ── 评分权重（总和 1.0）────────────────────────────────
             # 触碰/置信度：历史验证次数，最能预测位点有效性
@@ -1383,22 +1385,23 @@ class SupportResistanceAnalyzerPhase1:
         _mark_confluence(all_supports)
         _mark_confluence(all_resistances)
 
-        # 5. 相近位点合并（差距 < $500 合并为一个，保留评分最高的作代表）
-        MERGE_THRESHOLD = 500  # 美元
+        # 5. 相近位点合并（距离 < merge_close_pct 合并为一个，保留评分最高的作代表）
+        merge_pct = self.params['merge_close_pct']
 
         def _merge_close_levels(levels: List[Dict]) -> List[Dict]:
             if not levels:
                 return []
-            # 按价格排序
             sorted_lvs = sorted(levels, key=lambda x: x['price'])
             merged = []
             group = [sorted_lvs[0]]
+            anchor = sorted_lvs[0]['price']  # 锚点：组内第一个价格，防止链式漂移
             for lv in sorted_lvs[1:]:
-                if abs(lv['price'] - group[-1]['price']) < MERGE_THRESHOLD:
+                if abs(lv['price'] - anchor) / anchor < merge_pct:
                     group.append(lv)
                 else:
                     merged.append(_pick_best(group))
                     group = [lv]
+                    anchor = lv['price']
             merged.append(_pick_best(group))
             return merged
 
