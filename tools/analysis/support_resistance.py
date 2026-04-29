@@ -131,6 +131,13 @@ class SupportResistanceAnalyzerPhase1:
                 '1w': 52,
                 '1M': 36,
             },
+            # 各周期识别摆动点时使用的K线数量
+            'swing_klines_by_tf': {
+                '4h': 300,   # 约50天，足够找到近期关键摆动点
+                '1d': 365,   # 约1年
+                '1w': 156,   # 约3年
+                '1M': 72,    # 约6年
+            },
             # 触及容差（价格进入位点 ±此比例内算触及）
             'touch_tolerance_pct': 0.005,
             # 接近方向过滤：触及前3根K线的均价需距位点 >此比例，避免震荡区间内虚高计数
@@ -381,9 +388,10 @@ class SupportResistanceAnalyzerPhase1:
             cursor = self.connection.cursor(dictionary=True)
             
             # 获取价格数据
-            # 摆动点识别用 lookback*3，触碰统计用 touch_klines_by_tf（单独控制）
-            lookback       = self.timeframe_config[timeframe]['lookback'] * 3
-            touch_klines   = self.params['touch_klines_by_tf'].get(timeframe, lookback)
+            # 摆动点识别用 swing_klines_by_tf，触碰统计用 touch_klines_by_tf（单独控制）
+            lookback     = self.params['swing_klines_by_tf'].get(
+                timeframe, self.timeframe_config[timeframe]['lookback'] * 3)
+            touch_klines = self.params['touch_klines_by_tf'].get(timeframe, lookback)
             if self.before_ts:
                 query = """
                     SELECT timestamp, high, low, close, volume
@@ -453,7 +461,7 @@ class SupportResistanceAnalyzerPhase1:
                         'subtype': 'swing_low_optimized',
                         'timeframe': timeframe,
                         'confidence': swing_low.get('confidence', 0.5),
-                        'touch_count': touch_count,
+                        'touch_count': touch_count + 1,  # 摆动点本身算一次
                         'metadata': {
                             'amplitude': swing_low.get('amplitude', 0),
                             'volume_ratio': swing_low.get('volume_ratio', 1),
@@ -479,7 +487,7 @@ class SupportResistanceAnalyzerPhase1:
                         'subtype': 'swing_high_optimized',
                         'timeframe': timeframe,
                         'confidence': swing_high.get('confidence', 0.5),
-                        'touch_count': touch_count,
+                        'touch_count': touch_count + 1,  # 摆动点本身算一次
                         'metadata': {
                             'amplitude': swing_high.get('amplitude', 0),
                             'volume_ratio': swing_high.get('volume_ratio', 1),
@@ -514,7 +522,7 @@ class SupportResistanceAnalyzerPhase1:
                         'type': 'technical',
                         'subtype': 'swing_low',
                         'timeframe': timeframe,
-                        'touch_count': max(1, touch_count),  # 至少1（自身就是摆动点）
+                        'touch_count': touch_count + 1,  # 摆动点本身算一次
                         'metadata': {
                             'index': idx,
                             'high': highs[idx],
@@ -540,7 +548,7 @@ class SupportResistanceAnalyzerPhase1:
                         'type': 'technical',
                         'subtype': 'swing_high',
                         'timeframe': timeframe,
-                        'touch_count': max(1, touch_count),  # 至少1
+                        'touch_count': touch_count + 1,  # 摆动点本身算一次
                         'metadata': {
                             'index': idx,
                             'high': highs[idx],
@@ -1596,9 +1604,9 @@ class SupportResistanceAnalyzerPhase1:
         ltype = level.get('type', '')
 
         if ltype == 'technical':
-            # 技术位：只用触碰次数，不用优化器confidence
-            # 0次=0.1, 1次=0.3, 2次=0.5, 3次=0.7, 4次=0.9, 5次+=1.0
-            confidence_score = min(0.2 * tc + 0.1, 1.0) if tc > 0 else 0.1
+            # 技术位：只用触碰次数，0次=0分，不给兜底分
+            # 1次=0.3, 2次=0.5, 3次=0.7, 4次=0.9, 5次+=1.0
+            confidence_score = min(0.2 * tc + 0.1, 1.0) if tc > 0 else 0.0
         elif ltype == 'dynamic':
             # 动态位：用 base_strength（均线权重），无触碰次数
             confidence_score = min(level.get('base_strength', 1) / 5.0, 1.0)
