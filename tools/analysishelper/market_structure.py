@@ -37,14 +37,14 @@ SYMBOL = 'BTCUSDT'
 
 # 各周期配置（与 swing_points.py 保持一致）
 TF_CONFIG = {
-    '1M': {'swing_window': 3, 'swing_klines': 48,  'min_amplitude': 0.01},
+    '1M': {'swing_window': 2, 'swing_klines': 48,  'min_amplitude': 0.01},
     '1w': {'swing_window': 3, 'swing_klines': 100, 'min_amplitude': 0.008},
-    '1d': {'swing_window': 5, 'swing_klines': 150, 'min_amplitude': 0.005},
-    '4h': {'swing_window': 3, 'swing_klines': 120, 'min_amplitude': 0.003},
+    '1d': {'swing_window': 3, 'swing_klines': 150, 'min_amplitude': 0.005},
+    '4h': {'swing_window': 3, 'swing_klines': 180, 'min_amplitude': 0.003},
 }
 
 # 判断结构时使用最近几个摆动点（建议3-5）
-STRUCTURE_LOOKBACK = 4
+STRUCTURE_LOOKBACK = 5
 
 # ================================================================
 
