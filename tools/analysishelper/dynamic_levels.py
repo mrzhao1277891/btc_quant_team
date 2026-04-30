@@ -153,6 +153,66 @@ def print_report(conn, symbol: str):
         if not printed_separator:
             print(f"  {'─'*20} 当前价格 ${current_price:,.2f} {'─'*20}")
 
+    # ── 综合分析：所有周期动态位汇总，按距当前价格排序 ──────────
+    print(f"\n{'='*60}")
+    print("🔥 综合动态位（所有周期，由近到远）")
+    print(f"{'='*60}")
+
+    all_levels = []
+    for tf in ['1M', '1w', '1d', '4h']:
+        data = fetch_dynamic_levels(conn, symbol, tf)
+        if data is None:
+            continue
+        tf_lbl = tf_labels[tf]
+        indicators = [
+            ('EMA7',    data['ema7']),
+            ('EMA12',   data['ema12']),
+            ('EMA25',   data['ema25']),
+            ('EMA50',   data['ema50']),
+            ('布林上轨', data['boll_up']),
+            ('布林中轨', data['boll_md']),
+            ('布林下轨', data['boll_dn']),
+        ]
+        for name, val in indicators:
+            if val is None:
+                continue
+            dist = (val - current_price) / current_price * 100
+            side = '阻力' if val > current_price else '支撑'
+            all_levels.append({
+                'price': val,
+                'name':  name,
+                'tf':    tf_lbl,
+                'dist':  dist,
+                'side':  side,
+            })
+
+    resistances = sorted([l for l in all_levels if l['side'] == '阻力'],
+                         key=lambda x: x['dist'])
+    supports    = sorted([l for l in all_levels if l['side'] == '支撑'],
+                         key=lambda x: -x['dist'])
+
+    print("\n  📉 阻力（由远到近）:")
+    for lv in reversed(resistances):
+        print(f"    ${lv['price']:>10,.2f}  +{lv['dist']:>5.1f}%  {lv['tf']:4}  {lv['name']}")
+
+    print(f"\n  {'─'*20} 当前价格 ${current_price:,.2f} {'─'*20}")
+
+    print("\n  📈 支撑（由近到远）:")
+    for lv in supports:
+        print(f"    ${lv['price']:>10,.2f}  -{abs(lv['dist']):>5.1f}%  {lv['tf']:4}  {lv['name']}")
+
+    # 最近支撑阻力和盈亏比
+    if resistances and supports:
+        nr = resistances[0]
+        ns = supports[0]
+        rr = (nr['price'] - current_price) / (current_price - ns['price'])
+        rr_tag = '✅ 可做多' if rr >= 2 else '⚠️ 盈亏比不足'
+        print(f"\n  💡 上方最近阻力: ${nr['price']:,.2f} ({nr['tf']} {nr['name']})  "
+              f"+{nr['dist']:.1f}%")
+        print(f"     下方最近支撑: ${ns['price']:,.2f} ({ns['tf']} {ns['name']})  "
+              f"-{abs(ns['dist']):.1f}%")
+        print(f"     盈亏比(做多): {rr:.2f}  {rr_tag}")
+
     print(f"\n{'='*60}")
 
 
