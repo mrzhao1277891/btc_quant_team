@@ -62,7 +62,8 @@ def fetch_dynamic_levels(conn, symbol: str, timeframe: str) -> Optional[dict]:
     cursor.execute(
         "SELECT timestamp, close, "
         "ema7, ema12, ema25, ema50, "
-        "boll_up, boll_md, boll_dn "
+        "boll_up, boll_md, boll_dn, "
+        "rsi6, rsi14, dif, dea, macd "
         "FROM klines WHERE symbol=%s AND timeframe=%s "
         "ORDER BY timestamp DESC LIMIT 2",
         (symbol, timeframe)
@@ -85,6 +86,11 @@ def fetch_dynamic_levels(conn, symbol: str, timeframe: str) -> Optional[dict]:
         'boll_up':   _f(r['boll_up']),
         'boll_md':   _f(r['boll_md']),
         'boll_dn':   _f(r['boll_dn']),
+        'rsi6':      _f(r['rsi6']),
+        'rsi14':     _f(r['rsi14']),
+        'dif':       _f(r['dif']),
+        'dea':       _f(r['dea']),
+        'macd':      _f(r['macd']),
     }
 
 
@@ -119,6 +125,20 @@ def print_report(conn, symbol: str):
         ts_str = datetime.fromtimestamp(data['timestamp'] / 1000).strftime(tf_fmts[tf])
         print(f"\n【{tf_labels[tf]}】  数据时间: {ts_str}  收盘: ${data['close']:,.2f}")
         print(f"{'─'*60}")
+
+        # 指标行
+        rsi6  = data.get('rsi6')
+        rsi14 = data.get('rsi14')
+        dif   = data.get('dif')
+        dea   = data.get('dea')
+        macd  = data.get('macd')
+
+        rsi_str  = f"RSI6={rsi6:.1f}  RSI14={rsi14:.1f}" if rsi6 and rsi14 else ''
+        macd_str = ''
+        if dif is not None and dea is not None and macd is not None:
+            macd_str = f"DIF={dif:.2f}  DEA={dea:.2f}  MACD={macd:.2f}"
+        if rsi_str or macd_str:
+            print(f"  {rsi_str}{'  ' if rsi_str and macd_str else ''}{macd_str}")
 
         # 均线和布林带，按价格从高到低排列，标注与当前价格的关系
         levels = []
