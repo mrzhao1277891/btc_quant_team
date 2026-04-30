@@ -16,6 +16,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import mysql.connector
+import requests
 from decimal import Decimal
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple
@@ -36,10 +37,10 @@ SYMBOL = 'BTCUSDT'
 
 # 各周期配置（与 swing_points.py 保持一致）
 TF_CONFIG = {
-    '1M': {'swing_window': 3, 'swing_klines': 72,  'min_amplitude': 0.01},
-    '1w': {'swing_window': 4, 'swing_klines': 156, 'min_amplitude': 0.008},
-    '1d': {'swing_window': 5, 'swing_klines': 365, 'min_amplitude': 0.005},
-    '4h': {'swing_window': 3, 'swing_klines': 300, 'min_amplitude': 0.003},
+    '1M': {'swing_window': 3, 'swing_klines': 48,  'min_amplitude': 0.01},
+    '1w': {'swing_window': 3, 'swing_klines': 100, 'min_amplitude': 0.008},
+    '1d': {'swing_window': 5, 'swing_klines': 150, 'min_amplitude': 0.005},
+    '4h': {'swing_window': 3, 'swing_klines': 120, 'min_amplitude': 0.003},
 }
 
 # 判断结构时使用最近几个摆动点（建议3-5）
@@ -98,7 +99,8 @@ def find_swing_points(klines: List[Dict], window: int,
 
 
 def analyze_structure(swing_highs: List[Dict], swing_lows: List[Dict],
-                      current_price: float, lookback: int) -> Dict:
+                      last_close: float, realtime_price: float,
+                      lookback: int) -> Dict:
     """
     分析价格结构。
 
@@ -148,22 +150,38 @@ def analyze_structure(swing_highs: List[Dict], swing_lows: List[Dict],
         structure = 'ranging'
 
     # ── 结构破坏检测（BOS）────────────────────────────────────────
-    bos = None
+    # 用已收盘价确认，用实时价格预警
     last_swing_low  = recent_lows[-1]['price']
     last_swing_high = recent_highs[-1]['price']
+    bos_confirmed = None
+    bos_warning   = None
 
-    if structure == 'uptrend' and current_price < last_swing_low:
-        bos = {
-            'type': '上涨结构破坏',
-            'level': last_swing_low,
-            'desc': f'价格 ${current_price:,.0f} 跌破最近摆动低点 ${last_swing_low:,.0f}'
-        }
-    elif structure == 'downtrend' and current_price > last_swing_high:
-        bos = {
-            'type': '下跌结构破坏',
-            'level': last_swing_high,
-            'desc': f'价格 ${current_price:,.0f} 突破最近摆动高点 ${last_swing_high:,.0f}'
-        }
+    if structure == 'uptrend':
+        if last_close < last_swing_low:
+            bos_confirmed = {
+                'type': '上涨结构破坏（已确认）',
+                'level': last_swing_low,
+                'desc': f'上根收盘 ${last_close:,.0f} 跌破摆动低点 ${last_swing_low:,.0f}'
+            }
+        elif realtime_price < last_swing_low:
+            bos_warning = {
+                'type': '上涨结构破坏（盘中预警）',
+                'level': last_swing_low,
+                'desc': f'实时价 ${realtime_price:,.0f} 触及摆动低点 ${last_swing_low:,.0f}，等待收盘确认'
+            }
+    elif structure == 'downtrend':
+        if last_close > last_swing_high:
+            bos_confirmed = {
+                'type': '下跌结构破坏（已确认）',
+                'level': last_swing_high,
+                'desc': f'上根收盘 ${last_close:,.0f} 突破摆动高点 ${last_swing_high:,.0f}'
+            }
+        elif realtime_price > last_swing_high:
+            bos_warning = {
+                'type': '下跌结构破坏（盘中预警）',
+                'level': last_swing_high,
+                'desc': f'实时价 ${realtime_price:,.0f} 触及摆动高点 ${last_swing_high:,.0f}，等待收盘确认'
+            }
 
     # ── 文字描述 ──────────────────────────────────────────────────
     high_seq = ' → '.join([f'${p:,.0f}' for p in high_prices])
@@ -190,24 +208,34 @@ def analyze_structure(swing_highs: List[Dict], swing_lows: List[Dict],
         'lh_count':      lh_count,
         'hl_count':      hl_count,
         'll_count':      ll_count,
-        'bos':           bos,
+        'bos_confirmed': bos_confirmed,
+        'bos_warning':   bos_warning,
     }
 
 
 def print_report(conn, symbol: str):
-    # 当前价格
+    # 已收盘价（最新4H收盘）
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         "SELECT close FROM klines WHERE symbol=%s AND timeframe='4h' "
-        "ORDER BY timestamp DESC LIMIT 1", (symbol,)
+        "ORDER BY timestamp DESC LIMIT 2", (symbol,)
     )
-    row = cursor.fetchone()
+    rows = cursor.fetchall()
     cursor.close()
-    current_price = _f(row['close']) if row else 0
+    # 用倒数第二根（已收盘）
+    last_close = _f(rows[1]['close']) if len(rows) >= 2 else _f(rows[0]['close'])
+
+    # 实时价格
+    try:
+        resp = requests.get('https://api.binance.com/api/v3/ticker/price',
+                            params={'symbol': symbol}, timeout=5)
+        realtime_price = float(resp.json()['price'])
+    except Exception:
+        realtime_price = last_close  # 降级用收盘价
 
     print(f"\n{'='*60}")
     print(f"📐 {symbol} 市场结构分析  {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"当前价格: ${current_price:,.2f}")
+    print(f"实时价格: ${realtime_price:,.2f}  |  上根收盘: ${last_close:,.2f}")
     print(f"{'='*60}")
 
     tf_labels = {'1M': '月线', '1w': '周线', '1d': '日线', '4h': '4H'}
@@ -234,7 +262,8 @@ def print_report(conn, symbol: str):
         )
 
         result = analyze_structure(swing_highs, swing_lows,
-                                   current_price, STRUCTURE_LOOKBACK)
+                                   last_close, realtime_price,
+                                   STRUCTURE_LOOKBACK)
 
         icon = structure_icon.get(result['structure'], '⚪')
         print(f"\n【{tf_labels[tf]}】  {icon}")
@@ -246,20 +275,22 @@ def print_report(conn, symbol: str):
             print(f"\n  摆动高点（最近{len(result['recent_highs'])}个）:")
             for p in result['recent_highs']:
                 ts = datetime.fromtimestamp(p['timestamp'] / 1000).strftime(fmt)
-                dist = (p['price'] - current_price) / current_price * 100
+                dist = (p['price'] - realtime_price) / realtime_price * 100
                 sign = '+' if dist >= 0 else ''
                 print(f"    ${p['price']:>10,.2f}  {sign}{dist:.1f}%  {ts}")
 
             print(f"\n  摆动低点（最近{len(result['recent_lows'])}个）:")
             for p in result['recent_lows']:
                 ts = datetime.fromtimestamp(p['timestamp'] / 1000).strftime(fmt)
-                dist = (p['price'] - current_price) / current_price * 100
+                dist = (p['price'] - realtime_price) / realtime_price * 100
                 sign = '+' if dist >= 0 else ''
                 print(f"    ${p['price']:>10,.2f}  {sign}{dist:.1f}%  {ts}")
 
         # 结构破坏
-        if result['bos']:
-            print(f"\n  ⚠️  {result['bos']['type']}: {result['bos']['desc']}")
+        if result['bos_confirmed']:
+            print(f"\n  ✅ {result['bos_confirmed']['type']}: {result['bos_confirmed']['desc']}")
+        if result['bos_warning']:
+            print(f"\n  ⚠️  {result['bos_warning']['type']}: {result['bos_warning']['desc']}")
 
     print(f"\n{'='*60}")
 

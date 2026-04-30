@@ -34,7 +34,7 @@ SYMBOL = 'BTCUSDT'
 # swing_klines : 取多少根K线用于识别摆动点
 # min_amplitude: 摆动点相对周围均值的最小振幅，过滤噪音
 TF_CONFIG = {
-    '1M': {'swing_window': 3, 'swing_klines': 60,  'min_amplitude': 0.01},
+    '1M': {'swing_window': 3, 'swing_klines': 36,  'min_amplitude': 0.01},
     '1w': {'swing_window': 3, 'swing_klines': 100, 'min_amplitude': 0.008},
     '1d': {'swing_window': 5, 'swing_klines': 150, 'min_amplitude': 0.005},
     '4h': {'swing_window': 3, 'swing_klines': 120, 'min_amplitude': 0.003},
