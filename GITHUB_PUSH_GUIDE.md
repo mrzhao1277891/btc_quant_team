@@ -76,10 +76,10 @@
 1. **配置凭据存储**
    ```bash
    # 缓存凭据1小时
-   git config --global credential.helper 'cache --timeout=3600'
+   git config --global credential.analysishelper 'cache --timeout=3600'
    
    # 或永久存储 (第一次需要输入)
-   git config --global credential.helper store
+   git config --global credential.analysishelper store
    ```
 
 2. **推送代码**
@@ -137,7 +137,7 @@ cd /home/francis/btc_quant_team
 git remote -v
 # 输出: origin	https://github.com/mrzhao1277891/btc_quant_team.git
 
-git config --global credential.helper
+git config --global credential.analysishelper
 # 输出: store (已配置)
 ```
 
