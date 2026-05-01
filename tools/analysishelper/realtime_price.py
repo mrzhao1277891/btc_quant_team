@@ -21,39 +21,19 @@ REFRESH_INTERVAL = 0
 
 # ================================================================
 
-BINANCE_TICKER_URL = 'https://api.binance.com/api/v3/ticker/24hr'
+BINANCE_TICKER_URL = 'https://api.binance.com/api/v3/ticker/price'
 
 
-def get_price(symbol: str) -> dict:
-    """获取24小时行情数据"""
+def get_price(symbol: str) -> float:
     resp = requests.get(BINANCE_TICKER_URL, params={'symbol': symbol}, timeout=5)
     resp.raise_for_status()
-    d = resp.json()
-    return {
-        'price':        float(d['lastPrice']),
-        'change_pct':   float(d['priceChangePercent']),
-        'change_amt':   float(d['priceChange']),
-        'high_24h':     float(d['highPrice']),
-        'low_24h':      float(d['lowPrice']),
-        'volume_24h':   float(d['volume']),
-        'quote_vol_24h': float(d['quoteVolume']),
-    }
+    return float(resp.json()['price'])
 
 
 def print_price(symbol: str):
-    data = get_price(symbol)
-    now  = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    sign = '+' if data['change_pct'] >= 0 else ''
-    color_open  = '\033[92m' if data['change_pct'] >= 0 else '\033[91m'
-    color_close = '\033[0m'
-
-    print(f"\r{now}  {symbol}  "
-          f"{color_open}${data['price']:>12,.2f}  "
-          f"{sign}{data['change_pct']:.2f}%  "
-          f"{sign}${data['change_amt']:,.2f}{color_close}  "
-          f"H:${data['high_24h']:,.2f}  L:${data['low_24h']:,.2f}  "
-          f"Vol:{data['volume_24h']:,.0f}",
-          end='', flush=True)
+    price = get_price(symbol)
+    now   = datetime.now().strftime('%H:%M:%S')
+    print(f"\r{now}  {symbol}  ${price:,.2f}  ", end='', flush=True)
 
 
 def main():
