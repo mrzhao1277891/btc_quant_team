@@ -29,7 +29,8 @@ TRADE_PARAMS = {
     'account_balance':  2403,    # U
     'leverage':         5,
     'max_position':     10000,   # U（名义仓位上限）
-    'hard_stop_usd':    100,     # U（每笔硬止损）
+    'hard_stop_usd':    200,     # U（每笔硬止损）
+    'min_profit_pts':   2000,    # 点（最小盈利点数）
     'min_rr':           2.0,     # 最小盈亏比
     'max_hold_hours':   48,      # 最大持仓小时
 }
@@ -101,6 +102,11 @@ def _find_best_opportunity(
             if rr < TRADE_PARAMS['min_rr']:
                 continue
 
+            # 最小盈利点数过滤
+            profit_pts = target - entry
+            if profit_pts < TRADE_PARAMS['min_profit_pts']:
+                continue
+
             pos = _calc_position(entry, stop)
             if not pos:
                 continue
@@ -142,6 +148,11 @@ def _find_best_opportunity(
 
             rr = (entry - target) / stop_dist
             if rr < TRADE_PARAMS['min_rr']:
+                continue
+
+            # 最小盈利点数过滤
+            profit_pts = entry - target
+            if profit_pts < TRADE_PARAMS['min_profit_pts']:
                 continue
 
             pos = _calc_position(entry, stop)
