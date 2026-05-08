@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC 多周期指标仪表盘</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <h1>🐶 旺财看盘</h1>
+            <p class="subtitle">BTC 多周期指标仪表盘</p>
+        </div>
+        <div class="header-right">
+            <div class="realtime-price-container">
+                <span class="realtime-label">实时价格</span>
+                <div id="realtimePrice" class="realtime-price">—</div>
+            </div>
+            <div class="refresh-info">
+                <span class="refresh-indicator"></span>
+                <span class="refresh-text">自动刷新 30s</span>
+                <button id="manualRefreshBtn" class="refresh-btn" aria-label="手动刷新">⟳</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Update timestamp -->
+    <div class="update-time">
+        <span id="updateTime">加载中...</span>
+    </div>
+
+    <!-- Main dashboard grid - 5 cards -->
+    <main class="dashboard-grid">
+        <!-- Card 1: Price -->
+        <div class="card" id="priceCard">
+            <div class="card-header">
+                <h2 class="card-title">当前价格</h2>
+            </div>
+            <div class="card-body">
+                <div id="priceCardContent" class="card-content">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: EMA Indicators -->
+        <div class="card" id="emaCard">
+            <div class="card-header">
+                <h2 class="card-title">EMA 均线指标</h2>
+            </div>
+            <div class="card-body">
+                <div id="emaCardContent" class="card-content">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Bollinger Bands -->
+        <div class="card" id="bollingerCard">
+            <div class="card-header">
+                <h2 class="card-title">布林带指标</h2>
+            </div>
+            <div class="card-body">
+                <div id="bollingerCardContent" class="card-content">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: RSI Indicators -->
+        <div class="card" id="rsiCard">
+            <div class="card-header">
+                <h2 class="card-title">RSI 指标</h2>
+            </div>
+            <div class="card-body">
+                <div id="rsiCardContent" class="card-content">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 5: MACD Indicators -->
+        <div class="card" id="macdCard">
+            <div class="card-header">
+                <h2 class="card-title">MACD 指标</h2>
+            </div>
+            <div class="card-body">
+                <div id="macdCardContent" class="card-content">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="dashboard-footer">
+        <p>数据来源: FastAPI Backend + Binance API</p>
+        <p>技术指标: Price, EMA, Bollinger Bands, RSI, MACD</p>
+    </footer>
+
+    <!-- Error modal (hidden by default) -->
+    <div id="errorModal" class="error-modal hidden">
+        <div class="error-content">
+            <div class="error-icon">⚠️</div>
+            <h3 class="error-title">无法加载数据</h3>
+            <p id="errorMessage" class="error-message"></p>
+            <button id="errorRetryBtn" class="error-retry-btn">重试</button>
+        </div>
+    </div>
+
+    <!-- JavaScript modules -->
+    <script type="module" src="components/ValueFormatter.js"></script>
+    <script type="module" src="components/DataFetcher.js"></script>
+    <script type="module" src="components/SVGVisualizer.js"></script>
+    <script type="module" src="components/CardRenderer.js"></script>
+    <script type="module" src="components/DashboardController.js"></script>
+    <script type="module">
+        import { DashboardController } from './components/DashboardController.js';
+        
+        // Card 1: Price
+        const priceCardConfig = {
+            containerId: 'priceCardContent',
+            title: '当前价格',
+            indicators: [
+                { key: 'close', label: '价格', style: 'solid', markerShape: 'circle' }
+            ],
+            yAxisConfig: { type: 'auto', ticks: 6 },
+            colorScheme: {
+                positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8',
+                price: '#22c55e'
+            },
+            referenceLines: []
+        };
+
+        // Card 2: EMA Indicators
+        const emaCardConfig = {
+            containerId: 'emaCardContent',
+            title: 'EMA 均线指标',
+            indicators: [
+                { key: 'ema7', label: 'EMA7', style: 'solid', markerShape: 'circle' },
+                { key: 'ema25', label: 'EMA25', style: 'solid', markerShape: 'triangle' },
+                { key: 'ema50', label: 'EMA50', style: 'solid', markerShape: 'square' }
+            ],
+            yAxisConfig: { type: 'auto', ticks: 6 },
+            colorScheme: {
+                positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8',
+                ema7: '#3b82f6', ema25: '#8b5cf6', ema50: '#06b6d4'
+            },
+            referenceLines: []
+        };
+
+        // Card 3: Bollinger Bands
+        const bollingerCardConfig = {
+            containerId: 'bollingerCardContent',
+            title: '布林带指标',
+            indicators: [
+                { key: 'boll_up', label: '布林上轨', style: 'solid', markerShape: 'circle' },
+                { key: 'boll_md', label: '布林中轨', style: 'solid', markerShape: 'triangle' },
+                { key: 'boll_dn', label: '布林下轨', style: 'solid', markerShape: 'square' }
+            ],
+            yAxisConfig: { type: 'auto', ticks: 6 },
+            colorScheme: {
+                positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8',
+                bollUp: '#f87171', bollMd: '#fb923c', bollDn: '#fbbf24'
+            },
+            referenceLines: []
+        };
+
+        // Card 4: RSI Indicators
+        const rsiCardConfig = {
+            containerId: 'rsiCardContent',
+            title: 'RSI 指标',
+            indicators: [
+                { key: 'rsi14', label: 'RSI(14)', style: 'solid', markerShape: 'circle' },
+                { key: 'rsi6', label: 'RSI(6)', style: 'solid', markerShape: 'triangle' }
+            ],
+            yAxisConfig: { type: 'fixed', min: 0, max: 100, ticks: 6 },
+            colorScheme: {
+                positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8',
+                overbought: '#ef4444', oversold: '#22c55e'
+            },
+            referenceLines: [
+                { value: 70, label: '70 (超买)' },
+                { value: 30, label: '30 (超卖)' }
+            ]
+        };
+
+        // Card 5: MACD Indicators
+        const macdCardConfig = {
+            containerId: 'macdCardContent',
+            title: 'MACD 指标',
+            indicators: [
+                { key: 'dif', label: 'DIF', style: 'solid', markerShape: 'circle' },
+                { key: 'dea', label: 'DEA', style: 'solid', markerShape: 'triangle' },
+                { key: 'macd', label: 'MACD', style: 'solid', markerShape: 'square' }
+            ],
+            yAxisConfig: { type: 'auto', ticks: 6 },
+            colorScheme: {
+                positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8'
+            },
+            referenceLines: [{ value: 0, label: '零轴' }]
+        };
+        
+        // Initialize dashboard when DOM is ready
+        document.addEventListener('DOMContentLoaded', async () => {
+            const config = {
+                apiBaseUrl: 'http://127.0.0.1:8000',
+                refreshInterval: 30000, // 30 seconds
+                timeframes: ['1m', '1w', '1d', '4h'],
+                cards: [priceCardConfig, emaCardConfig, bollingerCardConfig, rsiCardConfig, macdCardConfig]
+            };
+            
+            try {
+                const dashboard = new DashboardController(config);
+                await dashboard.initialize();
+                dashboard.startAutoRefresh();
+                
+                // Wire manual refresh button
+                const refreshBtn = document.getElementById('manualRefreshBtn');
+                if (refreshBtn) {
+                    refreshBtn.addEventListener('click', async () => {
+                        await dashboard.refresh();
+                    });
+                }
+                
+                // Wire error retry button
+                const retryBtn = document.getElementById('errorRetryBtn');
+                if (retryBtn) {
+                    retryBtn.addEventListener('click', async () => {
+                        document.getElementById('errorModal').classList.add('hidden');
+                        await dashboard.refresh();
+                    });
+                }
+                
+                window.dashboardController = dashboard;
+                console.log('仪表板初始化成功');
+            } catch (error) {
+                console.error('仪表板初始化失败:', error);
+                document.getElementById('errorMessage').textContent = error.message;
+                document.getElementById('errorModal').classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

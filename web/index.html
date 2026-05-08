@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTC 多周期仪表盘 — 旺财</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d28;
+    --card-hover: #212433;
+    --border: #2a2d3a;
+    --text: #e4e6f0;
+    --text-dim: #8a8fa8;
+    --green: #22c55e;
+    --red: #ef4444;
+    --gold: #f59e0b;
+    --blue: #3b82f6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+  }
+  .header h1 {
+    font-size: 22px; font-weight: 600; display: flex; align-items: center; gap: 10px;
+  }
+  .header h1 small { font-size: 14px; font-weight: 400; color: var(--text-dim); }
+  .header-right {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .realtime-price {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.5px;
+  }
+  .realtime-price.up { color: var(--green); }
+  .realtime-price.down { color: var(--red); }
+  .realtime-price .label {
+    font-size: 12px; font-weight: 400; color: var(--text-dim); margin-right: 8px;
+  }
+  .refresh-bar {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--text-dim); font-size: 12px;
+  }
+  .refresh-bar .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  }
+  @media (max-width: 1200px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card); border-radius: 12px; padding: 16px;
+    border: 1px solid var(--border); transition: border-color 0.2s;
+  }
+  .card:hover { border-color: #3a3d5a; }
+  .card-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px;
+  }
+  .card-title {
+    font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    background: var(--border); color: var(--text-dim); font-weight: 500;
+  }
+  .indicators {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+  .indicator {
+    background: rgba(255,255,255,0.03); border-radius: 6px; padding: 8px 10px;
+  }
+  .indicator .label {
+    font-size: 11px; color: var(--text-dim); margin-bottom: 2px;
+  }
+  .indicator .value {
+    font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .indicator .value.green { color: var(--green); }
+  .indicator .value.red { color: var(--red); }
+  .indicator .value.gold { color: var(--gold); }
+  .chart-wrap {
+    margin-top: 12px; height: 90px; position: relative;
+  }
+  .chart-wrap canvas { width: 100% !important; height: 100% !important; }
+  .full-indicators { display: none; }
+  .card.expanded .full-indicators { display: block; }
+  .expand-btn {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 18px; padding: 0 4px;
+  }
+  .expand-btn:hover { color: var(--text); }
+  .loading {
+    display: flex; justify-content: center; align-items: center;
+    height: 200px; color: var(--text-dim); font-size: 14px;
+  }
+  .error-msg {
+    color: var(--red); text-align: center; padding: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🐶 旺财看盘 <small>BTC 多周期仪表盘</small></h1>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:4px;" id="updateTime">加载中...</div>
+  </div>
+  <div class="header-right">
+    <div>
+      <div class="realtime-price" id="realtimePrice">
+        <span class="label">实时</span>—
+      </div>
+    </div>
+    <div class="refresh-bar">
+      <span class="dot"></span>
+      <span>自动刷新 30s</span>
+      <button onclick="loadAll()" style="background:none;border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">⟳</button>
+    </div>
+  </div>
+</div>
+
+<div class="grid" id="dashboard">
+  <div class="loading">加载数据中...</div>
+</div>
+
+<script>
+// === Timeframe config ===
+const TF = [
+  { key: '1m', label: '月线', badge: '战略', color: '#f59e0b' },
+  { key: '1w', label: '周线', badge: '战役', color: '#3b82f6' },
+  { key: '1d', label: '日线', badge: '战术', color: '#22c55e' },
+  { key: '4h', label: '4小时', badge: '执行', color: '#a855f7' },
+];
+
+const chartInstances = {};
+
+function fmt(v, d=2) {
+  if (v == null) return '—';
+  return Number(v).toFixed(d);
+}
+
+function fmtPrice(v) {
+  if (v == null) return '—';
+  return '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function signalClass(v, higherIsGood=true) {
+  if (v == null) return '';
+  if (higherIsGood) return v > 0 ? 'green' : 'red';
+  return v > 0 ? 'red' : 'green';
+}
+
+// === Fetch data ===
+const API_BASE = 'http://127.0.0.1:8000';
+
+async function loadRealtimePrice() {
+  try {
+    const r = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+    const j = await r.json();
+    const p = parseFloat(j.price);
+    const el = document.getElementById('realtimePrice');
+    const prev = parseFloat(el.dataset.price);
+    el.dataset.price = p;
+    const arrow = (prev && p > prev) ? '↑' : (prev && p < prev) ? '↓' : '';
+    el.innerHTML = `<span class="label">实时</span>$${p.toLocaleString('en-US', {minimumFractionDigits:2})} ${arrow}`;
+    el.className = 'realtime-price' + (arrow === '↑' ? ' up' : arrow === '↓' ? ' down' : '');
+  } catch(e) {
+    console.log('Real-time price fetch failed:', e);
+  }
+}
+
+let allData = null;
+
+async function loadAll() {
+  try {
+    const [allRes, latestRes] = await Promise.all([
+      fetch(`${API_BASE}/api/all?limit=80`),
+      fetch(`${API_BASE}/api/latest`),
+    ]);
+    allData = await allRes.json();
+    const latestData = await latestRes.json();
+
+    document.getElementById('updateTime').textContent =
+      '更新于 ' + new Date().toLocaleString('zh-CN', {hour12:false});
+
+    renderDashboard(allData, latestData);
+    loadRealtimePrice();
+  } catch(e) {
+    document.getElementById('dashboard').innerHTML =
+      `<div class="error-msg">❌ 无法连接后端API (${e.message})<br>
+       请确认已在项目目录运行：<code style="background:#333;padding:2px 6px;border-radius:3px;">uvicorn web.api:app --reload</code></div>`;
+  }
+}
+
+// === Render ===
+function renderDashboard(allData, latestData) {
+  const grid = document.getElementById('dashboard');
+  grid.innerHTML = '';
+
+  TF.forEach(tf => {
+    const rows = allData[tf.key] || [];
+    const latest = latestData[tf.key] || {};
+    const close = latest.close || 0;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    header.innerHTML = `
+      <div class="card-title">
+        <span style="color:${tf.color}">■</span>
+        ${tf.label}
+        <span class="badge">${tf.badge}</span>
+      </div>
+      <div style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;">
+        ${fmtPrice(close)}
+      </div>
+    `;
+    card.appendChild(header);
+
+    // Indicators grid
+    const indGrid = document.createElement('div');
+    indGrid.className = 'indicators';
+
+    // Build indicator items
+    const items = [
+      { label: 'EMA7', value: latest.ema7, cls: signalClass(close - (latest.ema7||close), true), fmt: fmtPrice },
+      { label: 'EMA25', value: latest.ema25, cls: signalClass(close - (latest.ema25||close), true), fmt: fmtPrice },
+      { label: 'EMA50', value: latest.ema50, cls: signalClass(close - (latest.ema50||close), true), fmt: fmtPrice },
+      { label: 'MACD柱', value: latest.macd, cls: signalClass(latest.macd, true), fmt: v => fmt(v,0) },
+      { label: 'DIF', value: latest.dif, cls: signalClass(latest.dif, true), fmt: v => fmt(v,0) },
+      { label: 'DEA', value: latest.dea, cls: signalClass(latest.dea, true), fmt: v => fmt(v,0) },
+      { label: 'RSI(14)', value: latest.rsi14, cls: '' +
+        ((latest.rsi14 > 70) ? 'red' : (latest.rsi14 < 30) ? 'green' : ''), fmt: v => fmt(v,1) },
+      { label: 'RSI(6)', value: latest.rsi6, cls: '' +
+        ((latest.rsi6 > 70) ? 'red' : (latest.rsi6 < 30) ? 'green' : ''), fmt: v => fmt(v,1) },
+      { label: '布林上', value: latest.boll_up, cls: signalClass(close - (latest.boll_up||close), false), fmt: fmtPrice },
+      { label: '布林中', value: latest.boll_md, cls: signalClass(close - (latest.boll_md||close), true), fmt: fmtPrice },
+      { label: '布林下', value: latest.boll_dn, cls: signalClass(close - (latest.boll_dn||close), true), fmt: fmtPrice },
+      { label: 'ATR', value: latest.atr, cls: '', fmt: v => fmt(v,0) },
+      { label: '量', value: rows.length > 0 ? rows[rows.length-1].volume : null, cls: '', fmt: v => Number(v).toLocaleString('en-US', {maximumFractionDigits:0}) },
+    ];
+
+    items.forEach(item => {
+      const d = document.createElement('div');
+      d.className = 'indicator';
+      const valCls = item.cls ? `value ${item.cls}` : 'value';
+      d.innerHTML = `
+        <div class="label">${item.label}</div>
+        <div class="${valCls}">${item.fmt(item.value)}</div>
+      `;
+      indGrid.appendChild(d);
+    });
+    card.appendChild(indGrid);
+
+    // Mini trend chart
+    const chartWrap = document.createElement('div');
+    chartWrap.className = 'chart-wrap';
+    const canvas = document.createElement('canvas');
+    chartWrap.appendChild(canvas);
+    card.appendChild(chartWrap);
+
+    grid.appendChild(card);
+
+    // Draw chart after DOM append
+    setTimeout(() => drawMiniChart(canvas, tf.key, rows), 50);
+  });
+}
+
+function drawMiniChart(canvas, tfKey, rows) {
+  // Destroy previous instance
+  if (chartInstances[tfKey]) {
+    chartInstances[tfKey].destroy();
+  }
+
+  if (!rows || rows.length < 5) return;
+
+  const labels = rows.map(r => r.time ? r.time.slice(5,16) : '');
+  const closes = rows.map(r => r.close);
+  const macd = rows.map(r => r.macd);
+  const rsi = rows.map(r => r.rsi14);
+  const bollUp = rows.map(r => r.boll_up);
+  const bollMd = rows.map(r => r.boll_md);
+  const bollDn = rows.map(r => r.boll_dn);
+  const ema7 = rows.map(r => r.ema7);
+  const ema25 = rows.map(r => r.ema25);
+  const volumes = rows.map(r => r.volume || 0);
+
+  const ctx = canvas.getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '价格', data: closes, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: false,
+          pointRadius: 0, borderWidth: 1.5, tension: 0.3, yAxisID: 'y' },
+        { label: 'EMA7', data: ema7, borderColor: '#3b82f6', borderWidth: 1, pointRadius: 0, tension: 0.3,
+          borderDash: [3,3], yAxisID: 'y' },
+        { label: 'EMA25', data: ema25, borderColor: '#a855f7', borderWidth: 1, pointRadius: 0, tension: 0.3,
+          borderDash: [3,3], yAxisID: 'y' },
+        { label: 'MACD', data: macd, borderColor: '#f59e0b', borderWidth: 1, pointRadius: 0, tension: 0.3,
+          yAxisID: 'y1', fill: false },
+        { label: '布林上', data: bollUp, borderColor: 'rgba(239,68,68,0.3)', borderWidth: 0.5, pointRadius: 0,
+          tension: 0.3, yAxisID: 'y', borderDash: [2,4] },
+        { label: '布林中', data: bollMd, borderColor: 'rgba(239,68,68,0.2)', borderWidth: 0.5, pointRadius: 0,
+          tension: 0.3, yAxisID: 'y', borderDash: [2,4] },
+        { label: '布林下', data: bollDn, borderColor: 'rgba(239,68,68,0.3)', borderWidth: 0.5, pointRadius: 0,
+          tension: 0.3, yAxisID: 'y', borderDash: [2,4] },
+        { label: 'RSI', data: rsi, borderColor: '#ec4899', borderWidth: 1, pointRadius: 0, tension: 0.3,
+          yAxisID: 'y2', fill: false },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1d28',
+          titleColor: '#e4e6f0',
+          bodyColor: '#8a8fa8',
+          borderColor: '#2a2d3a',
+          borderWidth: 1,
+          padding: 8,
+          bodyFont: { size: 11 },
+          callbacks: {
+            title: items => items[0]?.label || ''
+          }
+        }
+      },
+      scales: {
+        x: { display: false },
+        y: {
+          display: false,
+          position: 'right',
+        },
+        y1: {
+          display: false,
+          position: 'right',
+          grid: { display: false },
+        },
+        y2: {
+          display: false,
+          min: 0,
+          max: 100,
+          position: 'right',
+          grid: { display: false },
+        }
+      },
+      elements: { point: { radius: 0 } }
+    }
+  });
+
+  chartInstances[tfKey] = chart;
+}
+
+// === Auto refresh ===
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

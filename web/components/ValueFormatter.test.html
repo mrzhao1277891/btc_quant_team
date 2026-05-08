@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ValueFormatter Unit Tests</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1d28;
+            color: #e4e6f0;
+        }
+        .test-suite {
+            margin-bottom: 30px;
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 10px;
+            background: #0f1117;
+            border-left: 3px solid #3b82f6;
+        }
+        .test-case.pass {
+            border-left-color: #22c55e;
+        }
+        .test-case.fail {
+            border-left-color: #ef4444;
+        }
+        .test-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .test-result {
+            font-size: 12px;
+            color: #8a8fa8;
+        }
+        .summary {
+            margin-top: 30px;
+            padding: 15px;
+            background: #0f1117;
+            border: 2px solid #3b82f6;
+        }
+        .summary.all-pass {
+            border-color: #22c55e;
+        }
+        .summary.has-fail {
+            border-color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <h1>ValueFormatter Unit Tests</h1>
+    <div id="testResults"></div>
+    <div id="summary" class="summary"></div>
+
+    <script type="module">
+        import { ValueFormatter } from './ValueFormatter.js';
+
+        const results = [];
+        let passCount = 0;
+        let failCount = 0;
+
+        function assert(condition, testName, expected, actual) {
+            const passed = condition;
+            if (passed) {
+                passCount++;
+            } else {
+                failCount++;
+            }
+            results.push({
+                name: testName,
+                passed,
+                expected,
+                actual
+            });
+        }
+
+        function assertEquals(actual, expected, testName) {
+            assert(actual === expected, testName, expected, actual);
+        }
+
+        // Test Suite: formatPrice
+        console.log('Testing formatPrice...');
+        assertEquals(ValueFormatter.formatPrice(65432.10), '$65,432.10', 'formatPrice with standard value');
+        assertEquals(ValueFormatter.formatPrice(1234567.89), '$1,234,567.89', 'formatPrice with large value');
+        assertEquals(ValueFormatter.formatPrice(0), '$0.00', 'formatPrice with zero');
+        assertEquals(ValueFormatter.formatPrice(null), '—', 'formatPrice with null');
+        assertEquals(ValueFormatter.formatPrice(undefined), '—', 'formatPrice with undefined');
+        assertEquals(ValueFormatter.formatPrice(NaN), '—', 'formatPrice with NaN');
+        assertEquals(ValueFormatter.formatPrice(Infinity), '—', 'formatPrice with Infinity');
+
+        // Test Suite: formatPercentage
+        console.log('Testing formatPercentage...');
+        assertEquals(ValueFormatter.formatPercentage(65.432), '65.4', 'formatPercentage with standard value');
+        assertEquals(ValueFormatter.formatPercentage(70.0), '70.0', 'formatPercentage with whole number');
+        assertEquals(ValueFormatter.formatPercentage(null), '—', 'formatPercentage with null');
+        assertEquals(ValueFormatter.formatPercentage(undefined), '—', 'formatPercentage with undefined');
+
+        // Test Suite: formatInteger
+        console.log('Testing formatInteger...');
+        assertEquals(ValueFormatter.formatInteger(1234567), '1,234,567', 'formatInteger with large value');
+        assertEquals(ValueFormatter.formatInteger(0), '0', 'formatInteger with zero');
+        assertEquals(ValueFormatter.formatInteger(null), '—', 'formatInteger with null');
+
+        // Test Suite: formatMACD
+        console.log('Testing formatMACD...');
+        assertEquals(ValueFormatter.formatMACD(123.45), '123', 'formatMACD with positive value');
+        assertEquals(ValueFormatter.formatMACD(-50.67), '-51', 'formatMACD with negative value');
+        assertEquals(ValueFormatter.formatMACD(0), '0', 'formatMACD with zero');
+        assertEquals(ValueFormatter.formatMACD(null), '—', 'formatMACD with null');
+
+        // Test Suite: formatRSI
+        console.log('Testing formatRSI...');
+        assertEquals(ValueFormatter.formatRSI(65.432), '65.4', 'formatRSI with standard value');
+        assertEquals(ValueFormatter.formatRSI(70.0), '70.0', 'formatRSI with whole number');
+        assertEquals(ValueFormatter.formatRSI(null), '—', 'formatRSI with null');
+
+        // Test Suite: formatEMA
+        console.log('Testing formatEMA...');
+        assertEquals(ValueFormatter.formatEMA(65432.10), '$65,432.10', 'formatEMA with standard value');
+        assertEquals(ValueFormatter.formatEMA(null), '—', 'formatEMA with null');
+
+        // Test Suite: formatVolume
+        console.log('Testing formatVolume...');
+        assertEquals(ValueFormatter.formatVolume(1234567), '1,234,567', 'formatVolume with large value');
+        assertEquals(ValueFormatter.formatVolume(null), '—', 'formatVolume with null');
+
+        // Test Suite: formatATR
+        console.log('Testing formatATR...');
+        assertEquals(ValueFormatter.formatATR(456.78), '457', 'formatATR with decimal value');
+        assertEquals(ValueFormatter.formatATR(null), '—', 'formatATR with null');
+
+        // Test Suite: formatIndicator
+        console.log('Testing formatIndicator...');
+        assertEquals(ValueFormatter.formatIndicator(65432.10, 'price'), '$65,432.10', 'formatIndicator with price type');
+        assertEquals(ValueFormatter.formatIndicator(65.4, 'rsi'), '65.4', 'formatIndicator with rsi type');
+        assertEquals(ValueFormatter.formatIndicator(123.45, 'macd'), '123', 'formatIndicator with macd type');
+        assertEquals(ValueFormatter.formatIndicator(1234567, 'volume'), '1,234,567', 'formatIndicator with volume type');
+
+        // Test Suite: getColorClass
+        console.log('Testing getColorClass...');
+        assertEquals(ValueFormatter.getColorClass(65000, 'ema', 66000), 'text-green', 'getColorClass EMA - price above');
+        assertEquals(ValueFormatter.getColorClass(67000, 'ema', 66000), 'text-red', 'getColorClass EMA - price below');
+        assertEquals(ValueFormatter.getColorClass(123.45, 'macd'), 'text-green', 'getColorClass MACD - positive');
+        assertEquals(ValueFormatter.getColorClass(-50.00, 'macd'), 'text-red', 'getColorClass MACD - negative');
+        assertEquals(ValueFormatter.getColorClass(75, 'rsi'), 'text-red', 'getColorClass RSI - overbought');
+        assertEquals(ValueFormatter.getColorClass(25, 'rsi'), 'text-green', 'getColorClass RSI - oversold');
+        assertEquals(ValueFormatter.getColorClass(50, 'rsi'), 'text-neutral', 'getColorClass RSI - neutral');
+
+        // Test Suite: isValidNumber
+        console.log('Testing isValidNumber...');
+        assertEquals(ValueFormatter.isValidNumber(123), true, 'isValidNumber with valid number');
+        assertEquals(ValueFormatter.isValidNumber(0), true, 'isValidNumber with zero');
+        assertEquals(ValueFormatter.isValidNumber(null), false, 'isValidNumber with null');
+        assertEquals(ValueFormatter.isValidNumber(undefined), false, 'isValidNumber with undefined');
+        assertEquals(ValueFormatter.isValidNumber(NaN), false, 'isValidNumber with NaN');
+        assertEquals(ValueFormatter.isValidNumber(Infinity), false, 'isValidNumber with Infinity');
+
+        // Render results
+        const resultsContainer = document.getElementById('testResults');
+        const summaryContainer = document.getElementById('summary');
+
+        results.forEach(result => {
+            const div = document.createElement('div');
+            div.className = `test-case ${result.passed ? 'pass' : 'fail'}`;
+            div.innerHTML = `
+                <div class="test-name">${result.passed ? '✓' : '✗'} ${result.name}</div>
+                ${!result.passed ? `<div class="test-result">Expected: ${result.expected}, Got: ${result.actual}</div>` : ''}
+            `;
+            resultsContainer.appendChild(div);
+        });
+
+        summaryContainer.className = `summary ${failCount === 0 ? 'all-pass' : 'has-fail'}`;
+        summaryContainer.innerHTML = `
+            <h2>Test Summary</h2>
+            <p>Total: ${results.length} tests</p>
+            <p style="color: #22c55e;">Passed: ${passCount}</p>
+            <p style="color: #ef4444;">Failed: ${failCount}</p>
+            <p><strong>${failCount === 0 ? 'All tests passed! ✓' : 'Some tests failed ✗'}</strong></p>
+        `;
+
+        console.log(`Test Summary: ${passCount} passed, ${failCount} failed out of ${results.length} tests`);
+    </script>
+</body>
+</html>

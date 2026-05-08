@@ -1,0 +1,405 @@
+/**
+ * CardRenderer.js
+ * 
+ * Renders individual visualization cards with horizontal lines for technical indicators.
+ * Manages card lifecycle: render, update, and clear operations.
+ * 
+ * Requirements: 3.1-3.12, 4.7-4.8, 5.6-5.10, 6.6-6.11
+ */
+
+import { SVGVisualizer } from './SVGVisualizer.js';
+import { ValueFormatter } from './ValueFormatter.js';
+
+export class CardRenderer {
+    /**
+     * Create a new CardRenderer instance
+     * 
+     * @param {string} containerId - DOM element ID where the card will be rendered
+     * @param {Object} cardConfig - Card configuration object
+     * @param {string} cardConfig.title - Card title
+     * @param {Array} cardConfig.indicators - Array of indicator configurations
+     * @param {Object} cardConfig.yAxisConfig - Y-axis configuration
+     * @param {Object} cardConfig.colorScheme - Color scheme for indicators
+     */
+    constructor(containerId, cardConfig) {
+        this.containerId = containerId;
+        this.config = cardConfig;
+        this.container = null;
+        this.svgVisualizer = null;
+        this.currentData = null;
+        
+        // Timeframe display order
+        this.timeframes = ['1m', '1w', '1d', '4h'];
+        
+        // Timeframe labels for display
+        this.timeframeLabels = {
+            '1m': '月线',
+            '1w': '周线',
+            '1d': '日线',
+            '4h': '4小时'
+        };
+        
+        // Color palette
+        this.colors = {
+            positive: '#22c55e',  // green
+            negative: '#ef4444',  // red
+            neutral: '#8a8fa8',   // gray
+            overbought: '#ef4444', // red
+            oversold: '#22c55e',  // green
+            ema7: '#3b82f6',      // blue
+            ema25: '#8b5cf6',     // purple
+            ema50: '#06b6d4',     // cyan
+            bollUp: '#f87171',    // light red
+            bollMd: '#fb923c',    // orange
+            bollDn: '#fbbf24',    // yellow
+            price: '#22c55e',     // green (default, changes based on trend)
+            reference: '#444',    // dark gray for reference lines
+            ...cardConfig.colorScheme
+        };
+    }
+
+    /**
+     * Render the card with complete visualization
+     * 
+     * @param {Object} data - Data object with timeframe keys (1m, 1w, 1d, 4h)
+     * 
+     * Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8
+     */
+    render(data) {
+        this.currentData = data;
+        
+        // Get or create container element
+        this.container = document.getElementById(this.containerId);
+        if (!this.container) {
+            console.error(`Container element with id "${this.containerId}" not found`);
+            return;
+        }
+        
+        // Clear existing content
+        this.container.innerHTML = '';
+        
+        // Create SVG container (no need for card structure, HTML already has it)
+        const svgContainer = document.createElement('div');
+        svgContainer.className = 'svg-container';
+        
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '400');
+        svg.setAttribute('class', 'indicator-card-svg');
+        
+        svgContainer.appendChild(svg);
+        this.container.appendChild(svgContainer);
+        
+        // Initialize SVG visualizer
+        this.svgVisualizer = new SVGVisualizer(svg, {
+            width: svg.clientWidth || 800,
+            height: 400,
+            padding: { top: 30, right: 120, bottom: 30, left: 80 },
+            yAxisConfig: this.config.yAxisConfig
+        });
+        
+        // Calculate Y-axis scale from data
+        const { min, max } = this._calculateYAxisScale(data);
+        
+        // Draw Y-axis
+        this.svgVisualizer.drawYAxis(min, max, 6);
+        
+        // Draw reference lines if configured
+        this._drawReferenceLines(min, max);
+        
+        // Draw indicator lines grouped by timeframe
+        this._drawIndicatorLines(data, min, max);
+    }
+
+    /**
+     * Update existing card with new data without full re-render
+     * 
+     * @param {Object} data - Updated data object with timeframe keys
+     * 
+     * Requirements: 4.2
+     */
+    update(data) {
+        if (!this.svgVisualizer || !this.container) {
+            // If not initialized, do full render
+            this.render(data);
+            return;
+        }
+        
+        this.currentData = data;
+        
+        // Clear SVG content
+        this.svgVisualizer.clear();
+        
+        // Recalculate Y-axis scale
+        const { min, max } = this._calculateYAxisScale(data);
+        
+        // Redraw Y-axis
+        this.svgVisualizer.drawYAxis(min, max, 6);
+        
+        // Redraw reference lines
+        this._drawReferenceLines(min, max);
+        
+        // Redraw indicator lines
+        this._drawIndicatorLines(data, min, max);
+    }
+
+    /**
+     * Clear card content
+     * 
+     * Requirements: 4.3
+     */
+    clear() {
+        if (this.svgVisualizer) {
+            this.svgVisualizer.clear();
+        }
+        
+        if (this.container) {
+            this.container.innerHTML = '';
+        }
+        
+        this.currentData = null;
+    }
+
+    /**
+     * Calculate Y-axis scale from min/max indicator values
+     * 
+     * @param {Object} data - Data object with timeframe keys
+     * @returns {Object} Object with min and max values
+     * 
+     * Requirements: 4.8
+     */
+    _calculateYAxisScale(data) {
+        const { yAxisConfig } = this.config;
+        
+        // If fixed scale is configured, use it
+        if (yAxisConfig.type === 'fixed') {
+            return {
+                min: yAxisConfig.min,
+                max: yAxisConfig.max
+            };
+        }
+        
+        // Auto-calculate from data
+        let min = Infinity;
+        let max = -Infinity;
+        
+        // Collect all indicator values
+        const values = [];
+        
+        for (const timeframe of this.timeframes) {
+            const timeframeData = data[timeframe];
+            if (!timeframeData) continue;
+            
+            for (const indicator of this.config.indicators) {
+                const value = timeframeData[indicator.key];
+                if (ValueFormatter.isValidNumber(value)) {
+                    values.push(value);
+                }
+            }
+        }
+        
+        if (values.length === 0) {
+            // No valid data, use default range
+            return { min: 0, max: 100 };
+        }
+        
+        min = Math.min(...values);
+        max = Math.max(...values);
+        
+        // Add 10% padding to top and bottom
+        const range = max - min;
+        const padding = range * 0.1;
+        
+        return {
+            min: min - padding,
+            max: max + padding
+        };
+    }
+
+    /**
+     * Draw reference lines (e.g., RSI 30/70, MACD 0)
+     * 
+     * @param {number} min - Y-axis minimum value
+     * @param {number} max - Y-axis maximum value
+     * 
+     * Requirements: 5.4, 6.5
+     */
+    _drawReferenceLines(min, max) {
+        const { referenceLines } = this.config;
+        
+        if (!referenceLines || referenceLines.length === 0) {
+            return;
+        }
+        
+        for (const refLine of referenceLines) {
+            const { value, label } = refLine;
+            
+            // Convert value to normalized Y position (0-1)
+            const normalizedY = this._valueToNormalizedY(value, min, max);
+            
+            // Draw reference line
+            this.svgVisualizer.drawReferenceLine(
+                normalizedY,
+                label,
+                this.colors.reference
+            );
+        }
+    }
+
+    /**
+     * Draw indicator lines grouped by timeframe
+     * 
+     * @param {Object} data - Data object with timeframe keys
+     * @param {number} min - Y-axis minimum value
+     * @param {number} max - Y-axis maximum value
+     * 
+     * Requirements: 4.8, 5.10, 6.11
+     */
+    _drawIndicatorLines(data, min, max) {
+        // Group indicators by timeframe for clear visual separation
+        for (const timeframe of this.timeframes) {
+            const timeframeData = data[timeframe];
+            if (!timeframeData) continue;
+            
+            const timeframeLabel = this.timeframeLabels[timeframe];
+            
+            // Draw each indicator for this timeframe
+            for (const indicator of this.config.indicators) {
+                const value = timeframeData[indicator.key];
+                
+                // Skip null/undefined values
+                if (!ValueFormatter.isValidNumber(value)) {
+                    continue;
+                }
+                
+                // Get color for this indicator
+                const color = this._getIndicatorColor(
+                    indicator.key,
+                    value,
+                    timeframeData
+                );
+                
+                // Convert value to normalized Y position
+                const normalizedY = this._valueToNormalizedY(value, min, max);
+                
+                // Format value for display
+                const formattedValue = ValueFormatter.formatIndicator(
+                    value,
+                    indicator.key
+                );
+                
+                // Create label
+                const label = `${timeframeLabel} ${indicator.label}: ${formattedValue}`;
+                
+                // Draw horizontal line
+                this.svgVisualizer.drawHorizontalLine(
+                    normalizedY,
+                    label,
+                    color,
+                    indicator.style || 'solid'
+                );
+                
+                // Draw marker if configured
+                if (indicator.markerShape) {
+                    this.svgVisualizer.drawMarker(
+                        normalizedY,
+                        '',  // No label for marker (already on line)
+                        color,
+                        indicator.markerShape
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Get color for indicator based on value and type
+     * 
+     * @param {string} indicatorKey - Indicator key (e.g., 'ema7', 'rsi14')
+     * @param {number} value - Indicator value
+     * @param {Object} timeframeData - Complete timeframe data for reference
+     * @returns {string} Color hex code
+     * 
+     * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12
+     */
+    _getIndicatorColor(indicatorKey, value, timeframeData) {
+        const closePrice = timeframeData.close;
+        
+        // EMA color coding: green if price above EMA, red if below
+        if (indicatorKey.startsWith('ema')) {
+            if (ValueFormatter.isValidNumber(closePrice)) {
+                return closePrice > value ? this.colors.positive : this.colors.negative;
+            }
+            // Default EMA colors if no price reference
+            if (indicatorKey === 'ema7') return this.colors.ema7;
+            if (indicatorKey === 'ema25') return this.colors.ema25;
+            if (indicatorKey === 'ema50') return this.colors.ema50;
+            return this.colors.neutral;
+        }
+        
+        // MACD color coding: green if positive, red if negative
+        if (indicatorKey === 'macd' || indicatorKey === 'dif' || indicatorKey === 'dea') {
+            if (value > 0) return this.colors.positive;
+            if (value < 0) return this.colors.negative;
+            return this.colors.neutral;
+        }
+        
+        // RSI color coding: red if >70 (overbought), green if <30 (oversold), neutral otherwise
+        if (indicatorKey === 'rsi14' || indicatorKey === 'rsi6') {
+            if (value > 70) return this.colors.overbought;
+            if (value < 30) return this.colors.oversold;
+            return this.colors.neutral;
+        }
+        
+        // Bollinger Bands color coding
+        if (indicatorKey === 'boll_up') return this.colors.bollUp;
+        if (indicatorKey === 'boll_md') return this.colors.bollMd;
+        if (indicatorKey === 'boll_dn') return this.colors.bollDn;
+        
+        // Price color coding (default green, can be customized)
+        if (indicatorKey === 'close') {
+            return this.colors.price;
+        }
+        
+        // Default neutral color
+        return this.colors.neutral;
+    }
+
+    /**
+     * Convert a value to normalized Y position (0-1)
+     * 
+     * @param {number} value - Value to convert
+     * @param {number} min - Y-axis minimum
+     * @param {number} max - Y-axis maximum
+     * @returns {number} Normalized Y position (0 = top, 1 = bottom)
+     */
+    _valueToNormalizedY(value, min, max) {
+        if (max === min) {
+            return 0.5; // Center if no range
+        }
+        
+        // Invert because SVG Y increases downward
+        // Higher values should be at top (lower Y coordinate)
+        return 1 - (value - min) / (max - min);
+    }
+
+    /**
+     * Get current card data
+     * 
+     * @returns {Object|null} Current data object
+     */
+    getData() {
+        return this.currentData;
+    }
+
+    /**
+     * Get card configuration
+     * 
+     * @returns {Object} Card configuration object
+     */
+    getConfig() {
+        return this.config;
+    }
+}
+
+export default CardRenderer;

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVGVisualizer Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #0f1117;
+            color: #e4e6f0;
+            padding: 20px;
+        }
+        .test-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: #1a1d28;
+            border: 1px solid #2a2d3a;
+            border-radius: 8px;
+        }
+        h2 {
+            color: #22c55e;
+            margin-top: 0;
+        }
+        svg {
+            background: #0f1117;
+            border: 1px solid #2a2d3a;
+            border-radius: 4px;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #0f1117;
+            border-radius: 4px;
+        }
+        .pass {
+            color: #22c55e;
+        }
+        .fail {
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <h1>SVGVisualizer Test Suite</h1>
+    
+    <div class="test-container">
+        <h2>Test 1: drawHorizontalLine()</h2>
+        <svg id="test1" width="800" height="200"></svg>
+        <div class="result" id="result1"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>Test 2: drawMarker()</h2>
+        <svg id="test2" width="800" height="200"></svg>
+        <div class="result" id="result2"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>Test 3: drawReferenceLine()</h2>
+        <svg id="test3" width="800" height="200"></svg>
+        <div class="result" id="result3"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>Test 4: drawYAxis()</h2>
+        <svg id="test4" width="800" height="400"></svg>
+        <div class="result" id="result4"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>Test 5: clear()</h2>
+        <svg id="test5" width="800" height="200"></svg>
+        <div class="result" id="result5"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>Test 6: Combined Visualization (RSI Card Simulation)</h2>
+        <svg id="test6" width="800" height="400"></svg>
+        <div class="result" id="result6"></div>
+    </div>
+
+    <script type="module">
+        import { SVGVisualizer } from './SVGVisualizer.js';
+
+        function testResult(testId, passed, message) {
+            const resultDiv = document.getElementById(`result${testId}`);
+            resultDiv.className = `result ${passed ? 'pass' : 'fail'}`;
+            resultDiv.textContent = `${passed ? '✓ PASS' : '✗ FAIL'}: ${message}`;
+        }
+
+        // Test 1: drawHorizontalLine()
+        try {
+            const svg1 = document.getElementById('test1');
+            const viz1 = new SVGVisualizer(svg1, {
+                width: 800,
+                height: 200,
+                padding: { top: 20, right: 100, bottom: 20, left: 60 }
+            });
+            
+            viz1.drawHorizontalLine(0.2, '1m: $65,432', '#22c55e', 'solid');
+            viz1.drawHorizontalLine(0.4, '1w: $64,000', '#ef4444', 'dashed');
+            viz1.drawHorizontalLine(0.6, '1d: $65,500', '#3b82f6', 'dotted');
+            
+            const lines = svg1.querySelectorAll('.horizontal-line line');
+            const texts = svg1.querySelectorAll('.horizontal-line text');
+            
+            if (lines.length === 3 && texts.length === 3) {
+                testResult(1, true, 'Drew 3 horizontal lines with different styles');
+            } else {
+                testResult(1, false, `Expected 3 lines and 3 texts, got ${lines.length} lines and ${texts.length} texts`);
+            }
+        } catch (error) {
+            testResult(1, false, error.message);
+        }
+
+        // Test 2: drawMarker()
+        try {
+            const svg2 = document.getElementById('test2');
+            const viz2 = new SVGVisualizer(svg2, {
+                width: 800,
+                height: 200,
+                padding: { top: 20, right: 100, bottom: 20, left: 60 }
+            });
+            
+            viz2.drawMarker(0.25, 'Circle', '#22c55e', 'circle');
+            viz2.drawMarker(0.5, 'Triangle', '#f59e0b', 'triangle');
+            viz2.drawMarker(0.75, 'Square', '#ef4444', 'square');
+            
+            const markers = svg2.querySelectorAll('.marker');
+            const circle = svg2.querySelector('.marker circle');
+            const triangle = svg2.querySelector('.marker polygon');
+            const square = svg2.querySelector('.marker rect');
+            
+            if (markers.length === 3 && circle && triangle && square) {
+                testResult(2, true, 'Drew 3 markers with different shapes (circle, triangle, square)');
+            } else {
+                testResult(2, false, 'Failed to draw all marker shapes');
+            }
+        } catch (error) {
+            testResult(2, false, error.message);
+        }
+
+        // Test 3: drawReferenceLine()
+        try {
+            const svg3 = document.getElementById('test3');
+            const viz3 = new SVGVisualizer(svg3, {
+                width: 800,
+                height: 200,
+                padding: { top: 20, right: 100, bottom: 20, left: 60 }
+            });
+            
+            viz3.drawReferenceLine(0.3, 'RSI 70 (Overbought)', '#ef4444');
+            viz3.drawReferenceLine(0.7, 'RSI 30 (Oversold)', '#22c55e');
+            
+            const refLines = svg3.querySelectorAll('.reference-line');
+            const dashedLines = svg3.querySelectorAll('.reference-line line[stroke-dasharray]');
+            
+            if (refLines.length === 2 && dashedLines.length === 2) {
+                testResult(3, true, 'Drew 2 reference lines with dashed style');
+            } else {
+                testResult(3, false, `Expected 2 reference lines, got ${refLines.length}`);
+            }
+        } catch (error) {
+            testResult(3, false, error.message);
+        }
+
+        // Test 4: drawYAxis()
+        try {
+            const svg4 = document.getElementById('test4');
+            const viz4 = new SVGVisualizer(svg4, {
+                width: 800,
+                height: 400,
+                padding: { top: 20, right: 100, bottom: 20, left: 60 }
+            });
+            
+            viz4.drawYAxis(60000, 70000, 6);
+            
+            const yAxis = svg4.querySelector('.y-axis');
+            const axisLine = svg4.querySelector('.y-axis > line');
+            const ticks = svg4.querySelectorAll('.y-axis line');
+            const labels = svg4.querySelectorAll('.y-axis text');
+            
+            if (yAxis && axisLine && ticks.length === 7 && labels.length === 6) {
+                testResult(4, true, 'Drew Y-axis with 6 ticks and labels');
+            } else {
+                testResult(4, false, `Expected 7 lines (1 axis + 6 ticks) and 6 labels, got ${ticks.length} lines and ${labels.length} labels`);
+            }
+        } catch (error) {
+            testResult(4, false, error.message);
+        }
+
+        // Test 5: clear()
+        try {
+            const svg5 = document.getElementById('test5');
+            const viz5 = new SVGVisualizer(svg5, {
+                width: 800,
+                height: 200,
+                padding: { top: 20, right: 100, bottom: 20, left: 60 }
+            });
+            
+            viz5.drawHorizontalLine(0.5, 'Test Line', '#22c55e', 'solid');
+            viz5.drawMarker(0.5, 'Test Marker', '#ef4444', 'circle');
+            
+            const beforeClear = svg5.children.length;
+            viz5.clear();
+            const afterClear = svg5.children.length;
+            
+            if (beforeClear > 0 && afterClear === 0) {
+                testResult(5, true, `Cleared ${beforeClear} elements successfully`);
+            } else {
+                testResult(5, false, `Before: ${beforeClear} elements, After: ${afterClear} elements`);
+            }
+        } catch (error) {
+            testResult(5, false, error.message);
+        }
+
+        // Test 6: Combined Visualization (RSI Card Simulation)
+        try {
+            const svg6 = document.getElementById('test6');
+            const viz6 = new SVGVisualizer(svg6, {
+                width: 800,
+                height: 400,
+                padding: { top: 20, right: 100, bottom: 20, left: 60 }
+            });
+            
+            // Draw Y-axis (0-100 scale for RSI)
+            viz6.drawYAxis(0, 100, 6);
+            
+            // Draw reference lines
+            viz6.drawReferenceLine(0.3, 'RSI 70 (Overbought)', '#ef4444');
+            viz6.drawReferenceLine(0.7, 'RSI 30 (Oversold)', '#22c55e');
+            
+            // Simulate RSI values for 4 timeframes
+            // RSI14 values
+            viz6.drawHorizontalLine(0.35, '1m RSI14: 65.4', '#3b82f6', 'solid');
+            viz6.drawHorizontalLine(0.25, '1w RSI14: 72.1', '#ef4444', 'solid');
+            viz6.drawHorizontalLine(0.45, '1d RSI14: 58.3', '#8a8fa8', 'solid');
+            viz6.drawHorizontalLine(0.55, '4h RSI14: 48.7', '#8a8fa8', 'solid');
+            
+            // RSI6 values
+            viz6.drawHorizontalLine(0.30, '1m RSI6: 68.2', '#3b82f6', 'dashed');
+            viz6.drawHorizontalLine(0.20, '1w RSI6: 75.5', '#ef4444', 'dashed');
+            viz6.drawHorizontalLine(0.40, '1d RSI6: 62.0', '#8a8fa8', 'dashed');
+            viz6.drawHorizontalLine(0.50, '4h RSI6: 52.3', '#8a8fa8', 'dashed');
+            
+            const totalElements = svg6.children.length;
+            
+            if (totalElements > 10) {
+                testResult(6, true, `Created complete RSI visualization with ${totalElements} elements`);
+            } else {
+                testResult(6, false, `Expected more than 10 elements, got ${totalElements}`);
+            }
+        } catch (error) {
+            testResult(6, false, error.message);
+        }
+    </script>
+</body>
+</html>

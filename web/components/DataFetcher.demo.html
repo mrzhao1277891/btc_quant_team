@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DataFetcher Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #0f1117;
+      color: #e4e6f0;
+    }
+    h1 {
+      color: #22c55e;
+    }
+    .section {
+      background: #1a1d28;
+      border: 1px solid #2a2d3a;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    button {
+      background: #22c55e;
+      color: #0f1117;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #16a34a;
+    }
+    .output {
+      background: #0f1117;
+      border: 1px solid #2a2d3a;
+      border-radius: 4px;
+      padding: 15px;
+      margin-top: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success {
+      color: #22c55e;
+    }
+    .error {
+      color: #ef4444;
+    }
+    .info {
+      color: #3b82f6;
+    }
+  </style>
+</head>
+<body>
+  <h1>DataFetcher Demo</h1>
+  <p>This demo tests the DataFetcher class functionality including retry logic, timeout handling, and parallel data fetching.</p>
+
+  <div class="section">
+    <h2>Test 1: Fetch Latest Values</h2>
+    <button onclick="testFetchLatestValues()">Run Test</button>
+    <div id="output1" class="output"></div>
+  </div>
+
+  <div class="section">
+    <h2>Test 2: Fetch Realtime Price</h2>
+    <button onclick="testFetchRealtimePrice()">Run Test</button>
+    <div id="output2" class="output"></div>
+  </div>
+
+  <div class="section">
+    <h2>Test 3: Fetch All (Parallel)</h2>
+    <button onclick="testFetchAll()">Run Test</button>
+    <div id="output3" class="output"></div>
+  </div>
+
+  <div class="section">
+    <h2>Test 4: Fetch All Timeframes</h2>
+    <button onclick="testFetchAllTimeframes()">Run Test</button>
+    <div id="output4" class="output"></div>
+  </div>
+
+  <div class="section">
+    <h2>Test 5: Error Handling (Wrong URL)</h2>
+    <button onclick="testErrorHandling()">Run Test</button>
+    <div id="output5" class="output"></div>
+  </div>
+
+  <script src="./DataFetcher.js"></script>
+  <script>
+    const fetcher = new DataFetcher('http://127.0.0.1:8000');
+
+    function log(outputId, message, type = 'info') {
+      const output = document.getElementById(outputId);
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+      output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function testFetchLatestValues() {
+      const outputId = 'output1';
+      document.getElementById(outputId).innerHTML = '';
+      log(outputId, 'Starting fetchLatestValues test...', 'info');
+      
+      try {
+        const startTime = Date.now();
+        const data = await fetcher.fetchLatestValues();
+        const duration = Date.now() - startTime;
+        
+        log(outputId, `✓ Success! Fetched in ${duration}ms`, 'success');
+        log(outputId, `Timeframes: ${Object.keys(data).join(', ')}`, 'info');
+        log(outputId, `Sample data (1m): ${JSON.stringify(data['1m'], null, 2)}`, 'info');
+      } catch (error) {
+        log(outputId, `✗ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function testFetchRealtimePrice() {
+      const outputId = 'output2';
+      document.getElementById(outputId).innerHTML = '';
+      log(outputId, 'Starting fetchRealtimePrice test...', 'info');
+      
+      try {
+        const startTime = Date.now();
+        const data = await fetcher.fetchRealtimePrice();
+        const duration = Date.now() - startTime;
+        
+        log(outputId, `✓ Success! Fetched in ${duration}ms`, 'success');
+        log(outputId, `Price: $${data.price.toLocaleString()}`, 'info');
+        log(outputId, `Timestamp: ${new Date(data.timestamp).toLocaleString()}`, 'info');
+      } catch (error) {
+        log(outputId, `✗ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function testFetchAll() {
+      const outputId = 'output3';
+      document.getElementById(outputId).innerHTML = '';
+      log(outputId, 'Starting fetchAll test (parallel fetch)...', 'info');
+      
+      try {
+        const startTime = Date.now();
+        const data = await fetcher.fetchAll();
+        const duration = Date.now() - startTime;
+        
+        log(outputId, `✓ Success! Fetched all data in ${duration}ms`, 'success');
+        log(outputId, `Latest timeframes: ${Object.keys(data.latest).join(', ')}`, 'info');
+        log(outputId, `Realtime price: $${data.realtime.price.toLocaleString()}`, 'info');
+        log(outputId, `Timestamp: ${new Date(data.timestamp).toLocaleString()}`, 'info');
+      } catch (error) {
+        log(outputId, `✗ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function testFetchAllTimeframes() {
+      const outputId = 'output4';
+      document.getElementById(outputId).innerHTML = '';
+      log(outputId, 'Starting fetchAllTimeframes test...', 'info');
+      
+      try {
+        const startTime = Date.now();
+        const data = await fetcher.fetchAllTimeframes(10);
+        const duration = Date.now() - startTime;
+        
+        log(outputId, `✓ Success! Fetched in ${duration}ms`, 'success');
+        log(outputId, `Timeframes: ${Object.keys(data).join(', ')}`, 'info');
+        for (const [tf, records] of Object.entries(data)) {
+          log(outputId, `${tf}: ${records.length} records`, 'info');
+        }
+      } catch (error) {
+        log(outputId, `✗ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function testErrorHandling() {
+      const outputId = 'output5';
+      document.getElementById(outputId).innerHTML = '';
+      log(outputId, 'Starting error handling test (wrong URL)...', 'info');
+      
+      const badFetcher = new DataFetcher('http://localhost:9999');
+      
+      try {
+        log(outputId, 'Attempting to fetch from wrong port...', 'info');
+        const startTime = Date.now();
+        await badFetcher.fetchLatestValues();
+        const duration = Date.now() - startTime;
+        log(outputId, `Unexpected success after ${duration}ms`, 'error');
+      } catch (error) {
+        log(outputId, `✓ Error correctly caught: ${error.message}`, 'success');
+        log(outputId, 'Retry logic should have attempted 2 requests (initial + 1 retry)', 'info');
+      }
+    }
+  </script>
+</body>
+</html>

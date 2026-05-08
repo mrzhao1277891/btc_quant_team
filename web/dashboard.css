@@ -1,0 +1,473 @@
+/* ===========================
+   CSS Variables - Color Palette
+   =========================== */
+:root {
+    /* Background colors */
+    --bg-primary: #0f1117;
+    --bg-card: #1a1d28;
+    --bg-card-hover: #212433;
+    
+    /* Border colors */
+    --border-primary: #2a2d3a;
+    --border-hover: #3a3d5a;
+    
+    /* Text colors */
+    --text-primary: #e4e6f0;
+    --text-secondary: #8a8fa8;
+    --text-dim: #6b7280;
+    
+    /* Indicator colors */
+    --color-green: #22c55e;
+    --color-red: #ef4444;
+    --color-gold: #f59e0b;
+    --color-blue: #3b82f6;
+    --color-purple: #a855f7;
+    --color-neutral: #9ca3af;
+    
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    
+    /* Border radius */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.3s ease;
+}
+
+/* ===========================
+   Global Styles
+   =========================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', 
+                 'Arial', 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    padding: var(--spacing-lg);
+    min-height: 100vh;
+}
+
+/* ===========================
+   Header Styles
+   =========================== */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.header-left h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.header-left .subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+/* Realtime price */
+.realtime-price-container {
+    text-align: right;
+}
+
+.realtime-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.realtime-price {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.realtime-price.up {
+    color: var(--color-green);
+}
+
+.realtime-price.down {
+    color: var(--color-red);
+}
+
+.realtime-price.neutral {
+    color: var(--text-primary);
+}
+
+/* Refresh info */
+.refresh-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.refresh-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-green);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.refresh-btn {
+    background: none;
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all var(--transition-fast);
+}
+
+.refresh-btn:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card);
+}
+
+.refresh-btn:active {
+    transform: scale(0.95);
+}
+
+/* Update time */
+.update-time {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: var(--spacing-md);
+    text-align: center;
+}
+
+/* ===========================
+   Dashboard Grid Layout
+   =========================== */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+/* Responsive breakpoints */
+@media (max-width: 1200px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ===========================
+   Card Styles
+   =========================== */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    transition: border-color var(--transition-normal);
+}
+
+.card:hover {
+    border-color: var(--border-hover);
+}
+
+.card-header {
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.card-body {
+    min-height: 300px;
+}
+
+.card-content {
+    width: 100%;
+    height: 100%;
+}
+
+/* Loading state */
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+/* ===========================
+   Footer Styles
+   =========================== */
+.dashboard-footer {
+    text-align: center;
+    padding: var(--spacing-lg) 0;
+    color: var(--text-dim);
+    font-size: 12px;
+    border-top: 1px solid var(--border-primary);
+}
+
+.dashboard-footer p {
+    margin: var(--spacing-xs) 0;
+}
+
+/* ===========================
+   Error Modal Styles
+   =========================== */
+.error-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.error-modal.hidden {
+    display: none;
+}
+
+.error-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    max-width: 500px;
+    text-align: center;
+}
+
+.error-icon {
+    font-size: 48px;
+    margin-bottom: var(--spacing-md);
+}
+
+.error-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: var(--spacing-md);
+    color: var(--color-red);
+}
+
+.error-message {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+    line-height: 1.6;
+}
+
+.error-retry-btn {
+    background: var(--color-blue);
+    color: white;
+    border: none;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+
+.error-retry-btn:hover {
+    background: #2563eb;
+}
+
+.error-retry-btn:active {
+    transform: scale(0.95);
+}
+
+/* ===========================
+   Utility Classes
+   =========================== */
+.hidden {
+    display: none !important;
+}
+
+.text-green {
+    color: var(--color-green);
+}
+
+.text-red {
+    color: var(--color-red);
+}
+
+.text-neutral {
+    color: var(--color-neutral);
+}
+
+.text-gold {
+    color: var(--color-gold);
+}
+
+.text-blue {
+    color: var(--color-blue);
+}
+
+.text-purple {
+    color: var(--color-purple);
+}
+
+/* ===========================
+   SVG Visualization Styles
+   =========================== */
+.indicator-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.indicator-line {
+    stroke-width: 2;
+    transition: stroke-width var(--transition-fast);
+}
+
+.indicator-line:hover {
+    stroke-width: 3;
+}
+
+.indicator-label {
+    font-size: 11px;
+    fill: var(--text-secondary);
+    font-family: inherit;
+}
+
+.indicator-value {
+    font-size: 12px;
+    font-weight: 600;
+    fill: var(--text-primary);
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+}
+
+.reference-line {
+    stroke: var(--border-primary);
+    stroke-width: 1;
+    stroke-dasharray: 4, 4;
+}
+
+.reference-label {
+    font-size: 10px;
+    fill: var(--text-dim);
+    font-family: inherit;
+}
+
+.y-axis-line {
+    stroke: var(--border-primary);
+    stroke-width: 1;
+}
+
+.y-axis-tick {
+    stroke: var(--border-primary);
+    stroke-width: 1;
+}
+
+.y-axis-label {
+    font-size: 10px;
+    fill: var(--text-secondary);
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Marker styles */
+.price-marker {
+    transition: r var(--transition-fast);
+}
+
+.price-marker:hover {
+    r: 6;
+}
+
+/* ===========================
+   Responsive Design
+   =========================== */
+@media (max-width: 768px) {
+    body {
+        padding: var(--spacing-md);
+    }
+    
+    .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .header-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .realtime-price {
+        font-size: 24px;
+    }
+    
+    .card {
+        padding: var(--spacing-sm);
+    }
+    
+    .card-body {
+        min-height: 250px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-left h1 {
+        font-size: 20px;
+    }
+    
+    .realtime-price {
+        font-size: 20px;
+    }
+    
+    .refresh-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-xs);
+    }
+}

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CardRenderer Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0f1117;
+            color: #e4e6f0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #22c55e;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .indicator-card {
+            background: #1a1d28;
+            border: 1px solid #2a2d3a;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .card-header {
+            margin-bottom: 15px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #e4e6f0;
+        }
+
+        .svg-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        svg {
+            display: block;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: #22c55e;
+            color: #0f1117;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+
+        button:hover {
+            background: #16a34a;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .text-green {
+            color: #22c55e;
+        }
+
+        .text-red {
+            color: #ef4444;
+        }
+
+        .text-neutral {
+            color: #8a8fa8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CardRenderer Demo</h1>
+        
+        <div class="controls">
+            <button onclick="renderCards()">Render Cards</button>
+            <button onclick="updateCards()">Update Cards</button>
+            <button onclick="clearCards()">Clear Cards</button>
+        </div>
+
+        <div class="cards-grid">
+            <div id="price-card"></div>
+            <div id="rsi-card"></div>
+            <div id="macd-card"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { CardRenderer } from './CardRenderer.js';
+
+        // Mock data
+        const mockData = {
+            '1m': {
+                close: 65000,
+                ema7: 65500,
+                ema25: 65000,
+                ema50: 64500,
+                rsi14: 65.4,
+                rsi6: 70.2,
+                dif: 123,
+                dea: 100,
+                macd: 23,
+                boll_up: 66000,
+                boll_md: 65000,
+                boll_dn: 64000
+            },
+            '1w': {
+                close: 64000,
+                ema7: 64500,
+                ema25: 64000,
+                ema50: 63500,
+                rsi14: 55.0,
+                rsi6: 60.0,
+                dif: -50,
+                dea: -30,
+                macd: -20,
+                boll_up: 65000,
+                boll_md: 64000,
+                boll_dn: 63000
+            },
+            '1d': {
+                close: 65500,
+                ema7: 66000,
+                ema25: 65500,
+                ema50: 65000,
+                rsi14: 75.0,
+                rsi6: 80.0,
+                dif: 200,
+                dea: 180,
+                macd: 20,
+                boll_up: 67000,
+                boll_md: 65500,
+                boll_dn: 64000
+            },
+            '4h': {
+                close: 65200,
+                ema7: 65700,
+                ema25: 65200,
+                ema50: 64700,
+                rsi14: 25.0,
+                rsi6: 20.0,
+                dif: 50,
+                dea: 40,
+                macd: 10,
+                boll_up: 66200,
+                boll_md: 65200,
+                boll_dn: 64200
+            }
+        };
+
+        // Card configurations
+        const priceCardConfig = {
+            title: 'Price & Moving Averages',
+            indicators: [
+                { key: 'close', label: 'Price', style: 'solid', markerShape: 'circle' },
+                { key: 'ema7', label: 'EMA7', style: 'solid' },
+                { key: 'ema25', label: 'EMA25', style: 'dashed' },
+                { key: 'ema50', label: 'EMA50', style: 'dotted' },
+                { key: 'boll_up', label: 'BB Upper', style: 'dashed' },
+                { key: 'boll_md', label: 'BB Mid', style: 'solid' },
+                { key: 'boll_dn', label: 'BB Lower', style: 'dashed' }
+            ],
+            yAxisConfig: {
+                type: 'auto'
+            },
+            colorScheme: {}
+        };
+
+        const rsiCardConfig = {
+            title: 'RSI Indicators',
+            indicators: [
+                { key: 'rsi14', label: 'RSI(14)', style: 'solid', markerShape: 'circle' },
+                { key: 'rsi6', label: 'RSI(6)', style: 'dashed', markerShape: 'square' }
+            ],
+            yAxisConfig: {
+                type: 'fixed',
+                min: 0,
+                max: 100
+            },
+            referenceLines: [
+                { value: 70, label: '70 (Overbought)' },
+                { value: 30, label: '30 (Oversold)' }
+            ],
+            colorScheme: {}
+        };
+
+        const macdCardConfig = {
+            title: 'MACD Indicators',
+            indicators: [
+                { key: 'dif', label: 'DIF', style: 'solid' },
+                { key: 'dea', label: 'DEA', style: 'dashed' },
+                { key: 'macd', label: 'MACD', style: 'solid', markerShape: 'triangle' }
+            ],
+            yAxisConfig: {
+                type: 'auto'
+            },
+            referenceLines: [
+                { value: 0, label: 'Zero Line' }
+            ],
+            colorScheme: {}
+        };
+
+        // Create renderers
+        const priceRenderer = new CardRenderer('price-card', priceCardConfig);
+        const rsiRenderer = new CardRenderer('rsi-card', rsiCardConfig);
+        const macdRenderer = new CardRenderer('macd-card', macdCardConfig);
+
+        // Global functions for buttons
+        window.renderCards = function() {
+            priceRenderer.render(mockData);
+            rsiRenderer.render(mockData);
+            macdRenderer.render(mockData);
+            console.log('Cards rendered');
+        };
+
+        window.updateCards = function() {
+            // Generate random updates
+            const updatedData = JSON.parse(JSON.stringify(mockData));
+            updatedData['1m'].close = 65000 + Math.random() * 1000 - 500;
+            updatedData['1m'].rsi14 = 50 + Math.random() * 30 - 15;
+            updatedData['1m'].dif = Math.random() * 200 - 100;
+            
+            priceRenderer.update(updatedData);
+            rsiRenderer.update(updatedData);
+            macdRenderer.update(updatedData);
+            console.log('Cards updated');
+        };
+
+        window.clearCards = function() {
+            priceRenderer.clear();
+            rsiRenderer.clear();
+            macdRenderer.clear();
+            console.log('Cards cleared');
+        };
+
+        // Auto-render on load
+        window.addEventListener('load', () => {
+            renderCards();
+        });
+    </script>
+</body>
+</html>
