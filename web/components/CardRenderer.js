@@ -308,25 +308,25 @@ export class CardRenderer {
             '1m': { 
                 xZoneStart: 0.0, 
                 xZoneEnd: 0.25, 
-                color: '#3b82f6',  // blue
+                color: '#ef4444',  // red - 月线最重要
                 order: 1 
             },
             '1w': { 
                 xZoneStart: 0.25, 
                 xZoneEnd: 0.5, 
-                color: '#8b5cf6',  // purple
+                color: '#f59e0b',  // yellow/amber - 周线
                 order: 2 
             },
             '1d': { 
                 xZoneStart: 0.5, 
                 xZoneEnd: 0.75, 
-                color: '#06b6d4',  // cyan
+                color: '#3b82f6',  // blue - 日线
                 order: 3 
             },
             '4h': { 
                 xZoneStart: 0.75, 
                 xZoneEnd: 1.0, 
-                color: '#8a8fa8',  // gray
+                color: '#22c55e',  // green - 4小时
                 order: 4 
             }
         };

@@ -319,27 +319,28 @@ export class SVGVisualizer {
         const group = document.createElementNS(SVG_NS, 'g');
         group.setAttribute('class', 'reference-line');
         
-        // Create dashed line
+        // Create dashed line (darker and more visible)
         const line = document.createElementNS(SVG_NS, 'line');
         line.setAttribute('x1', xStart);
         line.setAttribute('y1', yPos);
         line.setAttribute('x2', xEnd);
         line.setAttribute('y2', yPos);
-        line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width', '1');
-        line.setAttribute('stroke-dasharray', '4,4');
-        line.setAttribute('opacity', '0.5');
+        line.setAttribute('stroke', '#9ca3af');  // Darker gray for better visibility
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-dasharray', '6,3');
+        line.setAttribute('opacity', '0.8');
         
         group.appendChild(line);
         
-        // Create label
+        // Create label (darker and more visible)
         const text = document.createElementNS(SVG_NS, 'text');
         text.setAttribute('x', xStart + 10);
         text.setAttribute('y', yPos - 5);
-        text.setAttribute('fill', color);
-        text.setAttribute('font-size', '10');
+        text.setAttribute('fill', '#9ca3af');
+        text.setAttribute('font-size', '11');
         text.setAttribute('font-family', 'monospace');
-        text.setAttribute('opacity', '0.7');
+        text.setAttribute('font-weight', 'bold');
+        text.setAttribute('opacity', '0.9');
         text.textContent = label;
         
         group.appendChild(text);
@@ -378,63 +379,31 @@ export class SVGVisualizer {
         
         group.appendChild(line);
         
-        // Create label with background
+        // Extract just the price value from label (remove "当前价格: " prefix)
+        const priceValue = label.replace('当前价格: ', '');
+        
+        // Create background rectangle for price label (on the right side)
+        const bgRect = document.createElementNS(SVG_NS, 'rect');
+        bgRect.setAttribute('x', xEnd + 5);
+        bgRect.setAttribute('y', yPos - 10);
+        bgRect.setAttribute('width', '90');
+        bgRect.setAttribute('height', '20');
+        bgRect.setAttribute('fill', color);
+        bgRect.setAttribute('opacity', '0.9');
+        bgRect.setAttribute('rx', '3');
+        
+        group.appendChild(bgRect);
+        
+        // Create price label on the right side of Y-axis
         const text = document.createElementNS(SVG_NS, 'text');
-        text.setAttribute('x', xEnd - 10);
-        text.setAttribute('y', yPos - 8);
-        text.setAttribute('text-anchor', 'end');
-        text.setAttribute('fill', color);
+        text.setAttribute('x', xEnd + 50);
+        text.setAttribute('y', yPos + 4);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', '#ffffff');
         text.setAttribute('font-size', '12');
         text.setAttribute('font-family', 'monospace');
         text.setAttribute('font-weight', 'bold');
-        text.setAttribute('opacity', '0.9');
-        text.textContent = label;
-        
-        group.appendChild(text);
-        
-        this.svgElement.appendChild(group);
-    }
-
-    /**
-     * Draw a reference line (e.g., RSI 30/70, MACD 0)
-     * @param {number} y - Y position (0-1 normalized)
-     * @param {string} label - Label text to display
-     * @param {string} color - Line color
-     */
-    drawReferenceLine(y, label, color) {
-        const { padding, width, height } = this.config;
-        
-        // Convert normalized y to actual SVG coordinates
-        const yPos = padding.top + y * (height - padding.top - padding.bottom);
-        const xStart = padding.left;
-        const xEnd = width - padding.right;
-        
-        // Create group for reference line
-        const group = document.createElementNS(SVG_NS, 'g');
-        group.setAttribute('class', 'reference-line');
-        
-        // Create dashed line
-        const line = document.createElementNS(SVG_NS, 'line');
-        line.setAttribute('x1', xStart);
-        line.setAttribute('y1', yPos);
-        line.setAttribute('x2', xEnd);
-        line.setAttribute('y2', yPos);
-        line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width', '1');
-        line.setAttribute('stroke-dasharray', '4,4');
-        line.setAttribute('opacity', '0.5');
-        
-        group.appendChild(line);
-        
-        // Create label
-        const text = document.createElementNS(SVG_NS, 'text');
-        text.setAttribute('x', xStart + 10);
-        text.setAttribute('y', yPos - 5);
-        text.setAttribute('fill', color);
-        text.setAttribute('font-size', '10');
-        text.setAttribute('font-family', 'monospace');
-        text.setAttribute('opacity', '0.7');
-        text.textContent = label;
+        text.textContent = priceValue;
         
         group.appendChild(text);
         
