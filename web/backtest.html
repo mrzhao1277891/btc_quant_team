@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC 回测系统</title>
+    <link rel="stylesheet" href="backtest.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>🚀 BTC 回测系统</h1>
+            <p class="subtitle">量化交易策略回测平台</p>
+        </header>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 左侧：策略配置 -->
+            <div class="config-panel">
+                <h2>📋 策略配置</h2>
+                
+                <!-- 策略模板选择 -->
+                <div class="form-group">
+                    <label>策略模板</label>
+                    <select id="templateSelect" class="form-control">
+                        <option value="">-- 选择模板（可选）--</option>
+                    </select>
+                </div>
+
+                <!-- 基本设置 -->
+                <div class="form-section">
+                    <h3>基本设置</h3>
+                    
+                    <div class="form-group">
+                        <label>策略名称 *</label>
+                        <input type="text" id="strategyName" class="form-control" placeholder="例如：EMA金叉策略" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>时间周期 *</label>
+                            <select id="timeframe" class="form-control" required>
+                                <option value="1d">日线</option>
+                                <option value="4h">4小时</option>
+                                <option value="1w">周线</option>
+                                <option value="1m">月线</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>初始资金 (USDT) *</label>
+                            <input type="number" id="initialCapital" class="form-control" value="10000" min="100" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>开始日期 *</label>
+                            <input type="date" id="startDate" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>结束日期 *</label>
+                            <input type="date" id="endDate" class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 开仓条件 -->
+                <div class="form-section">
+                    <h3>开仓条件</h3>
+                    <div id="entryConditions"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addEntryCondition()">+ 添加条件</button>
+                    
+                    <div class="form-group">
+                        <label>逻辑运算符</label>
+                        <select id="entryLogic" class="form-control">
+                            <option value="AND">AND（所有条件都满足）</option>
+                            <option value="OR">OR（任一条件满足）</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 平仓条件 -->
+                <div class="form-section">
+                    <h3>平仓条件</h3>
+                    <div id="exitConditions"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addExitCondition()">+ 添加条件</button>
+                    
+                    <div class="form-group">
+                        <label>逻辑运算符</label>
+                        <select id="exitLogic" class="form-control">
+                            <option value="OR">OR（任一条件满足）</option>
+                            <option value="AND">AND（所有条件都满足）</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 持仓设置 -->
+                <div class="form-section">
+                    <h3>持仓设置</h3>
+                    
+                    <div class="form-group">
+                        <label>持仓方向</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="positionSide" value="long" checked> 做多 (Long)</label>
+                            <label><input type="radio" name="positionSide" value="short"> 做空 (Short)</label>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>持仓大小</label>
+                            <input type="number" id="positionSize" class="form-control" value="10" min="0.01" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>类型</label>
+                            <select id="positionSizeType" class="form-control">
+                                <option value="percent">百分比 (%)</option>
+                                <option value="fixed">固定金额 (USDT)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 止盈止损 -->
+                <div class="form-section">
+                    <h3>止盈止损</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>止盈 (%)</label>
+                            <input type="number" id="takeProfitPct" class="form-control" placeholder="例如：10" min="0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label>止损 (%)</label>
+                            <input type="number" id="stopLossPct" class="form-control" placeholder="例如：5" min="0" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="button-group">
+                    <button type="button" class="btn btn-primary" onclick="runBacktest()">▶ 运行回测</button>
+                    <button type="button" class="btn btn-secondary" onclick="saveStrategy()">💾 保存策略</button>
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">🔄 重置</button>
+                </div>
+            </div>
+
+            <!-- 右侧：回测结果 -->
+            <div class="results-panel">
+                <h2>📊 回测结果</h2>
+                
+                <!-- 加载状态 -->
+                <div id="loadingState" class="loading-state" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>回测运行中，请稍候...</p>
+                    <div class="progress-bar">
+                        <div id="progressBar" class="progress-fill"></div>
+                    </div>
+                </div>
+
+                <!-- 结果内容 -->
+                <div id="resultsContent" style="display: none;">
+                    <!-- 性能指标卡片 -->
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">总收益</div>
+                            <div class="metric-value" id="totalReturn">--</div>
+                            <div class="metric-sub" id="totalReturnPct">--</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">胜率</div>
+                            <div class="metric-value" id="winRate">--</div>
+                            <div class="metric-sub" id="tradeCount">--</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">最大回撤</div>
+                            <div class="metric-value" id="maxDrawdown">--</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">夏普比率</div>
+                            <div class="metric-value" id="sharpeRatio">--</div>
+                        </div>
+                    </div>
+
+                    <!-- 图表 -->
+                    <div class="chart-container">
+                        <h3>权益曲线</h3>
+                        <canvas id="equityChart"></canvas>
+                    </div>
+
+                    <!-- 交易记录 -->
+                    <div class="trades-container">
+                        <h3>交易记录</h3>
+                        <div class="table-controls">
+                            <button class="btn btn-sm" onclick="exportCSV()">📥 导出 CSV</button>
+                            <button class="btn btn-sm" onclick="exportJSON()">📥 导出 JSON</button>
+                        </div>
+                        <div class="table-wrapper">
+                            <table id="tradesTable" class="trades-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>开仓时间</th>
+                                        <th>开仓价格</th>
+                                        <th>平仓时间</th>
+                                        <th>平仓价格</th>
+                                        <th>方向</th>
+                                        <th>盈亏</th>
+                                        <th>盈亏%</th>
+                                        <th>原因</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tradesTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 空状态 -->
+                <div id="emptyState" class="empty-state">
+                    <p>👈 配置策略并点击"运行回测"开始</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="backtest.js"></script>
+</body>
+</html>

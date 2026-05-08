@@ -1,0 +1,71 @@
+# BTC回测系统配置文件
+
+# 数据库配置
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: ""  # 请在环境变量中设置 DB_PASSWORD
+  database: btc_assistant
+  charset: utf8mb4
+  pool_size: 5
+  pool_recycle: 3600
+
+# 日志配置
+logging:
+  level: DEBUG
+  console_level: INFO
+  log_dir: logs
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+# 回测配置
+backtest:
+  default_initial_capital: 100000.0
+  default_timeframe: "1d"
+  max_concurrent_backtests: 5
+  result_cache_ttl: 3600  # 1小时（秒）
+  progress_update_interval: 0.1  # 进度更新间隔（10%）
+
+# API配置
+api:
+  host: "0.0.0.0"
+  port: 8000
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+    - "http://127.0.0.1:3000"
+    - "http://127.0.0.1:8080"
+  request_timeout: 300  # 5分钟
+
+# 技术指标配置
+indicators:
+  available:
+    - EMA7
+    - EMA25
+    - EMA50
+    - RSI14
+    - RSI6
+    - MACD_DIF
+    - MACD_DEA
+    - MACD_Histogram
+    - Bollinger_Upper
+    - Bollinger_Middle
+    - Bollinger_Lower
+    - ATR
+    - Price
+    - Volume
+
+# 时间周期配置
+timeframes:
+  available:
+    - "1m"  # 月线
+    - "1w"  # 周线
+    - "1d"  # 日线
+    - "4h"  # 4小时线
+
+# 性能优化配置
+performance:
+  use_vectorization: true
+  cache_indicators: true
+  batch_size: 1000
