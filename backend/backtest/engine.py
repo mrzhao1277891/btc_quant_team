@@ -60,16 +60,45 @@ class BacktestEngine:
         Returns:
             bool: 条件是否满足
         """
+        # 指标名称别名映射
+        indicator_aliases = {
+            'ema7': 'EMA7',
+            'ema25': 'EMA25',
+            'ema50': 'EMA50',
+            'rsi14': 'RSI14',
+            'rsi6': 'RSI6',
+            'dif': 'MACD_DIF',
+            'dea': 'MACD_DEA',
+            'macd': 'MACD_Histogram',
+            'boll_up': 'Bollinger_Upper',
+            'boll_md': 'Bollinger_Middle',
+            'boll_dn': 'Bollinger_Lower',
+            'atr': 'ATR'
+        }
+        
         # 获取指标值
         indicator_name = condition.indicator
         
+        # 尝试使用别名
+        if indicator_name.lower() in indicator_aliases:
+            indicator_name = indicator_aliases[indicator_name.lower()]
+        
         # 特殊处理：Price指标使用close价格
-        if indicator_name == "Price":
+        if indicator_name.lower() == "price" or indicator_name.lower() == "close":
             indicator_value = row.get('close')
-        elif indicator_name == "Volume":
+        elif indicator_name.lower() == "volume":
             indicator_value = row.get('volume')
         else:
-            indicator_value = row.get(indicator_name)
+            # 尝试大小写不敏感的匹配
+            indicator_value = None
+            for col in row.index:
+                if col.lower() == indicator_name.lower():
+                    indicator_value = row.get(col)
+                    break
+            
+            # 如果还是找不到，尝试直接获取
+            if indicator_value is None:
+                indicator_value = row.get(indicator_name)
         
         # 如果指标值不存在或为NaN，条件不满足
         if indicator_value is None or pd.isna(indicator_value):
@@ -79,16 +108,44 @@ class BacktestEngine:
         operator = condition.operator
         target_value = condition.value
         
+        # 如果target_value是字符串，可能是另一个指标名称
+        if isinstance(target_value, str):
+            # 尝试使用别名
+            target_indicator_name = target_value
+            if target_value.lower() in indicator_aliases:
+                target_indicator_name = indicator_aliases[target_value.lower()]
+            
+            # 尝试获取对应的指标值
+            target_indicator_value = None
+            for col in row.index:
+                if col.lower() == target_indicator_name.lower():
+                    target_indicator_value = row.get(col)
+                    break
+            
+            if target_indicator_value is None:
+                target_indicator_value = row.get(target_indicator_name)
+            
+            # 如果找到了指标值，使用它；否则尝试转换为数值
+            if target_indicator_value is not None and not pd.isna(target_indicator_value):
+                target_value = float(target_indicator_value)
+            else:
+                # 尝试将字符串转换为数值
+                try:
+                    target_value = float(target_value)
+                except (ValueError, TypeError):
+                    logger.warning(f"Cannot convert target_value '{target_value}' to number and not found as indicator")
+                    return False
+        
         if operator == ComparisonOperator.GT:
-            return indicator_value > target_value
+            return float(indicator_value) > float(target_value)
         elif operator == ComparisonOperator.LT:
-            return indicator_value < target_value
+            return float(indicator_value) < float(target_value)
         elif operator == ComparisonOperator.GTE:
-            return indicator_value >= target_value
+            return float(indicator_value) >= float(target_value)
         elif operator == ComparisonOperator.LTE:
-            return indicator_value <= target_value
+            return float(indicator_value) <= float(target_value)
         elif operator == ComparisonOperator.EQ:
-            return abs(indicator_value - target_value) < 1e-9  # 浮点数相等比较
+            return abs(float(indicator_value) - float(target_value)) < 1e-9  # 浮点数相等比较
         elif operator == ComparisonOperator.RANGE:
             # target_value应该是一个元组(min, max)
             if isinstance(target_value, (tuple, list)) and len(target_value) == 2:
@@ -229,6 +286,9 @@ class BacktestEngine:
         """
         entry_price = row['close']
         entry_time = row['timestamp'] if 'timestamp' in row.index else row.name
+        # 转换 pandas Timestamp 为 Python datetime
+        if hasattr(entry_time, 'to_pydatetime'):
+            entry_time = entry_time.to_pydatetime()
         
         # 计算持仓大小
         if self.strategy_config.position_size_type == "amount":
@@ -283,6 +343,9 @@ class BacktestEngine:
         """
         exit_price = row['close']
         exit_time = row['timestamp'] if 'timestamp' in row.index else row.name
+        # 转换 pandas Timestamp 为 Python datetime
+        if hasattr(exit_time, 'to_pydatetime'):
+            exit_time = exit_time.to_pydatetime()
         
         # 计算盈亏
         pnl_amount, pnl_pct = self._calculate_pnl(position, exit_price)
@@ -359,7 +422,10 @@ class BacktestEngine:
                 current_equity += self.current_position.entry_capital + pnl_amount
             
             timestamp = row['timestamp'] if 'timestamp' in row.index else row.name
-            equity_curve.append((timestamp, current_equity))
+            # 转换 pandas Timestamp 为 Python datetime
+            if hasattr(timestamp, 'to_pydatetime'):
+                timestamp = timestamp.to_pydatetime()
+            equity_curve.append((timestamp, float(current_equity)))
             
             # 如果有持仓，先评估平仓条件
             if self.current_position is not None:

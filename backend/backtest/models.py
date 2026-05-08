@@ -232,19 +232,43 @@ class TradeRecord:
     
     def to_dict(self) -> dict:
         """转换为字典"""
+        # 确保时间戳是datetime对象
+        entry_time = self.entry_time
+        if hasattr(entry_time, 'to_pydatetime'):
+            entry_time = entry_time.to_pydatetime()
+        elif not isinstance(entry_time, datetime):
+            # 如果是时间戳数值，转换为datetime
+            try:
+                entry_time = pd.to_datetime(entry_time)
+                if hasattr(entry_time, 'to_pydatetime'):
+                    entry_time = entry_time.to_pydatetime()
+            except:
+                pass
+        
+        exit_time = self.exit_time
+        if hasattr(exit_time, 'to_pydatetime'):
+            exit_time = exit_time.to_pydatetime()
+        elif not isinstance(exit_time, datetime):
+            try:
+                exit_time = pd.to_datetime(exit_time)
+                if hasattr(exit_time, 'to_pydatetime'):
+                    exit_time = exit_time.to_pydatetime()
+            except:
+                pass
+        
         return {
-            "trade_id": self.trade_id,
-            "entry_time": self.entry_time.isoformat(),
-            "entry_price": self.entry_price,
-            "exit_time": self.exit_time.isoformat(),
-            "exit_price": self.exit_price,
-            "position_size": self.position_size,
+            "trade_id": int(self.trade_id),
+            "entry_time": entry_time.isoformat() if isinstance(entry_time, datetime) else str(entry_time),
+            "entry_price": float(self.entry_price),
+            "exit_time": exit_time.isoformat() if isinstance(exit_time, datetime) else str(exit_time),
+            "exit_price": float(self.exit_price),
+            "position_size": float(self.position_size),
             "direction": self.direction,
-            "profit_loss": self.profit_loss,
-            "profit_loss_pct": self.profit_loss_pct,
+            "profit_loss": float(self.profit_loss),
+            "profit_loss_pct": float(self.profit_loss_pct),
             "holding_period": str(self.holding_period),
             "exit_reason": self.exit_reason,
-            "entry_capital": self.entry_capital
+            "entry_capital": float(self.entry_capital)
         }
     
     @classmethod
@@ -295,7 +319,14 @@ class PerformanceMetrics:
     
     def to_dict(self) -> dict:
         """转换为字典"""
-        return asdict(self)
+        data = asdict(self)
+        # 确保所有数值都是Python原生类型
+        for key, value in data.items():
+            if hasattr(value, 'item'):  # numpy类型
+                data[key] = value.item()
+            elif isinstance(value, (int, float)):
+                data[key] = float(value) if isinstance(value, float) else int(value)
+        return data
     
     @classmethod
     def from_dict(cls, data: dict) -> "PerformanceMetrics":

@@ -168,6 +168,12 @@ async def run_backtest_task(backtest_id: str, request: BacktestRequest):
             backtest_status[backtest_id] = {"status": "failed", "error": "没有获取到数据"}
             return
         
+        # 转换所有数值列为 float（避免 Decimal 类型问题）
+        numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+        for col in numeric_columns:
+            if col in klines_df.columns:
+                klines_df[col] = klines_df[col].astype(float)
+        
         backtest_status[backtest_id]["progress"] = 30
         
         # 2. 计算技术指标
@@ -201,7 +207,9 @@ async def run_backtest_task(backtest_id: str, request: BacktestRequest):
         logger.info(f"回测完成 {backtest_id}")
         
     except Exception as e:
-        logger.error(f"回测失败 {backtest_id}: {e}")
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"回测失败 {backtest_id}: {e}\n{error_details}")
         backtest_status[backtest_id] = {"status": "failed", "error": str(e)}
 
 
