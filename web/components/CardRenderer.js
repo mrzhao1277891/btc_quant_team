@@ -351,9 +351,9 @@ export class CardRenderer {
             'boll_dn': 6,
             'rsi14': 8,
             'rsi6': 6,
-            'dif': 8,
-            'dea': 7,
-            'macd': 6
+            'macd': 9,   // MACD柱状图最重要
+            'dif': 7,    // DIF快线
+            'dea': 5     // DEA慢线
         };
         
         // Draw zone separators
