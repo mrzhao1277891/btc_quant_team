@@ -107,6 +107,9 @@ export class CardRenderer {
         // Draw reference lines if configured
         this._drawReferenceLines(min, max);
         
+        // Draw current price reference line (for EMA card)
+        this._drawPriceReferenceLine(data, min, max);
+        
         // Draw indicator lines grouped by timeframe
         this._drawIndicatorLines(data, min, max);
     }
@@ -138,6 +141,9 @@ export class CardRenderer {
         
         // Redraw reference lines
         this._drawReferenceLines(min, max);
+        
+        // Redraw current price reference line (for EMA card)
+        this._drawPriceReferenceLine(data, min, max);
         
         // Redraw indicator lines
         this._drawIndicatorLines(data, min, max);
@@ -247,6 +253,46 @@ export class CardRenderer {
     }
 
     /**
+     * Draw current price reference line (for EMA card)
+     * 
+     * @param {Object} data - Data object with timeframe keys
+     * @param {number} min - Y-axis minimum value
+     * @param {number} max - Y-axis maximum value
+     */
+    _drawPriceReferenceLine(data, min, max) {
+        // Only draw price line for EMA and Bollinger cards
+        const hasEMA = this.config.indicators.some(ind => 
+            ind.key === 'ema7' || ind.key === 'ema25' || ind.key === 'ema50'
+        );
+        const hasBollinger = this.config.indicators.some(ind => 
+            ind.key === 'boll_up' || ind.key === 'boll_md' || ind.key === 'boll_dn'
+        );
+        
+        if (!hasEMA && !hasBollinger) {
+            return;
+        }
+        
+        // Get current price from the most important timeframe (1m - monthly)
+        const monthlyData = data['1m'];
+        if (!monthlyData || !ValueFormatter.isValidNumber(monthlyData.close)) {
+            return;
+        }
+        
+        const currentPrice = monthlyData.close;
+        const normalizedY = this._valueToNormalizedY(currentPrice, min, max);
+        
+        // Format price for display
+        const formattedPrice = ValueFormatter.formatPrice(currentPrice);
+        
+        // Draw price reference line
+        this.svgVisualizer.drawPriceReferenceLine(
+            normalizedY,
+            `当前价格: ${formattedPrice}`,
+            '#22c55e'  // green color for price
+        );
+    }
+
+    /**
      * Draw indicator lines grouped by timeframe with dot visualization
      * 
      * @param {Object} data - Data object with timeframe keys
@@ -262,31 +308,42 @@ export class CardRenderer {
             '1m': { 
                 xZoneStart: 0.0, 
                 xZoneEnd: 0.25, 
-                dotSize: 8, 
                 color: '#3b82f6',  // blue
                 order: 1 
             },
             '1w': { 
                 xZoneStart: 0.25, 
                 xZoneEnd: 0.5, 
-                dotSize: 7, 
                 color: '#8b5cf6',  // purple
                 order: 2 
             },
             '1d': { 
                 xZoneStart: 0.5, 
                 xZoneEnd: 0.75, 
-                dotSize: 6, 
                 color: '#06b6d4',  // cyan
                 order: 3 
             },
             '4h': { 
                 xZoneStart: 0.75, 
                 xZoneEnd: 1.0, 
-                dotSize: 5, 
                 color: '#8a8fa8',  // gray
                 order: 4 
             }
+        };
+        
+        // Indicator-specific dot sizes (for cards like EMA where indicators differ)
+        const indicatorSizes = {
+            'ema50': 9,  // 长期均线最重要
+            'ema25': 7,  // 中期均线
+            'ema7': 5,   // 短期均线
+            'boll_up': 8,
+            'boll_md': 7,
+            'boll_dn': 6,
+            'rsi14': 8,
+            'rsi6': 6,
+            'dif': 8,
+            'dea': 7,
+            'macd': 6
         };
         
         // Draw zone separators
@@ -335,12 +392,11 @@ export class CardRenderer {
                     indicator.key
                 );
                 
-                // Get indicator-specific color (override timeframe color for semantic meaning)
-                const dotColor = this._getIndicatorColor(
-                    indicator.key,
-                    value,
-                    timeframeData
-                );
+                // Use timeframe color (周期决定颜色)
+                const dotColor = style.color;
+                
+                // Use indicator-specific size (指标决定大小)
+                const dotSize = indicatorSizes[indicator.key] || 7;
                 
                 allPoints.push({
                     xPos,
@@ -351,9 +407,8 @@ export class CardRenderer {
                     timeframeLabel,
                     indicatorKey: indicator.key,
                     indicatorLabel: indicator.label,
-                    dotSize: style.dotSize,
-                    color: dotColor,
-                    baseColor: style.color
+                    dotSize: dotSize,
+                    color: dotColor
                 });
             });
         }

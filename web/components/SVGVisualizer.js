@@ -27,21 +27,55 @@ export class SVGVisualizer {
         const yEnd = height - padding.bottom;
         const chartWidth = width - padding.left - padding.right;
         
+        // Draw horizontal X-axis line at the bottom
+        const xAxisLine = document.createElementNS(SVG_NS, 'line');
+        xAxisLine.setAttribute('x1', padding.left);
+        xAxisLine.setAttribute('y1', yEnd);
+        xAxisLine.setAttribute('x2', width - padding.right);
+        xAxisLine.setAttribute('y2', yEnd);
+        xAxisLine.setAttribute('stroke', '#6b7280');
+        xAxisLine.setAttribute('stroke-width', '2');
+        this.svgElement.appendChild(xAxisLine);
+        
         // Draw 3 separator lines (at 25%, 50%, 75%)
         [0.25, 0.5, 0.75].forEach(ratio => {
             const xPos = padding.left + chartWidth * ratio;
             
+            // Vertical separator line
             const line = document.createElementNS(SVG_NS, 'line');
             line.setAttribute('x1', xPos);
             line.setAttribute('y1', yStart);
             line.setAttribute('x2', xPos);
             line.setAttribute('y2', yEnd);
-            line.setAttribute('stroke', '#2a2d3a');
-            line.setAttribute('stroke-width', '1');
+            line.setAttribute('stroke', '#6b7280');
+            line.setAttribute('stroke-width', '1.5');
             line.setAttribute('stroke-dasharray', '4,4');
-            line.setAttribute('opacity', '0.3');
-            
+            line.setAttribute('opacity', '0.6');
             this.svgElement.appendChild(line);
+            
+            // Tick mark on X-axis
+            const tick = document.createElementNS(SVG_NS, 'line');
+            tick.setAttribute('x1', xPos);
+            tick.setAttribute('y1', yEnd);
+            tick.setAttribute('x2', xPos);
+            tick.setAttribute('y2', yEnd + 5);
+            tick.setAttribute('stroke', '#6b7280');
+            tick.setAttribute('stroke-width', '2');
+            this.svgElement.appendChild(tick);
+        });
+        
+        // Draw tick marks at zone boundaries (0%, 25%, 50%, 75%, 100%)
+        [0, 0.25, 0.5, 0.75, 1.0].forEach(ratio => {
+            const xPos = padding.left + chartWidth * ratio;
+            
+            const tick = document.createElementNS(SVG_NS, 'line');
+            tick.setAttribute('x1', xPos);
+            tick.setAttribute('y1', yEnd);
+            tick.setAttribute('x2', xPos);
+            tick.setAttribute('y2', yEnd + 5);
+            tick.setAttribute('stroke', '#6b7280');
+            tick.setAttribute('stroke-width', '2');
+            this.svgElement.appendChild(tick);
         });
     }
 
@@ -314,6 +348,100 @@ export class SVGVisualizer {
     }
 
     /**
+     * Draw current price reference line (horizontal dashed line)
+     * @param {number} y - Y position (0-1 normalized)
+     * @param {string} label - Label text to display
+     * @param {string} color - Line color
+     */
+    drawPriceReferenceLine(y, label, color) {
+        const { padding, width, height } = this.config;
+        
+        // Convert normalized y to actual SVG coordinates
+        const yPos = padding.top + y * (height - padding.top - padding.bottom);
+        const xStart = padding.left;
+        const xEnd = width - padding.right;
+        
+        // Create group for price reference line
+        const group = document.createElementNS(SVG_NS, 'g');
+        group.setAttribute('class', 'price-reference-line');
+        
+        // Create dashed line (more prominent than regular reference lines)
+        const line = document.createElementNS(SVG_NS, 'line');
+        line.setAttribute('x1', xStart);
+        line.setAttribute('y1', yPos);
+        line.setAttribute('x2', xEnd);
+        line.setAttribute('y2', yPos);
+        line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-dasharray', '8,4');
+        line.setAttribute('opacity', '0.7');
+        
+        group.appendChild(line);
+        
+        // Create label with background
+        const text = document.createElementNS(SVG_NS, 'text');
+        text.setAttribute('x', xEnd - 10);
+        text.setAttribute('y', yPos - 8);
+        text.setAttribute('text-anchor', 'end');
+        text.setAttribute('fill', color);
+        text.setAttribute('font-size', '12');
+        text.setAttribute('font-family', 'monospace');
+        text.setAttribute('font-weight', 'bold');
+        text.setAttribute('opacity', '0.9');
+        text.textContent = label;
+        
+        group.appendChild(text);
+        
+        this.svgElement.appendChild(group);
+    }
+
+    /**
+     * Draw a reference line (e.g., RSI 30/70, MACD 0)
+     * @param {number} y - Y position (0-1 normalized)
+     * @param {string} label - Label text to display
+     * @param {string} color - Line color
+     */
+    drawReferenceLine(y, label, color) {
+        const { padding, width, height } = this.config;
+        
+        // Convert normalized y to actual SVG coordinates
+        const yPos = padding.top + y * (height - padding.top - padding.bottom);
+        const xStart = padding.left;
+        const xEnd = width - padding.right;
+        
+        // Create group for reference line
+        const group = document.createElementNS(SVG_NS, 'g');
+        group.setAttribute('class', 'reference-line');
+        
+        // Create dashed line
+        const line = document.createElementNS(SVG_NS, 'line');
+        line.setAttribute('x1', xStart);
+        line.setAttribute('y1', yPos);
+        line.setAttribute('x2', xEnd);
+        line.setAttribute('y2', yPos);
+        line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width', '1');
+        line.setAttribute('stroke-dasharray', '4,4');
+        line.setAttribute('opacity', '0.5');
+        
+        group.appendChild(line);
+        
+        // Create label
+        const text = document.createElementNS(SVG_NS, 'text');
+        text.setAttribute('x', xStart + 10);
+        text.setAttribute('y', yPos - 5);
+        text.setAttribute('fill', color);
+        text.setAttribute('font-size', '10');
+        text.setAttribute('font-family', 'monospace');
+        text.setAttribute('opacity', '0.7');
+        text.textContent = label;
+        
+        group.appendChild(text);
+        
+        this.svgElement.appendChild(group);
+    }
+
+    /**
      * Draw Y-axis with tick marks and labels
      * @param {number} min - Minimum value
      * @param {number} max - Maximum value
@@ -335,7 +463,7 @@ export class SVGVisualizer {
         axisLine.setAttribute('y1', yStart);
         axisLine.setAttribute('x2', xPos);
         axisLine.setAttribute('y2', yEnd);
-        axisLine.setAttribute('stroke', '#2a2d3a');
+        axisLine.setAttribute('stroke', '#6b7280');
         axisLine.setAttribute('stroke-width', '2');
         
         group.appendChild(axisLine);
@@ -354,8 +482,8 @@ export class SVGVisualizer {
             tick.setAttribute('y1', yPos);
             tick.setAttribute('x2', xPos);
             tick.setAttribute('y2', yPos);
-            tick.setAttribute('stroke', '#2a2d3a');
-            tick.setAttribute('stroke-width', '1');
+            tick.setAttribute('stroke', '#6b7280');
+            tick.setAttribute('stroke-width', '1.5');
             
             group.appendChild(tick);
             
