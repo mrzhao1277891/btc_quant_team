@@ -62,11 +62,13 @@ export class CardRenderer {
      * Render the card with complete visualization
      * 
      * @param {Object} data - Data object with timeframe keys (1m, 1w, 1d, 4h)
+     * @param {Object} realtimePrice - Real-time price object {price, timestamp} (optional)
      * 
      * Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8
      */
-    render(data) {
+    render(data, realtimePrice = null) {
         this.currentData = data;
+        this.realtimePrice = realtimePrice;
         
         // Get or create container element
         this.container = document.getElementById(this.containerId);
@@ -118,17 +120,19 @@ export class CardRenderer {
      * Update existing card with new data without full re-render
      * 
      * @param {Object} data - Updated data object with timeframe keys
+     * @param {Object} realtimePrice - Real-time price object {price, timestamp} (optional)
      * 
      * Requirements: 4.2
      */
-    update(data) {
+    update(data, realtimePrice = null) {
         if (!this.svgVisualizer || !this.container) {
             // If not initialized, do full render
-            this.render(data);
+            this.render(data, realtimePrice);
             return;
         }
         
         this.currentData = data;
+        this.realtimePrice = realtimePrice;
         
         // Clear SVG content
         this.svgVisualizer.clear();
@@ -253,7 +257,7 @@ export class CardRenderer {
     }
 
     /**
-     * Draw current price reference line (for EMA card)
+     * Draw current price reference line (for EMA and Bollinger cards)
      * 
      * @param {Object} data - Data object with timeframe keys
      * @param {number} min - Y-axis minimum value
@@ -272,13 +276,19 @@ export class CardRenderer {
             return;
         }
         
-        // Get current price from the most important timeframe (1m - monthly)
-        const monthlyData = data['1m'];
-        if (!monthlyData || !ValueFormatter.isValidNumber(monthlyData.close)) {
-            return;
+        // Use realtime price if available, otherwise fall back to monthly close price
+        let currentPrice;
+        if (this.realtimePrice && ValueFormatter.isValidNumber(this.realtimePrice.price)) {
+            currentPrice = this.realtimePrice.price;
+        } else {
+            // Fallback to monthly data
+            const monthlyData = data['1m'];
+            if (!monthlyData || !ValueFormatter.isValidNumber(monthlyData.close)) {
+                return;
+            }
+            currentPrice = monthlyData.close;
         }
         
-        const currentPrice = monthlyData.close;
         const normalizedY = this._valueToNormalizedY(currentPrice, min, max);
         
         // Format price for display

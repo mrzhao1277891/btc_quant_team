@@ -178,10 +178,10 @@ export class DashboardController {
             try {
                 if (renderer.currentData === null) {
                     // First render
-                    renderer.render(this.state.latestData);
+                    renderer.render(this.state.latestData, this.state.realtimePrice);
                 } else {
                     // Update existing render
-                    renderer.update(this.state.latestData);
+                    renderer.update(this.state.latestData, this.state.realtimePrice);
                 }
             } catch (error) {
                 console.error(`Failed to update card ${renderer.containerId}:`, error);
