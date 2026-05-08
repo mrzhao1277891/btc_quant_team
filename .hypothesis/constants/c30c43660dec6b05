@@ -1,0 +1,4 @@
+# file: /Users/zhaojun/ideaprojects/btc_quant_team/backend/indicators.py
+# hypothesis_version: 6.141.1
+
+[0.0, 2.0, 100, 'ATR', 'Bollinger_Lower', 'Bollinger_Middle', 'Bollinger_Upper', 'EMA25', 'EMA50', 'EMA7', 'MACD_DEA', 'MACD_DIF', 'MACD_Histogram', 'RSI14', 'RSI6', 'close', 'high', 'low', 'volume']
