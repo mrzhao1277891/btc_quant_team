@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fibonacci Calculator Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #0f1117;
+            color: #e4e6f0;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1a1d28;
+            border: 1px solid #2a2d3a;
+            border-radius: 4px;
+        }
+        .success { border-color: #22c55e; }
+        .error { border-color: #ef4444; }
+    </style>
+</head>
+<body>
+    <h1>Fibonacci Calculator Test</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        import { FibonacciCalculator } from './components/FibonacciCalculator.js';
+
+        const results = document.getElementById('results');
+
+        function addResult(message, isSuccess = true) {
+            const div = document.createElement('div');
+            div.className = `test-result ${isSuccess ? 'success' : 'error'}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        // Test 1: Calculate uptrend retracement
+        try {
+            const levels = FibonacciCalculator.calculate(70000, 60000, 'up');
+            addResult(`✓ Test 1 Passed: Calculated ${levels.length} levels for uptrend`);
+            console.log('Uptrend levels:', levels);
+        } catch (error) {
+            addResult(`✗ Test 1 Failed: ${error.message}`, false);
+        }
+
+        // Test 2: Calculate downtrend retracement
+        try {
+            const levels = FibonacciCalculator.calculate(70000, 60000, 'down');
+            addResult(`✓ Test 2 Passed: Calculated ${levels.length} levels for downtrend`);
+            console.log('Downtrend levels:', levels);
+        } catch (error) {
+            addResult(`✗ Test 2 Failed: ${error.message}`, false);
+        }
+
+        // Test 3: Get key levels
+        try {
+            const keyLevels = FibonacciCalculator.getKeyLevels(70000, 60000, 'up');
+            addResult(`✓ Test 3 Passed: Got ${keyLevels.length} key levels (expected 4)`);
+            console.log('Key levels:', keyLevels);
+            
+            // Verify we have exactly 4 key levels
+            if (keyLevels.length === 4) {
+                addResult(`✓ Test 3a Passed: Correct number of key levels`);
+            } else {
+                addResult(`✗ Test 3a Failed: Expected 4 key levels, got ${keyLevels.length}`, false);
+            }
+        } catch (error) {
+            addResult(`✗ Test 3 Failed: ${error.message}`, false);
+        }
+
+        // Test 4: Verify level values
+        try {
+            const levels = FibonacciCalculator.getKeyLevels(70000, 60000, 'up');
+            const expected = [
+                { ratio: 0.236, price: 67640 },
+                { ratio: 0.382, price: 66180 },
+                { ratio: 0.5, price: 65000 },
+                { ratio: 0.618, price: 63820 }
+            ];
+            
+            let allCorrect = true;
+            for (let i = 0; i < expected.length; i++) {
+                if (Math.abs(levels[i].price - expected[i].price) > 0.01) {
+                    allCorrect = false;
+                    addResult(`✗ Test 4 Failed: Level ${expected[i].ratio} price mismatch. Expected ${expected[i].price}, got ${levels[i].price}`, false);
+                }
+            }
+            
+            if (allCorrect) {
+                addResult(`✓ Test 4 Passed: All level prices are correct`);
+            }
+        } catch (error) {
+            addResult(`✗ Test 4 Failed: ${error.message}`, false);
+        }
+
+        // Test 5: Test localStorage integration
+        try {
+            const testParams = { high: 70000, low: 60000, direction: 'up' };
+            localStorage.setItem('fib_params_1m', JSON.stringify(testParams));
+            
+            const retrieved = JSON.parse(localStorage.getItem('fib_params_1m'));
+            if (retrieved.high === 70000 && retrieved.low === 60000 && retrieved.direction === 'up') {
+                addResult(`✓ Test 5 Passed: localStorage integration works`);
+            } else {
+                addResult(`✗ Test 5 Failed: localStorage data mismatch`, false);
+            }
+        } catch (error) {
+            addResult(`✗ Test 5 Failed: ${error.message}`, false);
+        }
+
+        addResult('All tests completed!');
+    </script>
+</body>
+</html>

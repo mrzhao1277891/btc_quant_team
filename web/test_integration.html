@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fibonacci Integration Test</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <h1>Fibonacci Integration Test</h1>
+    
+    <div class="card" id="testCard">
+        <div class="card-header">
+            <h2 class="card-title">斐波那契回调位测试</h2>
+            <button id="fibEditBtn" class="edit-btn">⚙️ 编辑</button>
+        </div>
+        <div class="card-body">
+            <div id="fibonacciCardContent" class="card-content">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fibonacci Edit Modal -->
+    <div id="fibEditModal" class="fib-modal hidden">
+        <div class="fib-modal-content">
+            <div class="fib-modal-header">
+                <h3>编辑斐波那契参数</h3>
+                <button id="fibCloseBtn" class="fib-close-btn">✕</button>
+            </div>
+            <div class="fib-modal-body">
+                <div class="fib-timeframe-section">
+                    <h4>月线 (1m)</h4>
+                    <div class="fib-input-group">
+                        <label>高点:</label>
+                        <input type="number" id="fib_1m_high" step="0.01" value="70000" />
+                    </div>
+                    <div class="fib-input-group">
+                        <label>低点:</label>
+                        <input type="number" id="fib_1m_low" step="0.01" value="60000" />
+                    </div>
+                    <div class="fib-input-group">
+                        <label>方向:</label>
+                        <select id="fib_1m_direction">
+                            <option value="up">上涨回调</option>
+                            <option value="down">下跌反弹</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="fib-modal-footer">
+                <button id="fibCancelBtn" class="fib-cancel-btn">取消</button>
+                <button id="fibConfirmBtn" class="fib-confirm-btn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="testResults" style="margin-top: 20px; padding: 20px; background: #1a1d28; border-radius: 8px;">
+        <h3>Test Results:</h3>
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        import { FibonacciCalculator } from './components/FibonacciCalculator.js';
+        import { CardRenderer } from './components/CardRenderer.js';
+
+        const results = document.getElementById('results');
+
+        function addResult(message, isSuccess = true) {
+            const div = document.createElement('div');
+            div.style.padding = '5px';
+            div.style.color = isSuccess ? '#22c55e' : '#ef4444';
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        // Test 1: Modal functionality
+        const editBtn = document.getElementById('fibEditBtn');
+        const modal = document.getElementById('fibEditModal');
+        const closeBtn = document.getElementById('fibCloseBtn');
+        const cancelBtn = document.getElementById('fibCancelBtn');
+        const confirmBtn = document.getElementById('fibConfirmBtn');
+
+        editBtn.addEventListener('click', () => {
+            modal.classList.remove('hidden');
+            addResult('✓ Modal opened successfully');
+        });
+
+        closeBtn.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            addResult('✓ Modal closed via close button');
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            addResult('✓ Modal closed via cancel button');
+        });
+
+        confirmBtn.addEventListener('click', () => {
+            const high = parseFloat(document.getElementById('fib_1m_high').value);
+            const low = parseFloat(document.getElementById('fib_1m_low').value);
+            const direction = document.getElementById('fib_1m_direction').value;
+            
+            const params = { high, low, direction };
+            localStorage.setItem('fib_params_1m', JSON.stringify(params));
+            
+            modal.classList.add('hidden');
+            addResult(`✓ Parameters saved: high=${high}, low=${low}, direction=${direction}`);
+            
+            // Test calculation
+            const levels = FibonacciCalculator.getKeyLevels(high, low, direction);
+            addResult(`✓ Calculated ${levels.length} Fibonacci levels`);
+            levels.forEach(level => {
+                addResult(`  - ${level.label}: ${level.price.toFixed(2)}`);
+            });
+        });
+
+        // Test 2: CardRenderer with Fibonacci config
+        try {
+            const fibConfig = {
+                containerId: 'fibonacciCardContent',
+                title: '斐波那契回调位',
+                indicators: [
+                    { key: 'fib_0.236', label: '23.6%', style: 'solid', markerShape: 'circle' },
+                    { key: 'fib_0.382', label: '38.2%', style: 'solid', markerShape: 'triangle' },
+                    { key: 'fib_0.5', label: '50%', style: 'solid', markerShape: 'square' },
+                    { key: 'fib_0.618', label: '61.8%', style: 'solid', markerShape: 'diamond' }
+                ],
+                yAxisConfig: { type: 'auto', ticks: 6 },
+                colorScheme: {
+                    positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8'
+                },
+                referenceLines: [],
+                isFibonacci: true
+            };
+
+            const renderer = new CardRenderer('fibonacciCardContent', fibConfig);
+            addResult('✓ CardRenderer initialized with Fibonacci config');
+
+            // Mock data for rendering
+            const mockData = {
+                '1m': { close: 65000 },
+                '1w': { close: 65000 },
+                '1d': { close: 65000 },
+                '4h': { close: 65000 }
+            };
+
+            // Set default parameters
+            localStorage.setItem('fib_params_1m', JSON.stringify({ high: 70000, low: 60000, direction: 'up' }));
+            localStorage.setItem('fib_params_1w', JSON.stringify({ high: 68000, low: 62000, direction: 'up' }));
+            localStorage.setItem('fib_params_1d', JSON.stringify({ high: 67000, low: 63000, direction: 'up' }));
+            localStorage.setItem('fib_params_4h', JSON.stringify({ high: 66000, low: 64000, direction: 'up' }));
+
+            renderer.render(mockData);
+            addResult('✓ Fibonacci card rendered successfully');
+
+        } catch (error) {
+            addResult(`✗ CardRenderer test failed: ${error.message}`, false);
+            console.error(error);
+        }
+
+        addResult('=== All integration tests completed ===');
+    </script>
+</body>
+</html>

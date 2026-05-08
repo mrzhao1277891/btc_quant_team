@@ -9,6 +9,7 @@
 
 import { SVGVisualizer } from './SVGVisualizer.js';
 import { ValueFormatter } from './ValueFormatter.js';
+import { FibonacciCalculator } from './FibonacciCalculator.js';
 
 export class CardRenderer {
     /**
@@ -189,6 +190,11 @@ export class CardRenderer {
             };
         }
         
+        // Special handling for Fibonacci card
+        if (this.config.isFibonacci) {
+            return this._calculateFibonacciYAxisScale();
+        }
+        
         // Auto-calculate from data
         let min = Infinity;
         let max = -Infinity;
@@ -215,6 +221,67 @@ export class CardRenderer {
         
         min = Math.min(...values);
         max = Math.max(...values);
+        
+        // Add 10% padding to top and bottom
+        const range = max - min;
+        const padding = range * 0.1;
+        
+        return {
+            min: min - padding,
+            max: max + padding
+        };
+    }
+
+    /**
+     * Calculate Y-axis scale for Fibonacci card
+     * 
+     * @returns {Object} Object with min and max values
+     */
+    _calculateFibonacciYAxisScale() {
+        const values = [];
+        
+        // Collect all Fibonacci level prices from all timeframes
+        for (const timeframe of this.timeframes) {
+            const key = `fib_params_${timeframe}`;
+            const stored = localStorage.getItem(key);
+            
+            let params;
+            if (!stored) {
+                // Use default parameters
+                const defaultParams = {
+                    '1m': { high: 70000, low: 60000, direction: 'up' },
+                    '1w': { high: 68000, low: 62000, direction: 'up' },
+                    '1d': { high: 67000, low: 63000, direction: 'up' },
+                    '4h': { high: 66000, low: 64000, direction: 'up' }
+                };
+                params = defaultParams[timeframe];
+                localStorage.setItem(key, JSON.stringify(params));
+            } else {
+                params = JSON.parse(stored);
+            }
+            
+            // Calculate Fibonacci levels for this timeframe
+            const levels = FibonacciCalculator.getKeyLevels(
+                params.high,
+                params.low,
+                params.direction
+            );
+            
+            // Collect all prices
+            levels.forEach(level => {
+                if (ValueFormatter.isValidNumber(level.price)) {
+                    values.push(level.price);
+                }
+            });
+        }
+        
+        if (values.length === 0) {
+            // No valid data, use default range
+            return { min: 60000, max: 70000 };
+        }
+        
+        const min = Math.min(...values);
+        const max = Math.max(...values);
         
         // Add 10% padding to top and bottom
         const range = max - min;
@@ -312,6 +379,12 @@ export class CardRenderer {
      * Requirements: 4.8, 5.10, 6.11
      */
     _drawIndicatorLines(data, min, max) {
+        // Check if this is a Fibonacci card
+        if (this.config.isFibonacci) {
+            this._drawFibonacciLevels(data, min, max);
+            return;
+        }
+        
         // Timeframe visual hierarchy (importance: 1m > 1w > 1d > 4h)
         // X-axis is divided into 4 zones, one per timeframe
         const timeframeStyles = {
@@ -424,6 +497,145 @@ export class CardRenderer {
         }
         
         // Draw all data points
+        for (const point of allPoints) {
+            this.svgVisualizer.drawDataPoint(
+                point.xPos,
+                point.yPos,
+                point.dotSize,
+                point.color,
+                {
+                    timeframe: point.timeframeLabel,
+                    indicator: point.indicatorLabel,
+                    value: point.formattedValue
+                }
+            );
+        }
+    }
+
+    /**
+     * Draw Fibonacci retracement levels
+     * 
+     * @param {Object} data - Data object with timeframe keys
+     * @param {number} min - Y-axis minimum value
+     * @param {number} max - Y-axis maximum value
+     */
+    _drawFibonacciLevels(data, min, max) {
+        // Timeframe visual hierarchy
+        const timeframeStyles = {
+            '1m': { 
+                xZoneStart: 0.0, 
+                xZoneEnd: 0.25, 
+                color: '#ef4444',  // red - 月线最重要
+                order: 1 
+            },
+            '1w': { 
+                xZoneStart: 0.25, 
+                xZoneEnd: 0.5, 
+                color: '#f59e0b',  // yellow/amber - 周线
+                order: 2 
+            },
+            '1d': { 
+                xZoneStart: 0.5, 
+                xZoneEnd: 0.75, 
+                color: '#3b82f6',  // blue - 日线
+                order: 3 
+            },
+            '4h': { 
+                xZoneStart: 0.75, 
+                xZoneEnd: 1.0, 
+                color: '#22c55e',  // green - 4小时
+                order: 4 
+            }
+        };
+        
+        // Fibonacci level sizes (importance: 61.8% > 50% > 38.2% > 23.6%)
+        const fibSizes = {
+            'fib_0.618': 9,  // Golden ratio - most important
+            'fib_0.5': 8,    // 50% retracement
+            'fib_0.382': 7,  // 38.2% retracement
+            'fib_0.236': 6   // 23.6% retracement
+        };
+        
+        // Draw zone separators
+        this.svgVisualizer.drawZoneSeparators();
+        
+        // Draw zone labels at the bottom
+        this.svgVisualizer.drawZoneLabels([
+            { label: '月线', xStart: 0.0, xEnd: 0.25 },
+            { label: '周线', xStart: 0.25, xEnd: 0.5 },
+            { label: '日线', xStart: 0.5, xEnd: 0.75 },
+            { label: '4小时', xStart: 0.75, xEnd: 1.0 }
+        ]);
+        
+        // Collect all Fibonacci points
+        const allPoints = [];
+        
+        for (const timeframe of this.timeframes) {
+            const timeframeLabel = this.timeframeLabels[timeframe];
+            const style = timeframeStyles[timeframe];
+            
+            // Load parameters from localStorage
+            const key = `fib_params_${timeframe}`;
+            const stored = localStorage.getItem(key);
+            
+            if (!stored) {
+                // Use default parameters if not set
+                const defaultParams = {
+                    '1m': { high: 70000, low: 60000, direction: 'up' },
+                    '1w': { high: 68000, low: 62000, direction: 'up' },
+                    '1d': { high: 67000, low: 63000, direction: 'up' },
+                    '4h': { high: 66000, low: 64000, direction: 'up' }
+                };
+                const params = defaultParams[timeframe];
+                localStorage.setItem(key, JSON.stringify(params));
+            }
+            
+            const params = stored ? JSON.parse(stored) : { high: 70000, low: 60000, direction: 'up' };
+            
+            // Calculate Fibonacci levels
+            const levels = FibonacciCalculator.getKeyLevels(
+                params.high,
+                params.low,
+                params.direction
+            );
+            
+            // Calculate X position within the zone (evenly distribute levels)
+            const levelCount = levels.length;
+            const zoneWidth = style.xZoneEnd - style.xZoneStart;
+            
+            levels.forEach((level, index) => {
+                // Calculate X position (center of each level slot within zone)
+                const slotWidth = zoneWidth / levelCount;
+                const xPos = style.xZoneStart + (index + 0.5) * slotWidth;
+                
+                // Convert price to normalized Y position
+                const yPos = this._valueToNormalizedY(level.price, min, max);
+                
+                // Format price for display
+                const formattedValue = ValueFormatter.formatPrice(level.price);
+                
+                // Use timeframe color (周期决定颜色)
+                const dotColor = style.color;
+                
+                // Use Fibonacci level-specific size (回调位决定大小)
+                const dotSize = fibSizes[level.key] || 7;
+                
+                allPoints.push({
+                    xPos,
+                    yPos,
+                    value: level.price,
+                    formattedValue,
+                    timeframe,
+                    timeframeLabel,
+                    indicatorKey: level.key,
+                    indicatorLabel: level.label,
+                    dotSize: dotSize,
+                    color: dotColor
+                });
+            });
+        }
+        
+        // Draw all Fibonacci points
         for (const point of allPoints) {
             this.svgVisualizer.drawDataPoint(
                 point.xPos,
