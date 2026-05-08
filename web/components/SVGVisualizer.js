@@ -19,13 +19,148 @@ export class SVGVisualizer {
     }
 
     /**
+     * Draw zone separators (vertical lines dividing X-axis into 4 zones)
+     */
+    drawZoneSeparators() {
+        const { padding, width, height } = this.config;
+        const yStart = padding.top;
+        const yEnd = height - padding.bottom;
+        const chartWidth = width - padding.left - padding.right;
+        
+        // Draw 3 separator lines (at 25%, 50%, 75%)
+        [0.25, 0.5, 0.75].forEach(ratio => {
+            const xPos = padding.left + chartWidth * ratio;
+            
+            const line = document.createElementNS(SVG_NS, 'line');
+            line.setAttribute('x1', xPos);
+            line.setAttribute('y1', yStart);
+            line.setAttribute('x2', xPos);
+            line.setAttribute('y2', yEnd);
+            line.setAttribute('stroke', '#2a2d3a');
+            line.setAttribute('stroke-width', '1');
+            line.setAttribute('stroke-dasharray', '4,4');
+            line.setAttribute('opacity', '0.3');
+            
+            this.svgElement.appendChild(line);
+        });
+    }
+
+    /**
+     * Draw zone labels at the bottom of the chart
+     * @param {Array} zones - Array of zone objects with label, xStart, xEnd
+     */
+    drawZoneLabels(zones) {
+        const { padding, width, height } = this.config;
+        const yPos = height - padding.bottom + 20;
+        const chartWidth = width - padding.left - padding.right;
+        
+        zones.forEach(zone => {
+            const xCenter = padding.left + chartWidth * (zone.xStart + zone.xEnd) / 2;
+            
+            const text = document.createElementNS(SVG_NS, 'text');
+            text.setAttribute('x', xCenter);
+            text.setAttribute('y', yPos);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('fill', '#8a8fa8');
+            text.setAttribute('font-size', '13');
+            text.setAttribute('font-family', 'monospace');
+            text.setAttribute('font-weight', 'bold');
+            text.textContent = zone.label;
+            
+            this.svgElement.appendChild(text);
+        });
+    }
+
+    /**
+     * Draw a data point (circle) with hover tooltip
+     * @param {number} x - X position (0-1 normalized)
+     * @param {number} y - Y position (0-1 normalized)
+     * @param {number} size - Dot size (radius in pixels)
+     * @param {string} color - Dot color
+     * @param {Object} tooltip - Tooltip data {timeframe, indicator, value}
+     */
+    drawDataPoint(x, y, size, color, tooltip) {
+        const { padding, width, height } = this.config;
+        
+        // Convert normalized positions to actual SVG coordinates
+        const chartWidth = width - padding.left - padding.right;
+        const chartHeight = height - padding.top - padding.bottom;
+        const xPos = padding.left + x * chartWidth;
+        const yPos = padding.top + y * chartHeight;
+        
+        // Create group for dot and tooltip
+        const group = document.createElementNS(SVG_NS, 'g');
+        group.setAttribute('class', 'data-point');
+        
+        // Create circle
+        const circle = document.createElementNS(SVG_NS, 'circle');
+        circle.setAttribute('cx', xPos);
+        circle.setAttribute('cy', yPos);
+        circle.setAttribute('r', size);
+        circle.setAttribute('fill', color);
+        circle.setAttribute('opacity', '0.8');
+        circle.setAttribute('cursor', 'pointer');
+        
+        // Create tooltip text (hidden by default)
+        const tooltipText = document.createElementNS(SVG_NS, 'text');
+        tooltipText.setAttribute('x', xPos);
+        tooltipText.setAttribute('y', yPos - size - 8);
+        tooltipText.setAttribute('text-anchor', 'middle');
+        tooltipText.setAttribute('fill', color);
+        tooltipText.setAttribute('font-size', '12');
+        tooltipText.setAttribute('font-family', 'monospace');
+        tooltipText.setAttribute('font-weight', 'bold');
+        tooltipText.setAttribute('opacity', '0');
+        tooltipText.setAttribute('class', 'tooltip-text');
+        tooltipText.textContent = `${tooltip.timeframe} ${tooltip.indicator}: ${tooltip.value}`;
+        
+        // Create tooltip background
+        const tooltipBg = document.createElementNS(SVG_NS, 'rect');
+        tooltipBg.setAttribute('fill', '#1a1d2e');
+        tooltipBg.setAttribute('opacity', '0');
+        tooltipBg.setAttribute('rx', '4');
+        tooltipBg.setAttribute('class', 'tooltip-bg');
+        
+        // Add hover events
+        group.addEventListener('mouseenter', () => {
+            circle.setAttribute('r', size * 1.5);
+            circle.setAttribute('opacity', '1');
+            tooltipText.setAttribute('opacity', '1');
+            tooltipBg.setAttribute('opacity', '0.9');
+            
+            // Calculate tooltip background size
+            const bbox = tooltipText.getBBox();
+            tooltipBg.setAttribute('x', bbox.x - 4);
+            tooltipBg.setAttribute('y', bbox.y - 2);
+            tooltipBg.setAttribute('width', bbox.width + 8);
+            tooltipBg.setAttribute('height', bbox.height + 4);
+        });
+        
+        group.addEventListener('mouseleave', () => {
+            circle.setAttribute('r', size);
+            circle.setAttribute('opacity', '0.8');
+            tooltipText.setAttribute('opacity', '0');
+            tooltipBg.setAttribute('opacity', '0');
+        });
+        
+        group.appendChild(tooltipBg);
+        group.appendChild(circle);
+        group.appendChild(tooltipText);
+        
+        this.svgElement.appendChild(group);
+    }
+
+    /**
      * Draw a horizontal line at y position with label
      * @param {number} y - Y position (0-1 normalized, where 0 is top, 1 is bottom)
      * @param {string} label - Label text to display
      * @param {string} color - Line color (hex or CSS color)
      * @param {string} style - Line style: 'solid' | 'dashed' | 'dotted'
+     * @param {number} weight - Line weight/thickness (default: 2)
+     * @param {number} opacity - Line opacity 0-1 (default: 1)
+     * @param {number} fontSize - Label font size (default: 12)
      */
-    drawHorizontalLine(y, label, color, style = 'solid') {
+    drawHorizontalLine(y, label, color, style = 'solid', weight = 2, opacity = 1, fontSize = 12) {
         const { padding, width, height } = this.config;
         
         // Convert normalized y (0-1) to actual SVG coordinates
@@ -44,7 +179,8 @@ export class SVGVisualizer {
         line.setAttribute('x2', xEnd);
         line.setAttribute('y2', yPos);
         line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-width', weight.toString());
+        line.setAttribute('opacity', opacity.toString());
         
         // Apply line style
         if (style === 'dashed') {
@@ -55,13 +191,15 @@ export class SVGVisualizer {
         
         group.appendChild(line);
         
-        // Create label
+        // Create label with smart positioning to avoid overlap
         const text = document.createElementNS(SVG_NS, 'text');
         text.setAttribute('x', xStart + 10);
         text.setAttribute('y', yPos - 5);
         text.setAttribute('fill', color);
-        text.setAttribute('font-size', '12');
+        text.setAttribute('font-size', fontSize.toString());
         text.setAttribute('font-family', 'monospace');
+        text.setAttribute('font-weight', weight > 2.5 ? 'bold' : 'normal');
+        text.setAttribute('opacity', opacity.toString());
         text.textContent = label;
         
         group.appendChild(text);
@@ -75,8 +213,9 @@ export class SVGVisualizer {
      * @param {string} label - Label text to display
      * @param {string} color - Marker color
      * @param {string} shape - Marker shape: 'circle' | 'triangle' | 'square'
+     * @param {number} opacity - Marker opacity 0-1 (default: 1)
      */
-    drawMarker(y, label, color, shape = 'circle') {
+    drawMarker(y, label, color, shape = 'circle', opacity = 1) {
         const { padding, width, height } = this.config;
         
         // Convert normalized y to actual SVG coordinates
@@ -86,6 +225,7 @@ export class SVGVisualizer {
         // Create group for marker and label
         const group = document.createElementNS(SVG_NS, 'g');
         group.setAttribute('class', 'marker');
+        group.setAttribute('opacity', opacity.toString());
         
         // Create marker shape
         let marker;
@@ -111,16 +251,18 @@ export class SVGVisualizer {
         
         group.appendChild(marker);
         
-        // Create label
-        const text = document.createElementNS(SVG_NS, 'text');
-        text.setAttribute('x', xPos + 15);
-        text.setAttribute('y', yPos + 4);
-        text.setAttribute('fill', color);
-        text.setAttribute('font-size', '11');
-        text.setAttribute('font-family', 'monospace');
-        text.textContent = label;
-        
-        group.appendChild(text);
+        // Create label if provided
+        if (label) {
+            const text = document.createElementNS(SVG_NS, 'text');
+            text.setAttribute('x', xPos + 15);
+            text.setAttribute('y', yPos + 4);
+            text.setAttribute('fill', color);
+            text.setAttribute('font-size', '11');
+            text.setAttribute('font-family', 'monospace');
+            text.textContent = label;
+            
+            group.appendChild(text);
+        }
         
         this.svgElement.appendChild(group);
     }

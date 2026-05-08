@@ -247,7 +247,7 @@ export class CardRenderer {
     }
 
     /**
-     * Draw indicator lines grouped by timeframe
+     * Draw indicator lines grouped by timeframe with dot visualization
      * 
      * @param {Object} data - Data object with timeframe keys
      * @param {number} min - Y-axis minimum value
@@ -256,31 +256,78 @@ export class CardRenderer {
      * Requirements: 4.8, 5.10, 6.11
      */
     _drawIndicatorLines(data, min, max) {
-        // Group indicators by timeframe for clear visual separation
+        // Timeframe visual hierarchy (importance: 1m > 1w > 1d > 4h)
+        // X-axis is divided into 4 zones, one per timeframe
+        const timeframeStyles = {
+            '1m': { 
+                xZoneStart: 0.0, 
+                xZoneEnd: 0.25, 
+                dotSize: 8, 
+                color: '#3b82f6',  // blue
+                order: 1 
+            },
+            '1w': { 
+                xZoneStart: 0.25, 
+                xZoneEnd: 0.5, 
+                dotSize: 7, 
+                color: '#8b5cf6',  // purple
+                order: 2 
+            },
+            '1d': { 
+                xZoneStart: 0.5, 
+                xZoneEnd: 0.75, 
+                dotSize: 6, 
+                color: '#06b6d4',  // cyan
+                order: 3 
+            },
+            '4h': { 
+                xZoneStart: 0.75, 
+                xZoneEnd: 1.0, 
+                dotSize: 5, 
+                color: '#8a8fa8',  // gray
+                order: 4 
+            }
+        };
+        
+        // Draw zone separators
+        this.svgVisualizer.drawZoneSeparators();
+        
+        // Draw zone labels at the bottom
+        this.svgVisualizer.drawZoneLabels([
+            { label: '月线', xStart: 0.0, xEnd: 0.25 },
+            { label: '周线', xStart: 0.25, xEnd: 0.5 },
+            { label: '日线', xStart: 0.5, xEnd: 0.75 },
+            { label: '4小时', xStart: 0.75, xEnd: 1.0 }
+        ]);
+        
+        // Collect all data points
+        const allPoints = [];
+        
         for (const timeframe of this.timeframes) {
             const timeframeData = data[timeframe];
             if (!timeframeData) continue;
             
             const timeframeLabel = this.timeframeLabels[timeframe];
+            const style = timeframeStyles[timeframe];
             
-            // Draw each indicator for this timeframe
-            for (const indicator of this.config.indicators) {
+            // Calculate X position within the zone (evenly distribute indicators)
+            const indicatorCount = this.config.indicators.length;
+            const zoneWidth = style.xZoneEnd - style.xZoneStart;
+            
+            this.config.indicators.forEach((indicator, index) => {
                 const value = timeframeData[indicator.key];
                 
                 // Skip null/undefined values
                 if (!ValueFormatter.isValidNumber(value)) {
-                    continue;
+                    return;
                 }
                 
-                // Get color for this indicator
-                const color = this._getIndicatorColor(
-                    indicator.key,
-                    value,
-                    timeframeData
-                );
+                // Calculate X position (center of each indicator slot within zone)
+                const slotWidth = zoneWidth / indicatorCount;
+                const xPos = style.xZoneStart + (index + 0.5) * slotWidth;
                 
                 // Convert value to normalized Y position
-                const normalizedY = this._valueToNormalizedY(value, min, max);
+                const yPos = this._valueToNormalizedY(value, min, max);
                 
                 // Format value for display
                 const formattedValue = ValueFormatter.formatIndicator(
@@ -288,27 +335,42 @@ export class CardRenderer {
                     indicator.key
                 );
                 
-                // Create label
-                const label = `${timeframeLabel} ${indicator.label}: ${formattedValue}`;
-                
-                // Draw horizontal line
-                this.svgVisualizer.drawHorizontalLine(
-                    normalizedY,
-                    label,
-                    color,
-                    indicator.style || 'solid'
+                // Get indicator-specific color (override timeframe color for semantic meaning)
+                const dotColor = this._getIndicatorColor(
+                    indicator.key,
+                    value,
+                    timeframeData
                 );
                 
-                // Draw marker if configured
-                if (indicator.markerShape) {
-                    this.svgVisualizer.drawMarker(
-                        normalizedY,
-                        '',  // No label for marker (already on line)
-                        color,
-                        indicator.markerShape
-                    );
+                allPoints.push({
+                    xPos,
+                    yPos,
+                    value,
+                    formattedValue,
+                    timeframe,
+                    timeframeLabel,
+                    indicatorKey: indicator.key,
+                    indicatorLabel: indicator.label,
+                    dotSize: style.dotSize,
+                    color: dotColor,
+                    baseColor: style.color
+                });
+            });
+        }
+        
+        // Draw all data points
+        for (const point of allPoints) {
+            this.svgVisualizer.drawDataPoint(
+                point.xPos,
+                point.yPos,
+                point.dotSize,
+                point.color,
+                {
+                    timeframe: point.timeframeLabel,
+                    indicator: point.indicatorLabel,
+                    value: point.formattedValue
                 }
-            }
+            );
         }
     }
 
