@@ -134,18 +134,30 @@ export class SVGVisualizer {
         circle.setAttribute('fill', color);
         circle.setAttribute('opacity', '0.8');
         circle.setAttribute('cursor', 'pointer');
+        circle.setAttribute('pointer-events', 'none'); // Let the hover area handle events
+        
+        // Create larger invisible hover area for easier interaction
+        const hoverArea = document.createElementNS(SVG_NS, 'circle');
+        hoverArea.setAttribute('cx', xPos);
+        hoverArea.setAttribute('cy', yPos);
+        hoverArea.setAttribute('r', Math.max(size * 2, 12)); // At least 12px radius for easy hovering
+        hoverArea.setAttribute('fill', 'transparent');
+        hoverArea.setAttribute('cursor', 'pointer');
+        hoverArea.setAttribute('class', 'hover-area');
         
         // Create tooltip text (hidden by default)
         const tooltipText = document.createElementNS(SVG_NS, 'text');
         tooltipText.setAttribute('x', xPos);
-        tooltipText.setAttribute('y', yPos - size - 8);
+        tooltipText.setAttribute('y', yPos - size - 12); // Move up a bit more
         tooltipText.setAttribute('text-anchor', 'middle');
-        tooltipText.setAttribute('fill', color);
-        tooltipText.setAttribute('font-size', '12');
-        tooltipText.setAttribute('font-family', 'monospace');
-        tooltipText.setAttribute('font-weight', 'bold');
+        tooltipText.setAttribute('fill', '#ffffff'); // White text for better contrast
+        tooltipText.setAttribute('font-size', '11');
+        tooltipText.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif');
+        tooltipText.setAttribute('font-weight', '600');
         tooltipText.setAttribute('opacity', '0');
         tooltipText.setAttribute('class', 'tooltip-text');
+        tooltipText.setAttribute('pointer-events', 'none'); // Don't interfere with hover
+        tooltipText.style.transition = 'opacity 0.2s ease';
         
         // Build tooltip text with optional extra info
         let tooltipContent = `${tooltip.timeframe} ${tooltip.indicator}: ${tooltip.value}`;
@@ -157,26 +169,30 @@ export class SVGVisualizer {
         // Create tooltip background
         const tooltipBg = document.createElementNS(SVG_NS, 'rect');
         tooltipBg.setAttribute('fill', '#1a1d2e');
+        tooltipBg.setAttribute('stroke', color);
+        tooltipBg.setAttribute('stroke-width', '1');
         tooltipBg.setAttribute('opacity', '0');
         tooltipBg.setAttribute('rx', '4');
         tooltipBg.setAttribute('class', 'tooltip-bg');
+        tooltipBg.setAttribute('pointer-events', 'none'); // Don't interfere with hover
+        tooltipBg.style.transition = 'opacity 0.2s ease';
         
-        // Add hover events
-        group.addEventListener('mouseenter', () => {
+        // Add hover events to the hover area
+        hoverArea.addEventListener('mouseenter', () => {
             circle.setAttribute('r', size * 1.5);
             circle.setAttribute('opacity', '1');
             tooltipText.setAttribute('opacity', '1');
-            tooltipBg.setAttribute('opacity', '0.9');
+            tooltipBg.setAttribute('opacity', '0.95');
             
-            // Calculate tooltip background size
+            // Calculate tooltip background size with padding
             const bbox = tooltipText.getBBox();
-            tooltipBg.setAttribute('x', bbox.x - 4);
-            tooltipBg.setAttribute('y', bbox.y - 2);
-            tooltipBg.setAttribute('width', bbox.width + 8);
-            tooltipBg.setAttribute('height', bbox.height + 4);
+            tooltipBg.setAttribute('x', bbox.x - 6);
+            tooltipBg.setAttribute('y', bbox.y - 3);
+            tooltipBg.setAttribute('width', bbox.width + 12);
+            tooltipBg.setAttribute('height', bbox.height + 6);
         });
         
-        group.addEventListener('mouseleave', () => {
+        hoverArea.addEventListener('mouseleave', () => {
             circle.setAttribute('r', size);
             circle.setAttribute('opacity', '0.8');
             tooltipText.setAttribute('opacity', '0');
@@ -185,6 +201,7 @@ export class SVGVisualizer {
         
         group.appendChild(tooltipBg);
         group.appendChild(circle);
+        group.appendChild(hoverArea); // Add hover area on top
         group.appendChild(tooltipText);
         
         this.svgElement.appendChild(group);
