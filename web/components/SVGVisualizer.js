@@ -146,7 +146,13 @@ export class SVGVisualizer {
         tooltipText.setAttribute('font-weight', 'bold');
         tooltipText.setAttribute('opacity', '0');
         tooltipText.setAttribute('class', 'tooltip-text');
-        tooltipText.textContent = `${tooltip.timeframe} ${tooltip.indicator}: ${tooltip.value}`;
+        
+        // Build tooltip text with optional extra info
+        let tooltipContent = `${tooltip.timeframe} ${tooltip.indicator}: ${tooltip.value}`;
+        if (tooltip.extra) {
+            tooltipContent += ` (${tooltip.extra})`;
+        }
+        tooltipText.textContent = tooltipContent;
         
         // Create tooltip background
         const tooltipBg = document.createElementNS(SVG_NS, 'rect');

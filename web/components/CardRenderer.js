@@ -560,13 +560,32 @@ export class CardRenderer {
         // Draw zone separators
         this.svgVisualizer.drawZoneSeparators();
         
-        // Draw zone labels at the bottom
-        this.svgVisualizer.drawZoneLabels([
-            { label: '月线', xStart: 0.0, xEnd: 0.25 },
-            { label: '周线', xStart: 0.25, xEnd: 0.5 },
-            { label: '日线', xStart: 0.5, xEnd: 0.75 },
-            { label: '4小时', xStart: 0.75, xEnd: 1.0 }
-        ]);
+        // Prepare zone labels with direction indicators
+        const zoneLabels = [];
+        for (const timeframe of this.timeframes) {
+            const key = `fib_params_${timeframe}`;
+            const stored = localStorage.getItem(key);
+            
+            let direction = 'up';
+            if (stored) {
+                const params = JSON.parse(stored);
+                direction = params.direction || 'up';
+            }
+            
+            // Add direction arrow to label
+            const arrow = direction === 'up' ? '↑' : '↓';
+            const timeframeLabel = this.timeframeLabels[timeframe];
+            const style = timeframeStyles[timeframe];
+            
+            zoneLabels.push({
+                label: `${timeframeLabel} ${arrow}`,
+                xStart: style.xZoneStart,
+                xEnd: style.xZoneEnd
+            });
+        }
+        
+        // Draw zone labels at the bottom with direction indicators
+        this.svgVisualizer.drawZoneLabels(zoneLabels);
         
         // Collect all Fibonacci points
         const allPoints = [];
@@ -592,6 +611,10 @@ export class CardRenderer {
             }
             
             const params = stored ? JSON.parse(stored) : { high: 70000, low: 60000, direction: 'up' };
+            
+            // Get direction arrow and description
+            const directionArrow = params.direction === 'up' ? '↑' : '↓';
+            const directionText = params.direction === 'up' ? '上涨回调' : '下跌反弹';
             
             // Calculate Fibonacci levels
             const levels = FibonacciCalculator.getKeyLevels(
@@ -631,7 +654,9 @@ export class CardRenderer {
                     indicatorKey: level.key,
                     indicatorLabel: level.label,
                     dotSize: dotSize,
-                    color: dotColor
+                    color: dotColor,
+                    direction: directionText,
+                    directionArrow: directionArrow
                 });
             });
         }
@@ -644,9 +669,10 @@ export class CardRenderer {
                 point.dotSize,
                 point.color,
                 {
-                    timeframe: point.timeframeLabel,
+                    timeframe: `${point.timeframeLabel} ${point.directionArrow}`,
                     indicator: point.indicatorLabel,
-                    value: point.formattedValue
+                    value: point.formattedValue,
+                    extra: point.direction
                 }
             );
         }
