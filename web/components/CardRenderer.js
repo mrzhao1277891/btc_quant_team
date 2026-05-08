@@ -324,22 +324,23 @@ export class CardRenderer {
     }
 
     /**
-     * Draw current price reference line (for EMA and Bollinger cards)
+     * Draw current price reference line (for EMA, Bollinger, and Fibonacci cards)
      * 
      * @param {Object} data - Data object with timeframe keys
      * @param {number} min - Y-axis minimum value
      * @param {number} max - Y-axis maximum value
      */
     _drawPriceReferenceLine(data, min, max) {
-        // Only draw price line for EMA and Bollinger cards
+        // Draw price line for EMA, Bollinger, and Fibonacci cards
         const hasEMA = this.config.indicators.some(ind => 
             ind.key === 'ema7' || ind.key === 'ema25' || ind.key === 'ema50'
         );
         const hasBollinger = this.config.indicators.some(ind => 
             ind.key === 'boll_up' || ind.key === 'boll_md' || ind.key === 'boll_dn'
         );
+        const isFibonacci = this.config.isFibonacci;
         
-        if (!hasEMA && !hasBollinger) {
+        if (!hasEMA && !hasBollinger && !isFibonacci) {
             return;
         }
         
