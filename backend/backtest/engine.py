@@ -49,6 +49,54 @@ class BacktestEngine:
         
         logger.info(f"BacktestEngine initialized with strategy: {strategy_config.name}")
         logger.info(f"Initial capital: {self.capital}, Timeframe: {strategy_config.timeframe}")
+        
+        # 记录策略配置详情
+        self._log_strategy_config()
+    
+    def _log_strategy_config(self):
+        """记录策略配置详情"""
+        logger.info("=" * 80)
+        logger.info("策略配置详情:")
+        logger.info(f"  策略名称: {self.strategy_config.name}")
+        logger.info(f"  时间周期: {self.strategy_config.timeframe}")
+        logger.info(f"  初始资金: {self.strategy_config.initial_capital}")
+        logger.info(f"  持仓大小类型: {self.strategy_config.position_size_type}")
+        logger.info(f"  持仓大小值: {self.strategy_config.position_size_value}")
+        logger.info(f"  杠杆倍数: {self.strategy_config.leverage}")
+        
+        # 做多开仓条件
+        if self.strategy_config.long_entry_conditions:
+            logger.info(f"\n  做多开仓条件 (逻辑: {self.strategy_config.long_entry_conditions.logic_operator.value}):")
+            for i, cond in enumerate(self.strategy_config.long_entry_conditions.conditions, 1):
+                logger.info(f"    {i}. {cond.indicator} {cond.operator.value} {cond.value}")
+        
+        # 做空开仓条件
+        if self.strategy_config.short_entry_conditions:
+            logger.info(f"\n  做空开仓条件 (逻辑: {self.strategy_config.short_entry_conditions.logic_operator.value}):")
+            for i, cond in enumerate(self.strategy_config.short_entry_conditions.conditions, 1):
+                logger.info(f"    {i}. {cond.indicator} {cond.operator.value} {cond.value}")
+        
+        # 做多平仓条件
+        if self.strategy_config.long_exit_conditions:
+            logger.info(f"\n  做多平仓条件 (逻辑: {self.strategy_config.long_exit_conditions.logic_operator.value}):")
+            for i, cond in enumerate(self.strategy_config.long_exit_conditions.indicator_conditions, 1):
+                logger.info(f"    {i}. {cond.indicator} {cond.operator.value} {cond.value}")
+            if self.strategy_config.long_exit_conditions.take_profit_pct:
+                logger.info(f"    止盈: {self.strategy_config.long_exit_conditions.take_profit_pct}%")
+            if self.strategy_config.long_exit_conditions.stop_loss_pct:
+                logger.info(f"    止损: {self.strategy_config.long_exit_conditions.stop_loss_pct}%")
+        
+        # 做空平仓条件
+        if self.strategy_config.short_exit_conditions:
+            logger.info(f"\n  做空平仓条件 (逻辑: {self.strategy_config.short_exit_conditions.logic_operator.value}):")
+            for i, cond in enumerate(self.strategy_config.short_exit_conditions.indicator_conditions, 1):
+                logger.info(f"    {i}. {cond.indicator} {cond.operator.value} {cond.value}")
+            if self.strategy_config.short_exit_conditions.take_profit_pct:
+                logger.info(f"    止盈: {self.strategy_config.short_exit_conditions.take_profit_pct}%")
+            if self.strategy_config.short_exit_conditions.stop_loss_pct:
+                logger.info(f"    止损: {self.strategy_config.short_exit_conditions.stop_loss_pct}%")
+        
+        logger.info("=" * 80)
     
     def _evaluate_condition(self, condition: IndicatorCondition, row: pd.Series) -> bool:
         """评估单个指标条件
@@ -136,27 +184,140 @@ class BacktestEngine:
                     logger.warning(f"Cannot convert target_value '{target_value}' to number and not found as indicator")
                     return False
         
+        # 执行比较并返回结果
+        result = False
         if operator == ComparisonOperator.GT:
-            return float(indicator_value) > float(target_value)
+            result = float(indicator_value) > float(target_value)
         elif operator == ComparisonOperator.LT:
-            return float(indicator_value) < float(target_value)
+            result = float(indicator_value) < float(target_value)
         elif operator == ComparisonOperator.GTE:
-            return float(indicator_value) >= float(target_value)
+            result = float(indicator_value) >= float(target_value)
         elif operator == ComparisonOperator.LTE:
-            return float(indicator_value) <= float(target_value)
+            result = float(indicator_value) <= float(target_value)
         elif operator == ComparisonOperator.EQ:
-            return abs(float(indicator_value) - float(target_value)) < 1e-9  # 浮点数相等比较
+            result = abs(float(indicator_value) - float(target_value)) < 1e-9  # 浮点数相等比较
         elif operator == ComparisonOperator.RANGE:
             # target_value应该是一个元组(min, max)
             if isinstance(target_value, (tuple, list)) and len(target_value) == 2:
                 min_val, max_val = target_value
-                return min_val <= indicator_value <= max_val
+                result = min_val <= indicator_value <= max_val
             else:
                 logger.warning(f"RANGE operator requires tuple value, got {type(target_value)}")
                 return False
         else:
             logger.warning(f"Unknown comparison operator: {operator}")
             return False
+        
+        return result
+    
+    def _evaluate_condition_with_log(self, condition: IndicatorCondition, row: pd.Series) -> tuple[bool, str]:
+        """评估单个指标条件并返回详细日志
+        
+        Args:
+            condition: 指标条件对象
+            row: 当前K线数据行
+            
+        Returns:
+            tuple[bool, str]: (条件是否满足, 评估详情日志)
+        """
+        # 指标名称别名映射
+        indicator_aliases = {
+            'ema7': 'ema7',
+            'ema25': 'ema25',
+            'ema50': 'ema50',
+            'rsi14': 'rsi14',
+            'rsi6': 'rsi6',
+            'dif': 'dif',
+            'dea': 'dea',
+            'macd': 'macd',
+            'boll_up': 'boll_up',
+            'boll_md': 'boll_md',
+            'boll_dn': 'boll_dn',
+            'atr': 'atr'
+        }
+        
+        # 获取指标值
+        indicator_name = condition.indicator
+        original_indicator_name = indicator_name
+        
+        # 尝试使用别名
+        if indicator_name.lower() in indicator_aliases:
+            indicator_name = indicator_aliases[indicator_name.lower()]
+        
+        # 特殊处理：Price指标使用close价格
+        if indicator_name.lower() == "price" or indicator_name.lower() == "close":
+            indicator_value = row.get('close')
+        elif indicator_name.lower() == "volume":
+            indicator_value = row.get('volume')
+        else:
+            # 尝试大小写不敏感的匹配
+            indicator_value = None
+            for col in row.index:
+                if col.lower() == indicator_name.lower():
+                    indicator_value = row.get(col)
+                    break
+            
+            # 如果还是找不到，尝试直接获取
+            if indicator_value is None:
+                indicator_value = row.get(indicator_name)
+        
+        # 如果指标值不存在或为NaN，条件不满足
+        if indicator_value is None or pd.isna(indicator_value):
+            log_msg = f"    ❌ {original_indicator_name} {condition.operator.value} {condition.value} => 指标值不存在或为NaN"
+            return False, log_msg
+        
+        # 根据比较运算符评估条件
+        operator = condition.operator
+        target_value = condition.value
+        
+        # 如果target_value是字符串，可能是另一个指标名称
+        if isinstance(target_value, str):
+            target_indicator_name = target_value
+            if target_value.lower() in indicator_aliases:
+                target_indicator_name = indicator_aliases[target_value.lower()]
+            
+            # 尝试获取对应的指标值
+            target_indicator_value = None
+            for col in row.index:
+                if col.lower() == target_indicator_name.lower():
+                    target_indicator_value = row.get(col)
+                    break
+            
+            if target_indicator_value is None:
+                target_indicator_value = row.get(target_indicator_name)
+            
+            # 如果找到了指标值，使用它；否则尝试转换为数值
+            if target_indicator_value is not None and not pd.isna(target_indicator_value):
+                target_value = float(target_indicator_value)
+            else:
+                try:
+                    target_value = float(target_value)
+                except (ValueError, TypeError):
+                    log_msg = f"    ❌ {original_indicator_name} {condition.operator.value} {condition.value} => 目标值无法解析"
+                    return False, log_msg
+        
+        # 执行比较
+        result = False
+        if operator == ComparisonOperator.GT:
+            result = float(indicator_value) > float(target_value)
+        elif operator == ComparisonOperator.LT:
+            result = float(indicator_value) < float(target_value)
+        elif operator == ComparisonOperator.GTE:
+            result = float(indicator_value) >= float(target_value)
+        elif operator == ComparisonOperator.LTE:
+            result = float(indicator_value) <= float(target_value)
+        elif operator == ComparisonOperator.EQ:
+            result = abs(float(indicator_value) - float(target_value)) < 1e-9
+        elif operator == ComparisonOperator.RANGE:
+            if isinstance(target_value, (tuple, list)) and len(target_value) == 2:
+                min_val, max_val = target_value
+                result = min_val <= indicator_value <= max_val
+        
+        # 生成日志
+        status = "✅" if result else "❌"
+        log_msg = f"    {status} {original_indicator_name}({float(indicator_value):.4f}) {condition.operator.value} {target_value} => {result}"
+        
+        return result, log_msg
     
     def _evaluate_entry_conditions(self, row: pd.Series) -> bool:
         """评估开仓条件（旧版单向策略兼容方法）
@@ -212,17 +373,41 @@ class BacktestEngine:
         if not conditions:
             return False
         
-        # 评估所有条件
-        results = [self._evaluate_condition(cond, row) for cond in conditions]
+        # 评估所有条件并记录日志
+        results = []
+        log_messages = []
+        
+        for cond in conditions:
+            result, log_msg = self._evaluate_condition_with_log(cond, row)
+            results.append(result)
+            log_messages.append(log_msg)
         
         # 根据逻辑运算符组合结果
         if logic_operator == LogicOperator.AND:
-            return all(results)
+            final_result = all(results)
         elif logic_operator == LogicOperator.OR:
-            return any(results)
+            final_result = any(results)
         else:
             logger.warning(f"Unknown logic operator: {logic_operator}")
-            return False
+            final_result = False
+        
+        # 如果满足开多仓条件，记录详细日志
+        if final_result:
+            timestamp = row.get('timestamp', row.name)
+            if hasattr(timestamp, 'to_pydatetime'):
+                timestamp = timestamp.to_pydatetime()
+            
+            logger.info("=" * 80)
+            logger.info(f"🟢 做多开仓信号触发 @ {timestamp}")
+            logger.info(f"  价格: {row.get('close', 'N/A')}")
+            logger.info(f"  逻辑运算符: {logic_operator.value}")
+            logger.info(f"  条件评估结果:")
+            for log_msg in log_messages:
+                logger.info(log_msg)
+            logger.info(f"  最终结果: {'✅ 满足' if final_result else '❌ 不满足'}")
+            logger.info("=" * 80)
+        
+        return final_result
     
     def _check_short_entry_signal(self, row: pd.Series) -> bool:
         """检测做空开仓信号
@@ -247,17 +432,41 @@ class BacktestEngine:
         if not conditions:
             return False
         
-        # 评估所有条件
-        results = [self._evaluate_condition(cond, row) for cond in conditions]
+        # 评估所有条件并记录日志
+        results = []
+        log_messages = []
+        
+        for cond in conditions:
+            result, log_msg = self._evaluate_condition_with_log(cond, row)
+            results.append(result)
+            log_messages.append(log_msg)
         
         # 根据逻辑运算符组合结果
         if logic_operator == LogicOperator.AND:
-            return all(results)
+            final_result = all(results)
         elif logic_operator == LogicOperator.OR:
-            return any(results)
+            final_result = any(results)
         else:
             logger.warning(f"Unknown logic operator: {logic_operator}")
-            return False
+            final_result = False
+        
+        # 如果满足开空仓条件，记录详细日志
+        if final_result:
+            timestamp = row.get('timestamp', row.name)
+            if hasattr(timestamp, 'to_pydatetime'):
+                timestamp = timestamp.to_pydatetime()
+            
+            logger.info("=" * 80)
+            logger.info(f"🔴 做空开仓信号触发 @ {timestamp}")
+            logger.info(f"  价格: {row.get('close', 'N/A')}")
+            logger.info(f"  逻辑运算符: {logic_operator.value}")
+            logger.info(f"  条件评估结果:")
+            for log_msg in log_messages:
+                logger.info(log_msg)
+            logger.info(f"  最终结果: {'✅ 满足' if final_result else '❌ 不满足'}")
+            logger.info("=" * 80)
+        
+        return final_result
     
     def _check_entry_signal(self, row: pd.Series) -> Tuple[bool, Optional[str]]:
         """检测开仓信号（双向策略支持）
