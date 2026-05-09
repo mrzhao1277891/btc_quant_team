@@ -1,0 +1,4 @@
+# file: /Users/zhaojun/ideaprojects/btc_quant_team/backend/backtest/logger.py
+# hypothesis_version: 6.141.1
+
+[1024, '%Y-%m-%d %H:%M:%S', 'backtest', 'logs', 'utf-8']

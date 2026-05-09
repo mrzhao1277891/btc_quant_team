@@ -82,6 +82,7 @@ class BacktestRequest(BaseModel):
     position_side: str = "long"
     position_size: float = 1000.0
     position_size_type: str = "fixed"
+    leverage: float = 1.0  # 杠杆倍数，默认1倍（现货）
     take_profit_pct: Optional[float] = None
     stop_loss_pct: Optional[float] = None
     take_profit_amount: Optional[float] = None
@@ -115,6 +116,7 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
         "position_size_type": request.position_size_type,
         "position_size_value": request.position_size if request.position_size_type == "fixed" else request.position_size / 100,
         "initial_capital": request.initial_capital,
+        "leverage": request.leverage,  # 添加杠杆参数
         "entry_conditions": {
             "conditions": [
                 {

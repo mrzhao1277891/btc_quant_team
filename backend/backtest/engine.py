@@ -292,39 +292,49 @@ class BacktestEngine:
         
         # 计算持仓大小
         if self.strategy_config.position_size_type == "amount":
-            # 绝对金额
-            entry_capital = self.strategy_config.position_size_value
+            # 绝对金额（这是实际仓位大小）
+            position_value = self.strategy_config.position_size_value
         else:  # percentage
-            # 百分比
-            entry_capital = self.capital * (self.strategy_config.position_size_value / 100)
+            # 百分比（基于当前资金）
+            position_value = self.capital * (self.strategy_config.position_size_value / 100)
         
-        # 检查资金是否足够
+        # 获取杠杆倍数
+        leverage = self.strategy_config.leverage
+        
+        # 计算实际需要的保证金（本金）
+        # 实际仓位 = 保证金 × 杠杆
+        # 保证金 = 实际仓位 / 杠杆
+        entry_capital = position_value / leverage
+        
+        # 检查资金是否足够（检查保证金是否足够）
         if entry_capital > self.capital:
             logger.warning(
-                f"Insufficient capital for entry. Required: {entry_capital}, "
-                f"Available: {self.capital}. Skipping entry signal."
+                f"Insufficient capital for entry. Required margin: {entry_capital:.2f}, "
+                f"Available: {self.capital:.2f}, Position value: {position_value:.2f}, "
+                f"Leverage: {leverage}x. Skipping entry signal."
             )
             return None
         
-        # 计算持仓数量（BTC数量）
-        position_size = entry_capital / entry_price
+        # 计算持仓数量（BTC数量）= 实际仓位 / 价格
+        position_size = position_value / entry_price
         
         # 创建持仓对象
         position = Position(
             entry_time=entry_time,
             entry_price=entry_price,
             position_size=position_size,
-            position_value=entry_capital,
+            position_value=position_value,  # 实际仓位价值（含杠杆）
             direction=self.strategy_config.position_direction,
-            entry_capital=entry_capital
+            entry_capital=entry_capital  # 实际使用的保证金
         )
         
-        # 更新资金（扣除开仓资金）
+        # 更新资金（扣除保证金）
         self.capital -= entry_capital
         
         logger.info(
             f"Position opened: {position.direction} {position.position_size:.6f} BTC "
-            f"at {entry_price:.2f}, Capital used: {entry_capital:.2f}, "
+            f"at {entry_price:.2f}, Position value: {position_value:.2f}, "
+            f"Margin used: {entry_capital:.2f} (Leverage: {leverage}x), "
             f"Remaining capital: {self.capital:.2f}"
         )
         

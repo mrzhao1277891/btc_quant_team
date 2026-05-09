@@ -138,6 +138,7 @@ class StrategyConfig:
     exit_conditions: ExitConditions
     initial_capital: float = 100000.0
     allow_multiple_positions: bool = False
+    leverage: float = 1.0             # 杠杆倍数，默认1倍（现货）
     
     def to_dict(self) -> dict:
         """转换为字典"""
@@ -151,7 +152,8 @@ class StrategyConfig:
             "entry_conditions": self.entry_conditions.to_dict(),
             "exit_conditions": self.exit_conditions.to_dict(),
             "initial_capital": self.initial_capital,
-            "allow_multiple_positions": self.allow_multiple_positions
+            "allow_multiple_positions": self.allow_multiple_positions,
+            "leverage": self.leverage
         }
     
     @classmethod
@@ -167,7 +169,8 @@ class StrategyConfig:
             entry_conditions=EntryConditions.from_dict(data["entry_conditions"]),
             exit_conditions=ExitConditions.from_dict(data["exit_conditions"]),
             initial_capital=data.get("initial_capital", 100000.0),
-            allow_multiple_positions=data.get("allow_multiple_positions", False)
+            allow_multiple_positions=data.get("allow_multiple_positions", False),
+            leverage=data.get("leverage", 1.0)
         )
     
     def to_json(self) -> str:

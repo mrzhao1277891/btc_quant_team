@@ -277,6 +277,7 @@ function collectFormData() {
         position_side: document.querySelector('input[name="positionSide"]:checked').value,
         position_size: parseFloat(document.getElementById('positionSize').value),
         position_size_type: document.getElementById('positionSizeType').value,
+        leverage: parseFloat(document.getElementById('leverage').value) || 1.0,  // 添加杠杆参数
         take_profit_pct: parseFloatOrNull(document.getElementById('takeProfitPct').value),
         stop_loss_pct: parseFloatOrNull(document.getElementById('stopLossPct').value)
     };

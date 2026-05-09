@@ -54,7 +54,7 @@
     - 实现get_available_date_range方法
     - _Requirements: 5.1, 5.2, 5.3, 5.5, 5.7, 17.1_
 
-  - [ ]* 3.2 为DatabaseConnector编写属性测试
+  - [x]* 3.2 为DatabaseConnector编写属性测试
     - **Property 12: Data Sorting Guarantee**
     - **Property 13: Missing Data Error Reporting**
     - **Validates: Requirements 5.5, 5.6**
@@ -66,7 +66,7 @@
     - 记录数据质量警告到日志
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 16.3_
 
-  - [ ]* 3.4 为数据完整性验证编写属性测试
+  - [x]* 3.4 为数据完整性验证编写属性测试
     - **Property 26: OHLC Data Validation**
     - **Property 27: Missing Timestamp Detection**
     - **Property 28: Invalid Data Exclusion**
@@ -83,7 +83,7 @@
     - 实现_evaluate_exit_conditions方法（返回是否平仓和平仓原因）
     - _Requirements: 2.1, 2.2, 3.2, 3.4_
 
-  - [ ]* 5.2 为条件评估编写属性测试
+  - [x]* 5.2 为条件评估编写属性测试
     - **Property 2: Entry Signal Generation**
     - **Property 6: Exit Condition Triggering**
     - **Property 7: OR Logic for Exit Conditions**
