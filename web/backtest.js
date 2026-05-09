@@ -500,7 +500,7 @@ function displayTrades(trades) {
             <td>$${trade.entry_price.toFixed(2)}</td>
             <td>${formatDateTime(trade.exit_time)}</td>
             <td>$${trade.exit_price.toFixed(2)}</td>
-            <td>${trade.position_side === 'long' ? '做多' : '做空'}</td>
+            <td>${trade.direction === 'long' ? '做多' : '做空'}</td>
             <td class="${profitClass}">$${trade.profit_loss.toFixed(2)}</td>
             <td class="${profitClass}">${trade.profit_loss_pct.toFixed(2)}%</td>
             <td>${formatExitReason(trade.exit_reason)}</td>
