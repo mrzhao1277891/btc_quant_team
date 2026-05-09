@@ -113,10 +113,10 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
         "description": f"回测策略: {request.strategy_name}",
         "timeframe": request.timeframe,
         "position_direction": request.position_side,
-        "position_size_type": request.position_size_type,
-        "position_size_value": request.position_size if request.position_size_type == "fixed" else request.position_size / 100,
+        "position_size_type": "amount",  # 固定使用amount类型
+        "position_size_value": request.position_size,  # 直接使用固定金额
         "initial_capital": request.initial_capital,
-        "leverage": request.leverage,  # 添加杠杆参数
+        "leverage": request.leverage,  # 使用用户设置的杠杆
         "entry_conditions": {
             "conditions": [
                 {
@@ -376,8 +376,7 @@ async def get_strategy_templates():
                     ],
                     "exit_logic": "OR",
                     "position_side": "long",
-                    "position_size": 10,
-                    "position_size_type": "percent",
+                    "position_size": 1000,
                     "take_profit_pct": 10,
                     "stop_loss_pct": 5
                 }
@@ -398,7 +397,6 @@ async def get_strategy_templates():
                     "exit_logic": "OR",
                     "position_side": "long",
                     "position_size": 1000,
-                    "position_size_type": "fixed",
                     "take_profit_pct": 8,
                     "stop_loss_pct": 4
                 }
@@ -419,8 +417,7 @@ async def get_strategy_templates():
                     ],
                     "exit_logic": "OR",
                     "position_side": "long",
-                    "position_size": 15,
-                    "position_size_type": "percent",
+                    "position_size": 1500,
                     "take_profit_pct": 12,
                     "stop_loss_pct": 6
                 }

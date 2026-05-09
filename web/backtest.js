@@ -148,7 +148,6 @@ function loadTemplate(templateId) {
     document.getElementById('strategyName').value = template.name;
     document.getElementById('timeframe').value = config.timeframe;
     document.getElementById('positionSize').value = config.position_size;
-    document.getElementById('positionSizeType').value = config.position_size_type;
     document.querySelector(`input[name="positionSide"][value="${config.position_side}"]`).checked = true;
     
     if (config.take_profit_pct) {
@@ -276,8 +275,8 @@ function collectFormData() {
         exit_logic: document.getElementById('exitLogic').value,
         position_side: document.querySelector('input[name="positionSide"]:checked').value,
         position_size: parseFloat(document.getElementById('positionSize').value),
-        position_size_type: document.getElementById('positionSizeType').value,
-        leverage: parseFloat(document.getElementById('leverage').value) || 1.0,  // 添加杠杆参数
+        position_size_type: "fixed",  // 固定为固定金额类型
+        leverage: parseFloat(document.getElementById('leverage').value) || 5.0,  // 读取杠杆值，默认5倍
         take_profit_pct: parseFloatOrNull(document.getElementById('takeProfitPct').value),
         stop_loss_pct: parseFloatOrNull(document.getElementById('stopLossPct').value)
     };

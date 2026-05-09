@@ -50,7 +50,7 @@
                         </div>
                         <div class="form-group">
                             <label>初始资金 (USDT) *</label>
-                            <input type="number" id="initialCapital" class="form-control" value="10000" min="100" required>
+                            <input type="number" id="initialCapital" class="form-control" value="2000" min="100" required>
                         </div>
                     </div>
 
@@ -108,23 +108,15 @@
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>持仓大小</label>
-                            <input type="number" id="positionSize" class="form-control" value="10" min="0.01" step="0.01">
-                        </div>
-                        <div class="form-group">
-                            <label>类型</label>
-                            <select id="positionSizeType" class="form-control">
-                                <option value="percent">百分比 (%)</option>
-                                <option value="fixed">固定金额 (USDT)</option>
-                            </select>
-                        </div>
+                    <div class="form-group">
+                        <label>持仓大小 (USDT)</label>
+                        <input type="number" id="positionSize" class="form-control" value="10000" min="1" step="1" placeholder="每次开仓使用的金额">
+                        <small class="form-hint">💡 每次开仓时使用的固定金额（USDT）</small>
                     </div>
 
                     <div class="form-group">
-                        <label>杠杆倍数 <span class="hint">(1倍=现货，>1倍=合约)</span></label>
-                        <input type="number" id="leverage" class="form-control" value="1" min="1" max="125" step="0.1" placeholder="例如：5">
+                        <label>杠杆倍数</label>
+                        <input type="number" id="leverage" class="form-control" value="5" min="1" max="125" step="0.1" placeholder="例如：5">
                         <small class="form-hint">💡 示例：2000本金 × 5倍杠杆 = 10000仓位</small>
                     </div>
                 </div>
