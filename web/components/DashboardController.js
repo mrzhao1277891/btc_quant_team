@@ -229,15 +229,18 @@ export class DashboardController {
         let colorClass = '';
         
         if (direction === 'up') {
-            arrow = '↑';
-            colorClass = 'price-up';
+            arrow = ' ↑';
+            colorClass = 'up';
         } else if (direction === 'down') {
-            arrow = '↓';
-            colorClass = 'price-down';
+            arrow = ' ↓';
+            colorClass = 'down';
+        } else {
+            arrow = '';
+            colorClass = 'neutral';
         }
         
         // Update element
-        priceElement.textContent = `${formattedPrice} ${arrow}`;
+        priceElement.textContent = `${formattedPrice}${arrow}`;
         priceElement.className = `realtime-price ${colorClass}`;
     }
 

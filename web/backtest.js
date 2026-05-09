@@ -147,7 +147,10 @@ function loadTemplate(templateId) {
     // 基本设置
     document.getElementById('strategyName').value = template.name;
     document.getElementById('timeframe').value = config.timeframe;
-    document.getElementById('positionSize').value = config.position_size;
+    // 只在模板有 position_size 时才设置（否则保持用户输入的值）
+    if (config.position_size !== undefined) {
+        document.getElementById('positionSize').value = config.position_size;
+    }
     document.querySelector(`input[name="positionSide"][value="${config.position_side}"]`).checked = true;
     
     if (config.take_profit_pct) {

@@ -19,6 +19,7 @@ export class DataFetcher {
     this.requestTimeout = 10000; // 10 seconds
     this.retryDelay = 1000; // 1 second
     this.maxRetries = 1; // 1 retry
+    this.previousPrice = null; // Track previous price for direction calculation
   }
 
   /**
@@ -114,20 +115,37 @@ export class DataFetcher {
    * Fetch real-time BTC price from Binance API
    * GET /api/v3/ticker/price?symbol=BTCUSDT
    * 
-   * @returns {Promise<Object>} - Real-time price data
+   * @returns {Promise<Object>} - Real-time price data with direction
    * @example
    * {
    *   price: 65432.10,
-   *   timestamp: 1705756800000
+   *   timestamp: 1705756800000,
+   *   direction: 'up' | 'down' | 'neutral'
    * }
    */
   async fetchRealtimePrice() {
     const url = `${this.binanceApiUrl}/api/v3/ticker/price?symbol=BTCUSDT`;
     try {
       const data = await this._fetchWithRetry(url);
+      const currentPrice = parseFloat(data.price);
+      
+      // Calculate direction by comparing with previous price
+      let direction = 'neutral';
+      if (this.previousPrice !== null) {
+        if (currentPrice > this.previousPrice) {
+          direction = 'up';
+        } else if (currentPrice < this.previousPrice) {
+          direction = 'down';
+        }
+      }
+      
+      // Update previous price for next comparison
+      this.previousPrice = currentPrice;
+      
       return {
-        price: parseFloat(data.price),
+        price: currentPrice,
         timestamp: Date.now(),
+        direction: direction,
       };
     } catch (error) {
       console.error('Failed to fetch realtime price from Binance:', error);

@@ -108,7 +108,10 @@ def generate_backtest_id() -> str:
 
 def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, Any]:
     """将请求转换为策略配置字典"""
-    return {
+    logger.info(f"Converting request: position_size={request.position_size}, "
+                f"position_size_type={request.position_size_type}, leverage={request.leverage}")
+    
+    config = {
         "name": request.strategy_name,
         "description": f"回测策略: {request.strategy_name}",
         "timeframe": request.timeframe,
@@ -146,6 +149,11 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
             "logic_operator": request.exit_logic
         }
     }
+    
+    logger.info(f"Converted config: position_size_value={config['position_size_value']}, "
+                f"leverage={config['leverage']}")
+    
+    return config
 
 
 async def run_backtest_task(backtest_id: str, request: BacktestRequest):
@@ -376,7 +384,6 @@ async def get_strategy_templates():
                     ],
                     "exit_logic": "OR",
                     "position_side": "long",
-                    "position_size": 1000,
                     "take_profit_pct": 10,
                     "stop_loss_pct": 5
                 }
@@ -396,7 +403,6 @@ async def get_strategy_templates():
                     ],
                     "exit_logic": "OR",
                     "position_side": "long",
-                    "position_size": 1000,
                     "take_profit_pct": 8,
                     "stop_loss_pct": 4
                 }
@@ -417,7 +423,6 @@ async def get_strategy_templates():
                     ],
                     "exit_logic": "OR",
                     "position_side": "long",
-                    "position_size": 1500,
                     "take_profit_pct": 12,
                     "stop_loss_pct": 6
                 }

@@ -33,31 +33,19 @@
 
     <!-- Main dashboard grid - 4 cards -->
     <main class="dashboard-grid">
-        <!-- Card 1: EMA Indicators -->
-        <div class="card" id="emaCard">
+        <!-- Card 1: Price & Moving Averages & Bollinger Bands -->
+        <div class="card" id="priceCard">
             <div class="card-header">
-                <h2 class="card-title">EMA 均线指标</h2>
+                <h2 class="card-title">价格与均线布林带</h2>
             </div>
             <div class="card-body">
-                <div id="emaCardContent" class="card-content">
+                <div id="priceCardContent" class="card-content">
                     <div class="loading">加载中...</div>
                 </div>
             </div>
         </div>
 
-        <!-- Card 2: Bollinger Bands -->
-        <div class="card" id="bollingerCard">
-            <div class="card-header">
-                <h2 class="card-title">布林带指标</h2>
-            </div>
-            <div class="card-body">
-                <div id="bollingerCardContent" class="card-content">
-                    <div class="loading">加载中...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 3: RSI Indicators -->
+        <!-- Card 2: RSI Indicators -->
         <div class="card" id="rsiCard">
             <div class="card-header">
                 <h2 class="card-title">RSI 指标</h2>
@@ -69,7 +57,7 @@
             </div>
         </div>
 
-        <!-- Card 4: MACD Indicators -->
+        <!-- Card 3: MACD Indicators -->
         <div class="card" id="macdCard">
             <div class="card-header">
                 <h2 class="card-title">MACD 指标</h2>
@@ -215,28 +203,15 @@
     <script type="module">
         import { DashboardController } from './components/DashboardController.js';
         
-        // Card 1: EMA Indicators
-        const emaCardConfig = {
-            containerId: 'emaCardContent',
-            title: 'EMA 均线指标',
+        // Card 1: Price & Moving Averages & Bollinger Bands (Combined)
+        const priceCardConfig = {
+            containerId: 'priceCardContent',
+            title: '价格与均线布林带',
             indicators: [
+                { key: 'close', label: '当前价格', style: 'solid', markerShape: 'circle' },
                 { key: 'ema7', label: 'EMA7', style: 'solid', markerShape: 'circle' },
                 { key: 'ema25', label: 'EMA25', style: 'solid', markerShape: 'triangle' },
-                { key: 'ema50', label: 'EMA50', style: 'solid', markerShape: 'square' }
-            ],
-            yAxisConfig: { type: 'auto', ticks: 6 },
-            colorScheme: {
-                positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8',
-                ema7: '#3b82f6', ema25: '#8b5cf6', ema50: '#06b6d4'
-            },
-            referenceLines: []
-        };
-
-        // Card 2: Bollinger Bands
-        const bollingerCardConfig = {
-            containerId: 'bollingerCardContent',
-            title: '布林带指标',
-            indicators: [
+                { key: 'ema50', label: 'EMA50', style: 'solid', markerShape: 'square' },
                 { key: 'boll_up', label: '布林上轨', style: 'solid', markerShape: 'circle' },
                 { key: 'boll_md', label: '布林中轨', style: 'solid', markerShape: 'triangle' },
                 { key: 'boll_dn', label: '布林下轨', style: 'solid', markerShape: 'square' }
@@ -244,12 +219,14 @@
             yAxisConfig: { type: 'auto', ticks: 6 },
             colorScheme: {
                 positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8',
-                bollUp: '#f87171', bollMd: '#fb923c', bollDn: '#fbbf24'
+                ema7: '#3b82f6', ema25: '#8b5cf6', ema50: '#06b6d4',
+                bollUp: '#f87171', bollMd: '#fb923c', bollDn: '#fbbf24',
+                price: '#22c55e'
             },
             referenceLines: []
         };
 
-        // Card 3: RSI Indicators
+        // Card 2: RSI Indicators
         const rsiCardConfig = {
             containerId: 'rsiCardContent',
             title: 'RSI 指标',
@@ -268,7 +245,7 @@
             ]
         };
 
-        // Card 4: MACD Indicators
+        // Card 3: MACD Indicators
         const macdCardConfig = {
             containerId: 'macdCardContent',
             title: 'MACD 指标',
@@ -308,7 +285,7 @@
                 apiBaseUrl: 'http://127.0.0.1:8000',
                 refreshInterval: 30000, // 30 seconds
                 timeframes: ['1m', '1w', '1d', '4h'],
-                cards: [emaCardConfig, bollingerCardConfig, rsiCardConfig, macdCardConfig, fibonacciCardConfig]
+                cards: [priceCardConfig, rsiCardConfig, macdCardConfig, fibonacciCardConfig]
             };
             
             try {

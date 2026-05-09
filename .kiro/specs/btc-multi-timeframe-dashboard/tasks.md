@@ -23,7 +23,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
   - Create `web/components/ValueFormatter.js` with formatting functions for prices, percentages, and indicators
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7_
 
-- [ ]* 1.1 Write unit tests for ValueFormatter
+- [x]* 1.1 Write unit tests for ValueFormatter
   - Test price formatting with 2 decimals and thousand separators
   - Test null/undefined value handling (should return "—")
   - Test percentage formatting with 1 decimal
@@ -41,7 +41,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Implement 10-second timeout for all requests
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 9.1_
 
-  - [ ]* 2.2 Write integration tests for DataFetcher
+  - [x]* 2.2 Write integration tests for DataFetcher
     - Test successful fetch from `/api/latest` endpoint
     - Test successful fetch from Binance API
     - Test error handling for connection failures
@@ -59,7 +59,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Use SVG namespaces correctly for element creation
     - _Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.2, 5.3, 5.4, 5.5, 6.2, 6.3, 6.4, 6.5_
 
-  - [ ]* 3.2 Write unit tests for SVGVisualizer
+  - [x]* 3.2 Write unit tests for SVGVisualizer
     - Test horizontal line creation with correct attributes
     - Test marker creation with different shapes (circle, triangle, square)
     - Test reference line creation with dashed style
@@ -80,7 +80,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Group indicators by timeframe for clear visual separation
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 4.7, 4.8, 5.6, 5.7, 5.8, 6.6, 6.7, 6.8, 6.9_
 
-  - [ ]* 4.2 Write unit tests for color coding logic
+  - [x]* 4.2 Write unit tests for color coding logic
     - Test EMA color based on price position (above/below)
     - Test RSI color based on overbought/oversold thresholds
     - Test MACD color based on positive/negative values
@@ -99,7 +99,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Implement loading state display during data fetches
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 8.1, 8.2, 8.3, 8.4_
 
-  - [ ]* 5.2 Write integration tests for DashboardController
+  - [x]* 5.2 Write integration tests for DashboardController
     - Test initialization flow (fetch data, render cards)
     - Test refresh flow (fetch latest, update cards)
     - Test auto-refresh timer (verify 30-second interval)
@@ -115,7 +115,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Configure line styles: solid for EMA, dashed for Bollinger bands
     - _Requirements: 1.2, 4.1, 4.2, 4.3, 4.7_
 
-  - [~] 6.2 Implement Price card rendering in CardRenderer
+  - [-] 6.2 Implement Price card rendering in CardRenderer
     - Render horizontal lines for EMA7, EMA25, EMA50 for each timeframe
     - Render horizontal lines for Bollinger Bands (boll_up, boll_md, boll_dn) for each timeframe
     - Render price markers (circles) for current close price for each timeframe
@@ -132,7 +132,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Configure color scheme: Green (<30), Red (>70), Neutral (30-70)
     - _Requirements: 1.3, 5.1, 5.4, 5.5_
 
-  - [~] 7.2 Implement RSI card rendering in CardRenderer
+  - [-] 7.2 Implement RSI card rendering in CardRenderer
     - Render horizontal lines for RSI14 and RSI6 for each timeframe
     - Render reference lines at RSI 30 and 70 with dashed style
     - Position RSI lines on 0-100 scale
@@ -149,7 +149,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Configure color scheme: Green (positive), Red (negative)
     - _Requirements: 1.4, 6.1, 6.5_
 
-  - [~] 8.2 Implement MACD card rendering in CardRenderer
+  - [-] 8.2 Implement MACD card rendering in CardRenderer
     - Render horizontal lines for DIF, DEA, MACD柱 for each timeframe
     - Render reference line at zero level with dashed style
     - Apply color coding: green if positive, red if negative
@@ -158,7 +158,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - _Requirements: 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11_
 
 - [ ] 9. Implement realtime price display in header
-  - [~] 9.1 Create realtime price display element in `web/dashboard.html` header
+  - [ ] 9.1 Create realtime price display element in `web/dashboard.html` header
     - Add price display with large font size
     - Add direction arrow indicator (↑/↓)
     - Add timestamp display for last update
@@ -252,7 +252,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Ensure color contrast meets WCAG AA standards (4.5:1 ratio)
     - _Requirements: 1.1, 8.5_
 
-- [ ]* 14. End-to-end testing
+- [x]* 14. End-to-end testing
   - Test dashboard loads and displays all 3 cards correctly
   - Test realtime price displays in header with direction arrow
   - Test auto-refresh updates data every 30 seconds

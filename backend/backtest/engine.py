@@ -301,6 +301,12 @@ class BacktestEngine:
         # 获取杠杆倍数
         leverage = self.strategy_config.leverage
         
+        logger.info(
+            f"Opening position: position_size_type={self.strategy_config.position_size_type}, "
+            f"position_size_value={self.strategy_config.position_size_value}, "
+            f"position_value={position_value}, leverage={leverage}"
+        )
+        
         # 计算实际需要的保证金（本金）
         # 实际仓位 = 保证金 × 杠杆
         # 保证金 = 实际仓位 / 杠杆
