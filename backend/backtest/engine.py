@@ -159,7 +159,7 @@ class BacktestEngine:
             return False
     
     def _evaluate_entry_conditions(self, row: pd.Series) -> bool:
-        """评估开仓条件
+        """评估开仓条件（旧版单向策略兼容方法）
         
         支持AND/OR逻辑运算符组合多个指标条件。
         
@@ -189,8 +189,282 @@ class BacktestEngine:
             logger.warning(f"Unknown logic operator: {logic_operator}")
             return False
     
+    def _check_long_entry_signal(self, row: pd.Series) -> bool:
+        """检测做多开仓信号
+        
+        评估策略配置中的做多开仓条件（long_entry_conditions）。
+        
+        Args:
+            row: 当前K线数据行
+            
+        Returns:
+            bool: 是否满足做多开仓条件
+        """
+        # 如果没有配置做多开仓条件，返回False
+        if self.strategy_config.long_entry_conditions is None:
+            return False
+        
+        long_entry_conditions = self.strategy_config.long_entry_conditions
+        conditions = long_entry_conditions.conditions
+        logic_operator = long_entry_conditions.logic_operator
+        
+        # 如果没有条件，返回False
+        if not conditions:
+            return False
+        
+        # 评估所有条件
+        results = [self._evaluate_condition(cond, row) for cond in conditions]
+        
+        # 根据逻辑运算符组合结果
+        if logic_operator == LogicOperator.AND:
+            return all(results)
+        elif logic_operator == LogicOperator.OR:
+            return any(results)
+        else:
+            logger.warning(f"Unknown logic operator: {logic_operator}")
+            return False
+    
+    def _check_short_entry_signal(self, row: pd.Series) -> bool:
+        """检测做空开仓信号
+        
+        评估策略配置中的做空开仓条件（short_entry_conditions）。
+        
+        Args:
+            row: 当前K线数据行
+            
+        Returns:
+            bool: 是否满足做空开仓条件
+        """
+        # 如果没有配置做空开仓条件，返回False
+        if self.strategy_config.short_entry_conditions is None:
+            return False
+        
+        short_entry_conditions = self.strategy_config.short_entry_conditions
+        conditions = short_entry_conditions.conditions
+        logic_operator = short_entry_conditions.logic_operator
+        
+        # 如果没有条件，返回False
+        if not conditions:
+            return False
+        
+        # 评估所有条件
+        results = [self._evaluate_condition(cond, row) for cond in conditions]
+        
+        # 根据逻辑运算符组合结果
+        if logic_operator == LogicOperator.AND:
+            return all(results)
+        elif logic_operator == LogicOperator.OR:
+            return any(results)
+        else:
+            logger.warning(f"Unknown logic operator: {logic_operator}")
+            return False
+    
+    def _check_entry_signal(self, row: pd.Series) -> Tuple[bool, Optional[str]]:
+        """检测开仓信号（双向策略支持）
+        
+        根据策略配置检测做多或做空信号。
+        处理同时满足双向信号的情况：
+        - 如果当前有持仓，保持当前持仓方向（不触发新信号）
+        - 如果当前空仓，优先做多信号
+        
+        Args:
+            row: 当前K线数据行
+            
+        Returns:
+            Tuple[bool, Optional[str]]: (是否有开仓信号, 开仓方向 "long"/"short"/None)
+        """
+        # 检测做多和做空信号
+        long_signal = self._check_long_entry_signal(row)
+        short_signal = self._check_short_entry_signal(row)
+        
+        # 如果同时满足双向信号
+        if long_signal and short_signal:
+            # 如果当前有持仓，保持当前持仓方向（不触发新信号）
+            if self.current_position is not None:
+                logger.debug(
+                    f"Both long and short signals triggered, but position exists. "
+                    f"Maintaining current position direction: {self.current_position.direction}"
+                )
+                return False, None
+            else:
+                # 如果当前空仓，优先做多信号
+                logger.debug(
+                    "Both long and short signals triggered with no position. "
+                    "Prioritizing long signal."
+                )
+                return True, "long"
+        
+        # 只有做多信号
+        if long_signal:
+            return True, "long"
+        
+        # 只有做空信号
+        if short_signal:
+            return True, "short"
+        
+        # 没有信号
+        return False, None
+    
+    def _check_long_exit_signal(self, row: pd.Series, position: Position) -> Tuple[bool, str]:
+        """检测做多平仓信号
+        
+        评估策略配置中的做多平仓条件（long_exit_conditions）。
+        评估顺序：
+        1. 绝对值止损（优先级最高）
+        2. 绝对值止盈
+        3. 百分比止损
+        4. 百分比止盈
+        5. 基于指标的平仓条件
+        
+        Args:
+            row: 当前K线数据行
+            position: 当前持仓对象
+            
+        Returns:
+            Tuple[bool, str]: (是否平仓, 平仓原因)
+        """
+        # 如果没有配置做多平仓条件，返回False
+        if self.strategy_config.long_exit_conditions is None:
+            return False, ""
+        
+        exit_conditions = self.strategy_config.long_exit_conditions
+        current_price = row['close']
+        
+        # 计算当前盈亏
+        pnl_amount, pnl_pct = self._calculate_pnl(position, current_price)
+        
+        # 1. 检查绝对值止损（优先级最高）
+        if exit_conditions.stop_loss_amount is not None:
+            if pnl_amount <= -exit_conditions.stop_loss_amount:
+                return True, "stop_loss_amount"
+        
+        # 2. 检查绝对值止盈
+        if exit_conditions.take_profit_amount is not None:
+            if pnl_amount >= exit_conditions.take_profit_amount:
+                return True, "take_profit_amount"
+        
+        # 3. 检查百分比止损
+        if exit_conditions.stop_loss_pct is not None:
+            if pnl_pct <= -exit_conditions.stop_loss_pct:
+                return True, "stop_loss_percentage"
+        
+        # 4. 检查百分比止盈
+        if exit_conditions.take_profit_pct is not None:
+            if pnl_pct >= exit_conditions.take_profit_pct:
+                return True, "take_profit_percentage"
+        
+        # 5. 检查基于指标的平仓条件
+        indicator_conditions = exit_conditions.indicator_conditions
+        if indicator_conditions:
+            results = [self._evaluate_condition(cond, row) for cond in indicator_conditions]
+            
+            # 使用逻辑运算符组合结果
+            logic_operator = exit_conditions.logic_operator
+            if logic_operator == LogicOperator.OR:
+                if any(results):
+                    # 找到第一个满足的条件作为平仓原因
+                    for i, result in enumerate(results):
+                        if result:
+                            cond = indicator_conditions[i]
+                            return True, f"indicator_{cond.indicator}_{cond.operator.value}"
+            elif logic_operator == LogicOperator.AND:
+                if all(results):
+                    return True, "indicator_conditions_all_met"
+        
+        # 没有满足任何平仓条件
+        return False, ""
+    
+    def _check_short_exit_signal(self, row: pd.Series, position: Position) -> Tuple[bool, str]:
+        """检测做空平仓信号
+        
+        评估策略配置中的做空平仓条件（short_exit_conditions）。
+        评估顺序：
+        1. 绝对值止损（优先级最高）
+        2. 绝对值止盈
+        3. 百分比止损
+        4. 百分比止盈
+        5. 基于指标的平仓条件
+        
+        Args:
+            row: 当前K线数据行
+            position: 当前持仓对象
+            
+        Returns:
+            Tuple[bool, str]: (是否平仓, 平仓原因)
+        """
+        # 如果没有配置做空平仓条件，返回False
+        if self.strategy_config.short_exit_conditions is None:
+            return False, ""
+        
+        exit_conditions = self.strategy_config.short_exit_conditions
+        current_price = row['close']
+        
+        # 计算当前盈亏
+        pnl_amount, pnl_pct = self._calculate_pnl(position, current_price)
+        
+        # 1. 检查绝对值止损（优先级最高）
+        if exit_conditions.stop_loss_amount is not None:
+            if pnl_amount <= -exit_conditions.stop_loss_amount:
+                return True, "stop_loss_amount"
+        
+        # 2. 检查绝对值止盈
+        if exit_conditions.take_profit_amount is not None:
+            if pnl_amount >= exit_conditions.take_profit_amount:
+                return True, "take_profit_amount"
+        
+        # 3. 检查百分比止损
+        if exit_conditions.stop_loss_pct is not None:
+            if pnl_pct <= -exit_conditions.stop_loss_pct:
+                return True, "stop_loss_percentage"
+        
+        # 4. 检查百分比止盈
+        if exit_conditions.take_profit_pct is not None:
+            if pnl_pct >= exit_conditions.take_profit_pct:
+                return True, "take_profit_percentage"
+        
+        # 5. 检查基于指标的平仓条件
+        indicator_conditions = exit_conditions.indicator_conditions
+        if indicator_conditions:
+            results = [self._evaluate_condition(cond, row) for cond in indicator_conditions]
+            
+            # 使用逻辑运算符组合结果
+            logic_operator = exit_conditions.logic_operator
+            if logic_operator == LogicOperator.OR:
+                if any(results):
+                    # 找到第一个满足的条件作为平仓原因
+                    for i, result in enumerate(results):
+                        if result:
+                            cond = indicator_conditions[i]
+                            return True, f"indicator_{cond.indicator}_{cond.operator.value}"
+            elif logic_operator == LogicOperator.AND:
+                if all(results):
+                    return True, "indicator_conditions_all_met"
+        
+        # 没有满足任何平仓条件
+        return False, ""
+    
+    def _check_exit_signal(self, row: pd.Series, position: Position) -> Tuple[bool, str]:
+        """检测平仓信号（双向策略支持）
+        
+        根据当前持仓方向调用对应的平仓检测方法。
+        
+        Args:
+            row: 当前K线数据行
+            position: 当前持仓对象
+            
+        Returns:
+            Tuple[bool, str]: (是否平仓, 平仓原因)
+        """
+        if position.direction == "long":
+            return self._check_long_exit_signal(row, position)
+        elif position.direction == "short":
+            return self._check_short_exit_signal(row, position)
+        else:
+            logger.warning(f"Unknown position direction: {position.direction}")
+            return False, ""
+    
     def _evaluate_exit_conditions(self, row: pd.Series, position: Position) -> Tuple[bool, str]:
-        """评估平仓条件
+        """评估平仓条件（旧版单向策略兼容方法）
         
         评估顺序：
         1. 绝对值止损（优先级最高）
@@ -275,11 +549,12 @@ class BacktestEngine:
         
         return pnl_amount, pnl_pct
     
-    def _open_position(self, row: pd.Series) -> Optional[Position]:
+    def _open_position(self, row: pd.Series, direction: str = None) -> Optional[Position]:
         """开仓
         
         Args:
             row: 当前K线数据行
+            direction: 开仓方向 "long" 或 "short"，如果为None则使用旧版配置
             
         Returns:
             Optional[Position]: 创建的持仓对象，如果资金不足则返回None
@@ -289,6 +564,11 @@ class BacktestEngine:
         # 转换 pandas Timestamp 为 Python datetime
         if hasattr(entry_time, 'to_pydatetime'):
             entry_time = entry_time.to_pydatetime()
+        
+        # 确定开仓方向（支持新版双向策略和旧版单向策略）
+        if direction is None:
+            # 旧版兼容：使用 position_direction 字段
+            direction = self.strategy_config.position_direction
         
         # 计算持仓大小
         if self.strategy_config.position_size_type == "amount":
@@ -302,7 +582,7 @@ class BacktestEngine:
         leverage = self.strategy_config.leverage
         
         logger.info(
-            f"Opening position: position_size_type={self.strategy_config.position_size_type}, "
+            f"Opening {direction} position: position_size_type={self.strategy_config.position_size_type}, "
             f"position_size_value={self.strategy_config.position_size_value}, "
             f"position_value={position_value}, leverage={leverage}"
         )
@@ -315,7 +595,7 @@ class BacktestEngine:
         # 检查资金是否足够（检查保证金是否足够）
         if entry_capital > self.capital:
             logger.warning(
-                f"Insufficient capital for entry. Required margin: {entry_capital:.2f}, "
+                f"Insufficient capital for {direction} entry. Required margin: {entry_capital:.2f}, "
                 f"Available: {self.capital:.2f}, Position value: {position_value:.2f}, "
                 f"Leverage: {leverage}x. Skipping entry signal."
             )
@@ -330,7 +610,7 @@ class BacktestEngine:
             entry_price=entry_price,
             position_size=position_size,
             position_value=position_value,  # 实际仓位价值（含杠杆）
-            direction=self.strategy_config.position_direction,
+            direction=direction,
             entry_capital=entry_capital  # 实际使用的保证金
         )
         
@@ -445,23 +725,49 @@ class BacktestEngine:
             
             # 如果有持仓，先评估平仓条件
             if self.current_position is not None:
-                should_exit, exit_reason = self._evaluate_exit_conditions(row, self.current_position)
+                # 使用新版双向平仓检测（根据持仓方向自动选择）
+                should_exit, exit_reason = self._check_exit_signal(row, self.current_position)
                 
                 if should_exit:
                     # 平仓
                     trade = self._close_position(self.current_position, row, exit_reason)
                     self.trades.append(trade)
                     self.current_position = None
+                else:
+                    # 如果没有触发平仓条件，检查是否有反向信号
+                    has_signal, signal_direction = self._check_entry_signal(row)
+                    
+                    if has_signal and signal_direction is not None:
+                        # 如果信号方向与当前持仓方向相反，执行反向操作（先平后开）
+                        if signal_direction != self.current_position.direction:
+                            logger.info(
+                                f"Reverse signal detected: current position is {self.current_position.direction}, "
+                                f"new signal is {signal_direction}. Closing current position and opening new one."
+                            )
+                            # 先平仓
+                            trade = self._close_position(self.current_position, row, "reverse_signal")
+                            self.trades.append(trade)
+                            self.current_position = None
+                            
+                            # 再开新仓
+                            position = self._open_position(row, direction=signal_direction)
+                            if position is not None:
+                                self.current_position = position
+                            else:
+                                logger.warning(
+                                    f"Failed to open {signal_direction} position after reverse signal due to insufficient capital"
+                                )
             
             # 如果没有持仓，评估开仓条件
             if self.current_position is None:
                 # 检查是否允许多仓位（当前实现只支持单仓位）
                 if not self.strategy_config.allow_multiple_positions:
-                    should_enter = self._evaluate_entry_conditions(row)
+                    # 使用新版双向信号检测
+                    has_signal, signal_direction = self._check_entry_signal(row)
                     
-                    if should_enter:
+                    if has_signal and signal_direction is not None:
                         # 开仓
-                        position = self._open_position(row)
+                        position = self._open_position(row, direction=signal_direction)
                         if position is not None:
                             self.current_position = position
         

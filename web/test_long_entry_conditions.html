@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试做多开仓条件</title>
+    <link rel="stylesheet" href="backtest.css">
+    <style>
+        body {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>测试做多开仓条件功能</h1>
+    
+    <div class="test-section">
+        <h2>测试区域</h2>
+        
+        <!-- 做多开仓条件 -->
+        <div class="form-section">
+            <h3>做多开仓条件</h3>
+            <small class="form-hint">💡 配置做多（买入）的开仓条件，满足条件时开多仓</small>
+            <div id="longEntryConditions"></div>
+            <button type="button" class="btn btn-secondary" onclick="addLongEntryCondition()">+ 添加做多开仓条件</button>
+            
+            <div class="form-group">
+                <label>逻辑运算符</label>
+                <select id="longEntryLogic" class="form-control">
+                    <option value="AND">AND（所有条件都满足）</option>
+                    <option value="OR">OR（任一条件满足）</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="button" class="btn btn-primary" onclick="testCollectConditions()">测试收集条件</button>
+        <div id="testResults" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        // 模拟指标数据
+        let indicators = [
+            { name: 'rsi14', label: 'RSI(14)' },
+            { name: 'ema50', label: 'EMA(50)' },
+            { name: 'close', label: '收盘价' }
+        ];
+
+        // 添加做多开仓条件
+        function addLongEntryCondition() {
+            const container = document.getElementById('longEntryConditions');
+            const conditionHtml = createConditionHtml('longEntry');
+            container.insertAdjacentHTML('beforeend', conditionHtml);
+            console.log('✅ 添加了做多开仓条件');
+        }
+
+        // 创建条件HTML
+        function createConditionHtml(type) {
+            const id = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            const indicatorOptions = indicators.map(ind => 
+                `<option value="${ind.name}">${ind.label}</option>`
+            ).join('');
+            
+            return `
+                <div class="condition-item" id="${id}">
+                    <select class="indicator-select">
+                        ${indicatorOptions}
+                    </select>
+                    <select class="operator-select">
+                        <option value=">">></option>
+                        <option value="<"><</option>
+                        <option value=">=">>=</option>
+                        <option value="<="><=</option>
+                        <option value="==">==</option>
+                        <option value="!=">!=</option>
+                    </select>
+                    <input type="text" class="value-input" placeholder="值或指标名">
+                    <button type="button" class="btn-remove" onclick="removeCondition('${id}')">×</button>
+                </div>
+            `;
+        }
+
+        // 移除条件
+        function removeCondition(id) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.remove();
+                console.log(`✅ 移除了条件: ${id}`);
+            }
+        }
+
+        // 测试收集条件
+        function testCollectConditions() {
+            const container = document.getElementById('longEntryConditions');
+            const conditions = [];
+            
+            container.querySelectorAll('.condition-item').forEach(item => {
+                const indicator = item.querySelector('.indicator-select').value;
+                const operator = item.querySelector('.operator-select').value;
+                let value = item.querySelector('.value-input').value.trim();
+                
+                // 尝试转换为数字
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue)) {
+                    value = numValue;
+                }
+                
+                conditions.push({ indicator, operator, value });
+            });
+            
+            const logic = document.getElementById('longEntryLogic').value;
+            
+            const results = document.getElementById('testResults');
+            results.innerHTML = `
+                <h3>测试结果</h3>
+                <p class="success">✅ 成功收集到 ${conditions.length} 个条件</p>
+                <p><strong>逻辑运算符:</strong> ${logic}</p>
+                <pre>${JSON.stringify(conditions, null, 2)}</pre>
+            `;
+            
+            console.log('收集的条件:', conditions);
+            console.log('逻辑运算符:', logic);
+        }
+
+        // 页面加载时自动添加一个条件
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 测试页面已加载');
+            addLongEntryCondition();
+        });
+    </script>
+</body>
+</html>

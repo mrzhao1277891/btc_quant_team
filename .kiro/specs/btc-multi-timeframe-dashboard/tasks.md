@@ -164,7 +164,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Add timestamp display for last update
     - _Requirements: 9.2, 9.3, 9.4_
 
-  - [~] 9.2 Implement realtime price update logic in DashboardController
+  - [ ] 9.2 Implement realtime price update logic in DashboardController
     - Fetch BTC price from Binance API every 30 seconds
     - Compare with previous price to determine direction (up/down)
     - Update price display with green color and ↑ arrow if price increased
@@ -173,13 +173,13 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
 - [ ] 10. Implement responsive layout and styling
-  - [~] 10.1 Implement responsive grid layout in `web/dashboard.css`
+  - [ ] 10.1 Implement responsive grid layout in `web/dashboard.css`
     - Desktop (>1200px): 3-column grid for cards
     - Tablet/Mobile (<1200px): 1-column stack for cards
     - Use CSS Grid for layout
     - _Requirements: 1.5, 1.6_
 
-  - [~] 10.2 Implement card styling in `web/dashboard.css`
+  - [ ] 10.2 Implement card styling in `web/dashboard.css`
     - Dark theme background (#0f1117)
     - Card background (#1a1d28)
     - Border color (#2a2d3a)
@@ -187,7 +187,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Padding and spacing for readability
     - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-  - [~] 10.3 Implement SVG responsive behavior
+  - [ ] 10.3 Implement SVG responsive behavior
     - SVG width: 100% of card width
     - SVG height: fixed 400px
     - Debounce window resize events (300ms delay)
@@ -195,41 +195,41 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - _Requirements: 4.1, 5.1, 6.1_
 
 - [ ] 11. Implement auto-refresh and manual refresh
-  - [~] 11.1 Implement auto-refresh timer in DashboardController
+  - [ ] 11.1 Implement auto-refresh timer in DashboardController
     - Start 30-second interval timer on page load
     - Fetch latest data from `/api/latest` and Binance API
     - Update all 3 cards with new data
     - Update timestamp display
     - _Requirements: 8.1, 8.2, 8.4_
 
-  - [~] 11.2 Add manual refresh button in `web/dashboard.html` header
+  - [ ] 11.2 Add manual refresh button in `web/dashboard.html` header
     - Add refresh button with icon
     - Wire button click to DashboardController.refresh() method
     - Show loading indicator during refresh
     - Update timestamp after successful refresh
     - _Requirements: 8.5_
 
-  - [~] 11.3 Add visual indicator for auto-refresh status
+  - [ ] 11.3 Add visual indicator for auto-refresh status
     - Display "Auto-refresh: ON" indicator in header
     - Display last update timestamp in human-readable format
     - Update timestamp on each successful refresh
     - _Requirements: 8.3, 8.4_
 
 - [ ] 12. Implement error handling and loading states
-  - [~] 12.1 Create error message component in `web/dashboard.html`
+  - [ ] 12.1 Create error message component in `web/dashboard.html`
     - Add error message container with icon, title, details, and retry button
     - Style error message with warning colors
     - Hide by default, show when error occurs
     - _Requirements: 7.5, 7.6_
 
-  - [~] 12.2 Implement error handling in DashboardController
+  - [ ] 12.2 Implement error handling in DashboardController
     - Catch network errors and display user-friendly message
     - Include troubleshooting steps (e.g., "Start backend: uvicorn web.api:app --reload")
     - Provide retry button to attempt fetch again
     - Log detailed error to console for debugging
     - _Requirements: 7.5, 7.6_
 
-  - [~] 12.3 Implement loading state display
+  - [ ] 12.3 Implement loading state display
     - Show loading spinner during initial data fetch
     - Show loading indicator during manual refresh
     - Disable refresh button during loading
@@ -245,7 +245,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
     - Wire manual refresh button to DashboardController.refresh()
     - _Requirements: 1.1, 7.1, 8.1, 8.5_
 
-  - [~] 13.2 Add accessibility features
+  - [ ] 13.2 Add accessibility features
     - Add ARIA labels to SVG elements for screen readers
     - Ensure refresh button is keyboard accessible (tab navigation)
     - Add visible focus indicators for interactive elements
@@ -264,7 +264,7 @@ This implementation plan breaks down the BTC Multi-Timeframe Dashboard into disc
   - Test number formatting (decimals, thousand separators)
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.6, 3.1-3.12, 7.5, 8.1, 8.5, 9.2, 9.3, 9.4, 10.1-10.7_
 
-- [~] 15. Final checkpoint - Ensure all tests pass
+- [ ] 15. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

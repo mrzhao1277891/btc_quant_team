@@ -69,24 +69,46 @@ class IndicatorConditionRequest(BaseModel):
 
 
 class BacktestRequest(BaseModel):
-    """回测请求模型"""
+    """回测请求模型 - 支持双向交易策略和向后兼容"""
     strategy_name: str
     timeframe: str = "1d"
     start_date: str
     end_date: str
     initial_capital: float = 10000.0
-    entry_conditions: List[IndicatorConditionRequest]
-    entry_logic: str = "AND"
-    exit_conditions: List[IndicatorConditionRequest]
-    exit_logic: str = "OR"
-    position_side: str = "long"
+    
+    # 持仓和风控参数
     position_size: float = 1000.0
     position_size_type: str = "fixed"
     leverage: float = 1.0  # 杠杆倍数，默认1倍（现货）
+    
+    # 旧版字段（向后兼容）
+    entry_conditions: Optional[List[IndicatorConditionRequest]] = None
+    entry_logic: str = "AND"
+    exit_conditions: Optional[List[IndicatorConditionRequest]] = None
+    exit_logic: str = "OR"
+    position_side: Optional[str] = "long"
     take_profit_pct: Optional[float] = None
     stop_loss_pct: Optional[float] = None
     take_profit_amount: Optional[float] = None
     stop_loss_amount: Optional[float] = None
+    
+    # 新版双向开仓条件字段
+    long_entry_conditions: Optional[List[IndicatorConditionRequest]] = None
+    short_entry_conditions: Optional[List[IndicatorConditionRequest]] = None
+    long_exit_conditions: Optional[List[IndicatorConditionRequest]] = None
+    short_exit_conditions: Optional[List[IndicatorConditionRequest]] = None
+    
+    # 新版双向逻辑运算符
+    long_entry_logic: Optional[str] = "AND"
+    short_entry_logic: Optional[str] = "AND"
+    long_exit_logic: Optional[str] = "OR"
+    short_exit_logic: Optional[str] = "OR"
+    
+    # 新版双向止盈止损
+    long_take_profit_pct: Optional[float] = None
+    long_stop_loss_pct: Optional[float] = None
+    short_take_profit_pct: Optional[float] = None
+    short_stop_loss_pct: Optional[float] = None
 
 
 class StrategyResponse(BaseModel):
@@ -107,7 +129,7 @@ def generate_backtest_id() -> str:
 
 
 def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, Any]:
-    """将请求转换为策略配置字典"""
+    """将请求转换为策略配置字典，支持双向策略和向后兼容"""
     logger.info(f"Converting request: position_size={request.position_size}, "
                 f"position_size_type={request.position_size_type}, leverage={request.leverage}")
     
@@ -115,12 +137,80 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
         "name": request.strategy_name,
         "description": f"回测策略: {request.strategy_name}",
         "timeframe": request.timeframe,
-        "position_direction": request.position_side,
         "position_size_type": "amount",  # 固定使用amount类型
         "position_size_value": request.position_size,  # 直接使用固定金额
         "initial_capital": request.initial_capital,
         "leverage": request.leverage,  # 使用用户设置的杠杆
-        "entry_conditions": {
+    }
+    
+    # 处理双向条件（新版）
+    if request.long_entry_conditions is not None:
+        config["long_entry_conditions"] = {
+            "conditions": [
+                {
+                    "indicator": cond.indicator,
+                    "operator": cond.operator,
+                    "value": cond.value,
+                    "timeframe": cond.timeframe or request.timeframe
+                }
+                for cond in request.long_entry_conditions
+            ],
+            "logic_operator": request.long_entry_logic
+        }
+    
+    if request.short_entry_conditions is not None:
+        config["short_entry_conditions"] = {
+            "conditions": [
+                {
+                    "indicator": cond.indicator,
+                    "operator": cond.operator,
+                    "value": cond.value,
+                    "timeframe": cond.timeframe or request.timeframe
+                }
+                for cond in request.short_entry_conditions
+            ],
+            "logic_operator": request.short_entry_logic
+        }
+    
+    # 处理做多平仓条件（支持仅止盈止损，无指标条件的情况）
+    if request.long_exit_conditions is not None or request.long_take_profit_pct is not None or request.long_stop_loss_pct is not None:
+        config["long_exit_conditions"] = {
+            "indicator_conditions": [
+                {
+                    "indicator": cond.indicator,
+                    "operator": cond.operator,
+                    "value": cond.value,
+                    "timeframe": cond.timeframe or request.timeframe
+                }
+                for cond in request.long_exit_conditions
+            ] if request.long_exit_conditions else [],
+            "take_profit_pct": request.long_take_profit_pct / 100 if request.long_take_profit_pct else None,
+            "stop_loss_pct": request.long_stop_loss_pct / 100 if request.long_stop_loss_pct else None,
+            "logic_operator": request.long_exit_logic
+        }
+    
+    # 处理做空平仓条件（支持仅止盈止损，无指标条件的情况）
+    if request.short_exit_conditions is not None or request.short_take_profit_pct is not None or request.short_stop_loss_pct is not None:
+        config["short_exit_conditions"] = {
+            "indicator_conditions": [
+                {
+                    "indicator": cond.indicator,
+                    "operator": cond.operator,
+                    "value": cond.value,
+                    "timeframe": cond.timeframe or request.timeframe
+                }
+                for cond in request.short_exit_conditions
+            ] if request.short_exit_conditions else [],
+            "take_profit_pct": request.short_take_profit_pct / 100 if request.short_take_profit_pct else None,
+            "stop_loss_pct": request.short_stop_loss_pct / 100 if request.short_stop_loss_pct else None,
+            "logic_operator": request.short_exit_logic
+        }
+    
+    # 向后兼容：处理旧版字段
+    if request.entry_conditions is not None and request.long_entry_conditions is None and request.short_entry_conditions is None:
+        logger.warning("Using legacy entry_conditions field, consider migrating to long/short_entry_conditions")
+        config["position_direction"] = request.position_side
+        config["entry_conditions"] = {
             "conditions": [
                 {
                     "indicator": cond.indicator,
@@ -131,8 +221,10 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
                 for cond in request.entry_conditions
             ],
             "logic_operator": request.entry_logic
-        },
-        "exit_conditions": {
+        }
+    
+    if request.exit_conditions is not None and request.long_exit_conditions is None and request.short_exit_conditions is None:
+        config["exit_conditions"] = {
             "indicator_conditions": [
                 {
                     "indicator": cond.indicator,
@@ -148,7 +240,6 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
             "stop_loss_amount": request.stop_loss_amount,
             "logic_operator": request.exit_logic
         }
-    }
     
     logger.info(f"Converted config: position_size_value={config['position_size_value']}, "
                 f"leverage={config['leverage']}")
@@ -365,9 +456,10 @@ async def get_data_range(timeframe: str = "1d"):
 
 @app.get("/api/strategy-templates")
 async def get_strategy_templates():
-    """获取策略模板"""
+    """获取策略模板 - 包含单向和双向策略"""
     return {
         "templates": [
+            # 单向策略模板（向后兼容）
             {
                 "id": "ema_golden_cross",
                 "name": "EMA金叉策略",
@@ -425,6 +517,97 @@ async def get_strategy_templates():
                     "position_side": "long",
                     "take_profit_pct": 12,
                     "stop_loss_pct": 6
+                }
+            },
+            # 双向策略模板
+            {
+                "id": "dual_rsi",
+                "name": "双向RSI策略",
+                "description": "RSI<30做多，RSI>70做空，配合EMA过滤",
+                "config": {
+                    "timeframe": "1d",
+                    "long_entry_conditions": [
+                        {"indicator": "rsi14", "operator": "<", "value": 30},
+                        {"indicator": "close", "operator": ">", "value": "ema50"}
+                    ],
+                    "long_entry_logic": "AND",
+                    "long_exit_conditions": [
+                        {"indicator": "rsi14", "operator": ">", "value": 70}
+                    ],
+                    "long_exit_logic": "OR",
+                    "long_take_profit_pct": 10,
+                    "long_stop_loss_pct": 5,
+                    "short_entry_conditions": [
+                        {"indicator": "rsi14", "operator": ">", "value": 70},
+                        {"indicator": "close", "operator": "<", "value": "ema50"}
+                    ],
+                    "short_entry_logic": "AND",
+                    "short_exit_conditions": [
+                        {"indicator": "rsi14", "operator": "<", "value": 30}
+                    ],
+                    "short_exit_logic": "OR",
+                    "short_take_profit_pct": 10,
+                    "short_stop_loss_pct": 5
+                }
+            },
+            {
+                "id": "dual_ma_crossover",
+                "name": "双向均线策略",
+                "description": "价格突破EMA25做多，跌破EMA25做空",
+                "config": {
+                    "timeframe": "4h",
+                    "long_entry_conditions": [
+                        {"indicator": "close", "operator": ">", "value": "ema25"},
+                        {"indicator": "ema7", "operator": ">", "value": "ema25"}
+                    ],
+                    "long_entry_logic": "AND",
+                    "long_exit_conditions": [
+                        {"indicator": "close", "operator": "<", "value": "ema25"}
+                    ],
+                    "long_exit_logic": "OR",
+                    "long_take_profit_pct": 8,
+                    "long_stop_loss_pct": 4,
+                    "short_entry_conditions": [
+                        {"indicator": "close", "operator": "<", "value": "ema25"},
+                        {"indicator": "ema7", "operator": "<", "value": "ema25"}
+                    ],
+                    "short_entry_logic": "AND",
+                    "short_exit_conditions": [
+                        {"indicator": "close", "operator": ">", "value": "ema25"}
+                    ],
+                    "short_exit_logic": "OR",
+                    "short_take_profit_pct": 8,
+                    "short_stop_loss_pct": 4
+                }
+            },
+            {
+                "id": "dual_bollinger",
+                "name": "双向布林带策略",
+                "description": "价格触及下轨做多，触及上轨做空",
+                "config": {
+                    "timeframe": "1d",
+                    "long_entry_conditions": [
+                        {"indicator": "close", "operator": "<", "value": "boll_dn"},
+                        {"indicator": "rsi14", "operator": "<", "value": 40}
+                    ],
+                    "long_entry_logic": "AND",
+                    "long_exit_conditions": [
+                        {"indicator": "close", "operator": ">", "value": "boll_md"}
+                    ],
+                    "long_exit_logic": "OR",
+                    "long_take_profit_pct": 12,
+                    "long_stop_loss_pct": 6,
+                    "short_entry_conditions": [
+                        {"indicator": "close", "operator": ">", "value": "boll_up"},
+                        {"indicator": "rsi14", "operator": ">", "value": 60}
+                    ],
+                    "short_entry_logic": "AND",
+                    "short_exit_conditions": [
+                        {"indicator": "close", "operator": "<", "value": "boll_md"}
+                    ],
+                    "short_exit_logic": "OR",
+                    "short_take_profit_pct": 12,
+                    "short_stop_loss_pct": 6
                 }
             }
         ]

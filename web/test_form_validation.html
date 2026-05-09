@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>表单验证测试 - 双向交易策略</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 4px solid #2563eb;
+        }
+        .test-case {
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #e5e7eb;
+        }
+        .test-case h4 {
+            margin: 0 0 10px 0;
+            color: #374151;
+        }
+        .test-result {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .test-result.pass {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .test-result.fail {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .test-details {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f9fafb;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .summary {
+            margin-top: 30px;
+            padding: 20px;
+            background: #eff6ff;
+            border-radius: 6px;
+            border: 2px solid #2563eb;
+        }
+        .summary h3 {
+            margin: 0 0 10px 0;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 表单验证测试</h1>
+        <p>测试双向交易策略的前端表单验证逻辑</p>
+        
+        <button onclick="runAllTests()">运行所有测试</button>
+        <button onclick="location.reload()">重置</button>
+        
+        <div id="testResults"></div>
+        <div id="testSummary"></div>
+    </div>
+
+    <!-- 隐藏的表单元素用于测试 -->
+    <div style="display: none;">
+        <input type="text" id="strategyName" value="测试策略">
+        <input type="date" id="startDate" value="2024-01-01">
+        <input type="date" id="endDate" value="2024-12-31">
+        <input type="number" id="initialCapital" value="10000">
+        <input type="number" id="positionSize" value="2000">
+        <input type="number" id="leverage" value="5">
+        
+        <!-- 双向策略元素 -->
+        <div id="longEntryConditions"></div>
+        <select id="longEntryLogic"><option value="AND">AND</option></select>
+        
+        <div id="shortEntryConditions"></div>
+        <select id="shortEntryLogic"><option value="AND">AND</option></select>
+        
+        <div id="longExitConditions"></div>
+        <select id="longExitLogic"><option value="OR">OR</option></select>
+        <input type="number" id="longTakeProfitPct">
+        <input type="number" id="longStopLossPct">
+        
+        <div id="shortExitConditions"></div>
+        <select id="shortExitLogic"><option value="OR">OR</option></select>
+        <input type="number" id="shortTakeProfitPct">
+        <input type="number" id="shortStopLossPct">
+        
+        <!-- 旧版元素（向后兼容） -->
+        <div id="entryConditions"></div>
+        <select id="entryLogic"><option value="AND">AND</option></select>
+        
+        <div id="exitConditions"></div>
+        <select id="exitLogic"><option value="OR">OR</option></select>
+        <input type="number" id="takeProfitPct">
+        <input type="number" id="stopLossPct">
+    </div>
+
+    <script>
+        // 模拟 backtest.js 中的函数
+        let lastError = null;
+        
+        function showError(message) {
+            lastError = message;
+        }
+        
+        function parseFloatOrNull(value) {
+            const num = parseFloat(value);
+            return isNaN(num) ? null : num;
+        }
+        
+        function collectConditions(containerId) {
+            const container = document.getElementById(containerId);
+            const conditions = [];
+            
+            container.querySelectorAll('.condition-item').forEach(item => {
+                const indicator = item.querySelector('.indicator-select').value;
+                const operator = item.querySelector('.operator-select').value;
+                let value = item.querySelector('.value-input').value.trim();
+                
+                // 尝试转换为数字
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue)) {
+                    value = numValue;
+                }
+                
+                conditions.push({ indicator, operator, value });
+            });
+            
+            return conditions;
+        }
+        
+        // 从 backtest.js 复制的验证函数
+        function validateForm() {
+            const strategyName = document.getElementById('strategyName').value.trim();
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!strategyName) {
+                showError('请输入策略名称');
+                return false;
+            }
+            
+            if (!startDate || !endDate) {
+                showError('请选择回测日期范围');
+                return false;
+            }
+            
+            if (new Date(startDate) >= new Date(endDate)) {
+                showError('开始日期必须早于结束日期');
+                return false;
+            }
+            
+            // 收集双向策略的开仓条件
+            const longEntryConditions = collectConditions('longEntryConditions');
+            const shortEntryConditions = collectConditions('shortEntryConditions');
+            
+            // 收集旧版开仓条件（向后兼容）
+            const entryConditions = collectConditions('entryConditions');
+            
+            // 验证至少配置了一个方向的开仓条件
+            if (longEntryConditions.length === 0 && shortEntryConditions.length === 0 && entryConditions.length === 0) {
+                showError('请至少配置一个方向的开仓条件（做多或做空）');
+                return false;
+            }
+            
+            // 验证做多开仓条件的完整性
+            if (!validateConditions(longEntryConditions, '做多开仓条件')) {
+                return false;
+            }
+            
+            // 验证做空开仓条件的完整性
+            if (!validateConditions(shortEntryConditions, '做空开仓条件')) {
+                return false;
+            }
+            
+            // 验证做多平仓条件的完整性
+            const longExitConditions = collectConditions('longExitConditions');
+            if (!validateConditions(longExitConditions, '做多平仓条件')) {
+                return false;
+            }
+            
+            // 验证做空平仓条件的完整性
+            const shortExitConditions = collectConditions('shortExitConditions');
+            if (!validateConditions(shortExitConditions, '做空平仓条件')) {
+                return false;
+            }
+            
+            // 验证旧版开仓条件的完整性（向后兼容）
+            if (!validateConditions(entryConditions, '开仓条件')) {
+                return false;
+            }
+            
+            // 验证旧版平仓条件的完整性（向后兼容）
+            const exitConditions = collectConditions('exitConditions');
+            if (!validateConditions(exitConditions, '平仓条件')) {
+                return false;
+            }
+            
+            // 验证做多止盈止损百分比
+            const longTakeProfitPct = parseFloatOrNull(document.getElementById('longTakeProfitPct').value);
+            const longStopLossPct = parseFloatOrNull(document.getElementById('longStopLossPct').value);
+            
+            if (longTakeProfitPct !== null && longTakeProfitPct <= 0) {
+                showError('做多止盈百分比必须为正数');
+                return false;
+            }
+            
+            if (longStopLossPct !== null && longStopLossPct <= 0) {
+                showError('做多止损百分比必须为正数');
+                return false;
+            }
+            
+            // 验证做空止盈止损百分比
+            const shortTakeProfitPct = parseFloatOrNull(document.getElementById('shortTakeProfitPct').value);
+            const shortStopLossPct = parseFloatOrNull(document.getElementById('shortStopLossPct').value);
+            
+            if (shortTakeProfitPct !== null && shortTakeProfitPct <= 0) {
+                showError('做空止盈百分比必须为正数');
+                return false;
+            }
+            
+            if (shortStopLossPct !== null && shortStopLossPct <= 0) {
+                showError('做空止损百分比必须为正数');
+                return false;
+            }
+            
+            // 验证旧版止盈止损百分比（向后兼容）
+            const takeProfitPct = parseFloatOrNull(document.getElementById('takeProfitPct').value);
+            const stopLossPct = parseFloatOrNull(document.getElementById('stopLossPct').value);
+            
+            if (takeProfitPct !== null && takeProfitPct <= 0) {
+                showError('止盈百分比必须为正数');
+                return false;
+            }
+            
+            if (stopLossPct !== null && stopLossPct <= 0) {
+                showError('止损百分比必须为正数');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function validateConditions(conditions, conditionType) {
+            for (let i = 0; i < conditions.length; i++) {
+                const condition = conditions[i];
+                
+                // 验证指标不能为空
+                if (!condition.indicator || condition.indicator.trim() === '') {
+                    showError(`${conditionType}的第 ${i + 1} 个条件：指标不能为空`);
+                    return false;
+                }
+                
+                // 验证运算符不能为空
+                if (!condition.operator || condition.operator.trim() === '') {
+                    showError(`${conditionType}的第 ${i + 1} 个条件：运算符不能为空`);
+                    return false;
+                }
+                
+                // 验证值不能为空
+                if (condition.value === null || condition.value === undefined || condition.value === '') {
+                    showError(`${conditionType}的第 ${i + 1} 个条件：值不能为空`);
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        // 辅助函数：添加条件到容器
+        function addCondition(containerId, indicator, operator, value) {
+            const container = document.getElementById(containerId);
+            const conditionHtml = `
+                <div class="condition-item">
+                    <select class="indicator-select">
+                        <option value="${indicator}">${indicator}</option>
+                    </select>
+                    <select class="operator-select">
+                        <option value="${operator}">${operator}</option>
+                    </select>
+                    <input type="text" class="value-input" value="${value}">
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', conditionHtml);
+        }
+        
+        // 辅助函数：清空所有条件
+        function clearAllConditions() {
+            document.getElementById('longEntryConditions').innerHTML = '';
+            document.getElementById('shortEntryConditions').innerHTML = '';
+            document.getElementById('longExitConditions').innerHTML = '';
+            document.getElementById('shortExitConditions').innerHTML = '';
+            document.getElementById('entryConditions').innerHTML = '';
+            document.getElementById('exitConditions').innerHTML = '';
+            
+            document.getElementById('longTakeProfitPct').value = '';
+            document.getElementById('longStopLossPct').value = '';
+            document.getElementById('shortTakeProfitPct').value = '';
+            document.getElementById('shortStopLossPct').value = '';
+            document.getElementById('takeProfitPct').value = '';
+            document.getElementById('stopLossPct').value = '';
+        }
+        
+        // 测试用例
+        const testCases = [
+            {
+                name: '测试1: 没有配置任何开仓条件',
+                setup: () => {
+                    clearAllConditions();
+                },
+                expectedResult: false,
+                expectedError: '请至少配置一个方向的开仓条件（做多或做空）'
+            },
+            {
+                name: '测试2: 仅配置做多开仓条件（有效）',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('longEntryConditions', 'rsi14', '<', '30');
+                },
+                expectedResult: true,
+                expectedError: null
+            },
+            {
+                name: '测试3: 仅配置做空开仓条件（有效）',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('shortEntryConditions', 'rsi14', '>', '70');
+                },
+                expectedResult: true,
+                expectedError: null
+            },
+            {
+                name: '测试4: 同时配置做多和做空开仓条件（有效）',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('longEntryConditions', 'rsi14', '<', '30');
+                    addCondition('shortEntryConditions', 'rsi14', '>', '70');
+                },
+                expectedResult: true,
+                expectedError: null
+            },
+            {
+                name: '测试5: 做多开仓条件缺少指标',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('longEntryConditions', '', '<', '30');
+                },
+                expectedResult: false,
+                expectedError: '做多开仓条件的第 1 个条件：指标不能为空'
+            },
+            {
+                name: '测试6: 做多开仓条件缺少值',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('longEntryConditions', 'rsi14', '<', '');
+                },
+                expectedResult: false,
+                expectedError: '做多开仓条件的第 1 个条件：值不能为空'
+            },
+            {
+                name: '测试7: 做多止盈百分比为负数',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('longEntryConditions', 'rsi14', '<', '30');
+                    document.getElementById('longTakeProfitPct').value = '-10';
+                },
+                expectedResult: false,
+                expectedError: '做多止盈百分比必须为正数'
+            },
+            {
+                name: '测试8: 做多止损百分比为零',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('longEntryConditions', 'rsi14', '<', '30');
+                    document.getElementById('longStopLossPct').value = '0';
+                },
+                expectedResult: false,
+                expectedError: '做多止损百分比必须为正数'
+            },
+            {
+                name: '测试9: 做空止盈百分比为正数（有效）',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('shortEntryConditions', 'rsi14', '>', '70');
+                    document.getElementById('shortTakeProfitPct').value = '10';
+                },
+                expectedResult: true,
+                expectedError: null
+            },
+            {
+                name: '测试10: 做空止损百分比为负数',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('shortEntryConditions', 'rsi14', '>', '70');
+                    document.getElementById('shortStopLossPct').value = '-5';
+                },
+                expectedResult: false,
+                expectedError: '做空止损百分比必须为正数'
+            },
+            {
+                name: '测试11: 向后兼容 - 使用旧版开仓条件',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('entryConditions', 'rsi14', '<', '30');
+                },
+                expectedResult: true,
+                expectedError: null
+            },
+            {
+                name: '测试12: 向后兼容 - 旧版止盈百分比为负数',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('entryConditions', 'rsi14', '<', '30');
+                    document.getElementById('takeProfitPct').value = '-10';
+                },
+                expectedResult: false,
+                expectedError: '止盈百分比必须为正数'
+            },
+            {
+                name: '测试13: 多个做多开仓条件，第二个缺少值',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('longEntryConditions', 'rsi14', '<', '30');
+                    addCondition('longEntryConditions', 'close', '>', '');
+                },
+                expectedResult: false,
+                expectedError: '做多开仓条件的第 2 个条件：值不能为空'
+            },
+            {
+                name: '测试14: 完整的双向策略配置（有效）',
+                setup: () => {
+                    clearAllConditions();
+                    addCondition('longEntryConditions', 'rsi14', '<', '30');
+                    addCondition('shortEntryConditions', 'rsi14', '>', '70');
+                    addCondition('longExitConditions', 'rsi14', '>', '70');
+                    addCondition('shortExitConditions', 'rsi14', '<', '30');
+                    document.getElementById('longTakeProfitPct').value = '10';
+                    document.getElementById('longStopLossPct').value = '5';
+                    document.getElementById('shortTakeProfitPct').value = '10';
+                    document.getElementById('shortStopLossPct').value = '5';
+                },
+                expectedResult: true,
+                expectedError: null
+            }
+        ];
+        
+        // 运行单个测试
+        function runTest(testCase) {
+            lastError = null;
+            testCase.setup();
+            const result = validateForm();
+            
+            const passed = (result === testCase.expectedResult) && 
+                          (lastError === testCase.expectedError);
+            
+            return {
+                name: testCase.name,
+                passed: passed,
+                expectedResult: testCase.expectedResult,
+                actualResult: result,
+                expectedError: testCase.expectedError,
+                actualError: lastError
+            };
+        }
+        
+        // 运行所有测试
+        function runAllTests() {
+            const results = testCases.map(runTest);
+            displayResults(results);
+        }
+        
+        // 显示测试结果
+        function displayResults(results) {
+            const container = document.getElementById('testResults');
+            const passCount = results.filter(r => r.passed).length;
+            const totalCount = results.length;
+            
+            let html = '<div class="test-section"><h2>测试结果</h2>';
+            
+            results.forEach((result, index) => {
+                html += `
+                    <div class="test-case">
+                        <h4>${result.name}</h4>
+                        <span class="test-result ${result.passed ? 'pass' : 'fail'}">
+                            ${result.passed ? '✓ 通过' : '✗ 失败'}
+                        </span>
+                        <div class="test-details">
+                            <div><strong>预期结果:</strong> ${result.expectedResult}</div>
+                            <div><strong>实际结果:</strong> ${result.actualResult}</div>
+                            <div><strong>预期错误:</strong> ${result.expectedError || '无'}</div>
+                            <div><strong>实际错误:</strong> ${result.actualError || '无'}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+            
+            // 显示摘要
+            const summaryHtml = `
+                <div class="summary">
+                    <h3>测试摘要</h3>
+                    <p><strong>总测试数:</strong> ${totalCount}</p>
+                    <p><strong>通过:</strong> ${passCount}</p>
+                    <p><strong>失败:</strong> ${totalCount - passCount}</p>
+                    <p><strong>通过率:</strong> ${((passCount / totalCount) * 100).toFixed(1)}%</p>
+                </div>
+            `;
+            document.getElementById('testSummary').innerHTML = summaryHtml;
+        }
+    </script>
+</body>
+</html>

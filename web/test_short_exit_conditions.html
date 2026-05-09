@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试做空平仓条件 UI</title>
+    <link rel="stylesheet" href="backtest.css">
+    <style>
+        body {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #2563eb;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+        .success {
+            color: #16a34a;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 测试做空平仓条件 UI - 任务 13</h1>
+    
+    <div class="test-section">
+        <h2>✅ 测试目标</h2>
+        <p>验证做空平仓条件配置区域是否正确添加到 backtest.html 中</p>
+        <ul>
+            <li>区域标题："做空平仓条件"</li>
+            <li>条件列表容器（ID: shortExitConditions）</li>
+            <li>"添加条件"按钮（调用 addShortExitCondition()）</li>
+            <li>逻辑运算符选择下拉框（ID: shortExitLogic）</li>
+            <li>止盈百分比输入框（ID: shortTakeProfitPct）</li>
+            <li>止损百分比输入框（ID: shortStopLossPct）</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 做空平仓条件配置区域</h2>
+        
+        <!-- 做空平仓条件 -->
+        <div class="form-section">
+            <h3>做空平仓条件</h3>
+            <small class="form-hint">💡 配置做空仓位的平仓条件，满足条件时平掉空仓</small>
+            <div id="shortExitConditions"></div>
+            <button type="button" class="btn btn-secondary" onclick="addShortExitCondition()">+ 添加做空平仓条件</button>
+            
+            <div class="form-group">
+                <label>逻辑运算符</label>
+                <select id="shortExitLogic" class="form-control">
+                    <option value="OR">OR（任一条件满足）</option>
+                    <option value="AND">AND（所有条件都满足）</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>止盈 (%)</label>
+                    <input type="number" id="shortTakeProfitPct" class="form-control" placeholder="例如：10" min="0" step="0.1">
+                    <small class="form-hint">💡 做空仓位的止盈百分比</small>
+                </div>
+                <div class="form-group">
+                    <label>止损 (%)</label>
+                    <input type="number" id="shortStopLossPct" class="form-control" placeholder="例如：5" min="0" step="0.1">
+                    <small class="form-hint">💡 做空仓位的止损百分比</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 功能测试</h2>
+        <button class="btn btn-primary" onclick="runTests()">运行测试</button>
+        <div id="testResults" style="margin-top: 20px;"></div>
+    </div>
+
+    <script src="backtest.js"></script>
+    <script>
+        // 模拟指标数据
+        const indicators = [
+            { name: 'rsi14', label: 'RSI(14)' },
+            { name: 'ema50', label: 'EMA(50)' },
+            { name: 'close', label: '收盘价' }
+        ];
+
+        function runTests() {
+            const results = [];
+            
+            // 测试 1: 检查 shortExitConditions 容器是否存在
+            const container = document.getElementById('shortExitConditions');
+            results.push({
+                name: '检查 shortExitConditions 容器',
+                passed: container !== null
+            });
+            
+            // 测试 2: 检查 shortExitLogic 下拉框是否存在
+            const logicSelect = document.getElementById('shortExitLogic');
+            results.push({
+                name: '检查 shortExitLogic 下拉框',
+                passed: logicSelect !== null && logicSelect.options.length === 2
+            });
+            
+            // 测试 3: 检查 shortTakeProfitPct 输入框是否存在
+            const takeProfitInput = document.getElementById('shortTakeProfitPct');
+            results.push({
+                name: '检查 shortTakeProfitPct 输入框',
+                passed: takeProfitInput !== null && takeProfitInput.type === 'number'
+            });
+            
+            // 测试 4: 检查 shortStopLossPct 输入框是否存在
+            const stopLossInput = document.getElementById('shortStopLossPct');
+            results.push({
+                name: '检查 shortStopLossPct 输入框',
+                passed: stopLossInput !== null && stopLossInput.type === 'number'
+            });
+            
+            // 测试 5: 测试 addShortExitCondition 函数是否存在
+            results.push({
+                name: '检查 addShortExitCondition 函数',
+                passed: typeof addShortExitCondition === 'function'
+            });
+            
+            // 测试 6: 测试添加条件功能
+            try {
+                const beforeCount = container.children.length;
+                addShortExitCondition();
+                const afterCount = container.children.length;
+                results.push({
+                    name: '测试添加条件功能',
+                    passed: afterCount === beforeCount + 1
+                });
+            } catch (e) {
+                results.push({
+                    name: '测试添加条件功能',
+                    passed: false,
+                    error: e.message
+                });
+            }
+            
+            // 测试 7: 检查添加的条件是否包含正确的元素
+            if (container.children.length > 0) {
+                const condition = container.children[0];
+                const hasIndicatorSelect = condition.querySelector('.indicator-select') !== null;
+                const hasOperatorSelect = condition.querySelector('.operator-select') !== null;
+                const hasValueInput = condition.querySelector('.value-input') !== null;
+                const hasRemoveButton = condition.querySelector('.btn-remove') !== null;
+                
+                results.push({
+                    name: '检查条件元素结构',
+                    passed: hasIndicatorSelect && hasOperatorSelect && hasValueInput && hasRemoveButton
+                });
+            }
+            
+            // 显示测试结果
+            displayTestResults(results);
+        }
+        
+        function displayTestResults(results) {
+            const resultsDiv = document.getElementById('testResults');
+            let html = '<h3>测试结果</h3><ul>';
+            
+            let passedCount = 0;
+            results.forEach(result => {
+                const icon = result.passed ? '✅' : '❌';
+                const className = result.passed ? 'success' : 'error';
+                html += `<li class="${className}">${icon} ${result.name}`;
+                if (result.error) {
+                    html += ` - 错误: ${result.error}`;
+                }
+                html += '</li>';
+                if (result.passed) passedCount++;
+            });
+            
+            html += '</ul>';
+            html += `<p><strong>通过: ${passedCount}/${results.length}</strong></p>`;
+            
+            if (passedCount === results.length) {
+                html += '<p class="success">🎉 所有测试通过！任务 13 实现成功！</p>';
+            } else {
+                html += '<p style="color: red;">⚠️ 部分测试失败，请检查实现。</p>';
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

@@ -131,47 +131,142 @@ class StrategyConfig:
     name: str
     description: str
     timeframe: str                    # 主时间周期
-    position_direction: Literal["long", "short"]
     position_size_type: Literal["amount", "percentage"]
     position_size_value: float
-    entry_conditions: EntryConditions
-    exit_conditions: ExitConditions
     initial_capital: float = 100000.0
     allow_multiple_positions: bool = False
     leverage: float = 1.0             # 杠杆倍数，默认1倍（现货）
     
+    # 新版双向条件字段
+    long_entry_conditions: Optional[EntryConditions] = None
+    short_entry_conditions: Optional[EntryConditions] = None
+    long_exit_conditions: Optional[ExitConditions] = None
+    short_exit_conditions: Optional[ExitConditions] = None
+    
+    # 旧版字段（向后兼容，已弃用）
+    position_direction: Optional[Literal["long", "short"]] = None
+    entry_conditions: Optional[EntryConditions] = None
+    exit_conditions: Optional[ExitConditions] = None
+    
     def to_dict(self) -> dict:
         """转换为字典"""
-        return {
+        result = {
             "name": self.name,
             "description": self.description,
             "timeframe": self.timeframe,
-            "position_direction": self.position_direction,
             "position_size_type": self.position_size_type,
             "position_size_value": self.position_size_value,
-            "entry_conditions": self.entry_conditions.to_dict(),
-            "exit_conditions": self.exit_conditions.to_dict(),
             "initial_capital": self.initial_capital,
             "allow_multiple_positions": self.allow_multiple_positions,
             "leverage": self.leverage
         }
+        
+        # 新版双向条件字段
+        if self.long_entry_conditions is not None:
+            result["long_entry_conditions"] = self.long_entry_conditions.to_dict()
+        if self.short_entry_conditions is not None:
+            result["short_entry_conditions"] = self.short_entry_conditions.to_dict()
+        if self.long_exit_conditions is not None:
+            result["long_exit_conditions"] = self.long_exit_conditions.to_dict()
+        if self.short_exit_conditions is not None:
+            result["short_exit_conditions"] = self.short_exit_conditions.to_dict()
+        
+        # 旧版字段（向后兼容）
+        if self.position_direction is not None:
+            result["position_direction"] = self.position_direction
+        if self.entry_conditions is not None:
+            result["entry_conditions"] = self.entry_conditions.to_dict()
+        if self.exit_conditions is not None:
+            result["exit_conditions"] = self.exit_conditions.to_dict()
+        
+        return result
     
     @classmethod
     def from_dict(cls, data: dict) -> "StrategyConfig":
-        """从字典创建"""
-        return cls(
+        """从字典创建，支持向后兼容性转换"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 提取新版双向条件字段
+        long_entry_conditions = None
+        short_entry_conditions = None
+        long_exit_conditions = None
+        short_exit_conditions = None
+        
+        if "long_entry_conditions" in data and data["long_entry_conditions"] is not None:
+            long_entry_conditions = EntryConditions.from_dict(data["long_entry_conditions"])
+        if "short_entry_conditions" in data and data["short_entry_conditions"] is not None:
+            short_entry_conditions = EntryConditions.from_dict(data["short_entry_conditions"])
+        if "long_exit_conditions" in data and data["long_exit_conditions"] is not None:
+            long_exit_conditions = ExitConditions.from_dict(data["long_exit_conditions"])
+        if "short_exit_conditions" in data and data["short_exit_conditions"] is not None:
+            short_exit_conditions = ExitConditions.from_dict(data["short_exit_conditions"])
+        
+        # 向后兼容性处理：旧版字段映射到新版字段
+        position_direction = data.get("position_direction")
+        entry_conditions = None
+        exit_conditions = None
+        
+        if "entry_conditions" in data and data["entry_conditions"] is not None:
+            entry_conditions = EntryConditions.from_dict(data["entry_conditions"])
+        if "exit_conditions" in data and data["exit_conditions"] is not None:
+            exit_conditions = ExitConditions.from_dict(data["exit_conditions"])
+        
+        # 如果使用旧版配置，转换为新版字段
+        if position_direction is not None and entry_conditions is not None:
+            logger.warning(
+                f"使用旧版配置字段 'position_direction' 和 'entry_conditions'，"
+                f"建议迁移到新版双向条件字段。"
+            )
+            if position_direction == "long":
+                if long_entry_conditions is None:
+                    long_entry_conditions = entry_conditions
+                if long_exit_conditions is None and exit_conditions is not None:
+                    long_exit_conditions = exit_conditions
+            elif position_direction == "short":
+                if short_entry_conditions is None:
+                    short_entry_conditions = entry_conditions
+                if short_exit_conditions is None and exit_conditions is not None:
+                    short_exit_conditions = exit_conditions
+        
+        # 创建对象（这会先检查必填字段如 name, timeframe 等）
+        instance = cls(
             name=data["name"],
             description=data["description"],
             timeframe=data["timeframe"],
-            position_direction=data["position_direction"],
             position_size_type=data["position_size_type"],
             position_size_value=data["position_size_value"],
-            entry_conditions=EntryConditions.from_dict(data["entry_conditions"]),
-            exit_conditions=ExitConditions.from_dict(data["exit_conditions"]),
             initial_capital=data.get("initial_capital", 100000.0),
             allow_multiple_positions=data.get("allow_multiple_positions", False),
-            leverage=data.get("leverage", 1.0)
+            leverage=data.get("leverage", 1.0),
+            long_entry_conditions=long_entry_conditions,
+            short_entry_conditions=short_entry_conditions,
+            long_exit_conditions=long_exit_conditions,
+            short_exit_conditions=short_exit_conditions,
+            position_direction=position_direction,
+            entry_conditions=entry_conditions,
+            exit_conditions=exit_conditions
         )
+        
+        # 验证：至少配置一个方向的开仓条件
+        # 只在有明确的新版配置或有效的旧版配置时进行验证
+        has_new_config = (
+            "long_entry_conditions" in data or 
+            "short_entry_conditions" in data
+        )
+        has_valid_old_config = (
+            position_direction in ["long", "short"] and 
+            entry_conditions is not None
+        )
+        
+        if (has_new_config or has_valid_old_config) and \
+           instance.long_entry_conditions is None and instance.short_entry_conditions is None:
+            raise ValueError(
+                "配置错误：必须至少配置一个方向的开仓条件 "
+                "(long_entry_conditions 或 short_entry_conditions)"
+            )
+        
+        return instance
     
     def to_json(self) -> str:
         """转换为JSON字符串"""

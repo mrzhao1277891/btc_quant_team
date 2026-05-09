@@ -66,6 +66,38 @@
                     </div>
                 </div>
 
+                <!-- 做多开仓条件 -->
+                <div class="form-section">
+                    <h3>做多开仓条件</h3>
+                    <small class="form-hint">💡 配置做多（买入）的开仓条件，满足条件时开多仓</small>
+                    <div id="longEntryConditions"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addLongEntryCondition()">+ 添加做多开仓条件</button>
+                    
+                    <div class="form-group">
+                        <label>逻辑运算符</label>
+                        <select id="longEntryLogic" class="form-control">
+                            <option value="AND">AND（所有条件都满足）</option>
+                            <option value="OR">OR（任一条件满足）</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 做空开仓条件 -->
+                <div class="form-section">
+                    <h3>做空开仓条件</h3>
+                    <small class="form-hint">💡 配置做空（卖出）的开仓条件，满足条件时开空仓</small>
+                    <div id="shortEntryConditions"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addShortEntryCondition()">+ 添加做空开仓条件</button>
+                    
+                    <div class="form-group">
+                        <label>逻辑运算符</label>
+                        <select id="shortEntryLogic" class="form-control">
+                            <option value="AND">AND（所有条件都满足）</option>
+                            <option value="OR">OR（任一条件满足）</option>
+                        </select>
+                    </div>
+                </div>
+
                 <!-- 开仓条件 -->
                 <div class="form-section">
                     <h3>开仓条件</h3>
@@ -78,6 +110,64 @@
                             <option value="AND">AND（所有条件都满足）</option>
                             <option value="OR">OR（任一条件满足）</option>
                         </select>
+                    </div>
+                </div>
+
+                <!-- 做多平仓条件 -->
+                <div class="form-section">
+                    <h3>做多平仓条件</h3>
+                    <small class="form-hint">💡 配置做多仓位的平仓条件，满足条件时平掉多仓</small>
+                    <div id="longExitConditions"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addLongExitCondition()">+ 添加做多平仓条件</button>
+                    
+                    <div class="form-group">
+                        <label>逻辑运算符</label>
+                        <select id="longExitLogic" class="form-control">
+                            <option value="OR">OR（任一条件满足）</option>
+                            <option value="AND">AND（所有条件都满足）</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>止盈 (%)</label>
+                            <input type="number" id="longTakeProfitPct" class="form-control" placeholder="例如：10" min="0" step="0.1">
+                            <small class="form-hint">💡 做多仓位的止盈百分比</small>
+                        </div>
+                        <div class="form-group">
+                            <label>止损 (%)</label>
+                            <input type="number" id="longStopLossPct" class="form-control" placeholder="例如：5" min="0" step="0.1">
+                            <small class="form-hint">💡 做多仓位的止损百分比</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 做空平仓条件 -->
+                <div class="form-section">
+                    <h3>做空平仓条件</h3>
+                    <small class="form-hint">💡 配置做空仓位的平仓条件，满足条件时平掉空仓</small>
+                    <div id="shortExitConditions"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addShortExitCondition()">+ 添加做空平仓条件</button>
+                    
+                    <div class="form-group">
+                        <label>逻辑运算符</label>
+                        <select id="shortExitLogic" class="form-control">
+                            <option value="OR">OR（任一条件满足）</option>
+                            <option value="AND">AND（所有条件都满足）</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>止盈 (%)</label>
+                            <input type="number" id="shortTakeProfitPct" class="form-control" placeholder="例如：10" min="0" step="0.1">
+                            <small class="form-hint">💡 做空仓位的止盈百分比</small>
+                        </div>
+                        <div class="form-group">
+                            <label>止损 (%)</label>
+                            <input type="number" id="shortStopLossPct" class="form-control" placeholder="例如：5" min="0" step="0.1">
+                            <small class="form-hint">💡 做空仓位的止损百分比</small>
+                        </div>
                     </div>
                 </div>
 
@@ -99,14 +189,6 @@
                 <!-- 持仓设置 -->
                 <div class="form-section">
                     <h3>持仓设置</h3>
-                    
-                    <div class="form-group">
-                        <label>持仓方向</label>
-                        <div class="radio-group">
-                            <label><input type="radio" name="positionSide" value="long" checked> 做多 (Long)</label>
-                            <label><input type="radio" name="positionSide" value="short"> 做空 (Short)</label>
-                        </div>
-                    </div>
 
                     <div class="form-group">
                         <label>持仓大小 (USDT)</label>

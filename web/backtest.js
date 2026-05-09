@@ -89,6 +89,30 @@ function setDefaultDates() {
 // 条件管理
 // ============================================================================
 
+function addLongEntryCondition() {
+    const container = document.getElementById('longEntryConditions');
+    const conditionHtml = createConditionHtml('longEntry');
+    container.insertAdjacentHTML('beforeend', conditionHtml);
+}
+
+function addShortEntryCondition() {
+    const container = document.getElementById('shortEntryConditions');
+    const conditionHtml = createConditionHtml('shortEntry');
+    container.insertAdjacentHTML('beforeend', conditionHtml);
+}
+
+function addLongExitCondition() {
+    const container = document.getElementById('longExitConditions');
+    const conditionHtml = createConditionHtml('longExit');
+    container.insertAdjacentHTML('beforeend', conditionHtml);
+}
+
+function addShortExitCondition() {
+    const container = document.getElementById('shortExitConditions');
+    const conditionHtml = createConditionHtml('shortExit');
+    container.insertAdjacentHTML('beforeend', conditionHtml);
+}
+
 function addEntryCondition() {
     const container = document.getElementById('entryConditions');
     const conditionHtml = createConditionHtml('entry');
@@ -151,42 +175,204 @@ function loadTemplate(templateId) {
     if (config.position_size !== undefined) {
         document.getElementById('positionSize').value = config.position_size;
     }
-    document.querySelector(`input[name="positionSide"][value="${config.position_side}"]`).checked = true;
     
-    if (config.take_profit_pct) {
-        document.getElementById('takeProfitPct').value = config.take_profit_pct;
+    // 检测是否为双向策略模板
+    const isDualDirection = config.long_entry_conditions || config.short_entry_conditions;
+    
+    if (isDualDirection) {
+        // 双向策略模板
+        
+        // 清空所有条件容器
+        const longEntryContainer = document.getElementById('longEntryConditions');
+        const shortEntryContainer = document.getElementById('shortEntryConditions');
+        const longExitContainer = document.getElementById('longExitConditions');
+        const shortExitContainer = document.getElementById('shortExitConditions');
+        
+        if (longEntryContainer) longEntryContainer.innerHTML = '';
+        if (shortEntryContainer) shortEntryContainer.innerHTML = '';
+        if (longExitContainer) longExitContainer.innerHTML = '';
+        if (shortExitContainer) shortExitContainer.innerHTML = '';
+        
+        // 加载做多开仓条件
+        if (config.long_entry_conditions && config.long_entry_conditions.length > 0) {
+            config.long_entry_conditions.forEach(cond => {
+                addLongEntryCondition();
+                const container = document.getElementById('longEntryConditions');
+                const lastCondition = container.lastElementChild;
+                lastCondition.querySelector('.indicator-select').value = cond.indicator;
+                lastCondition.querySelector('.operator-select').value = cond.operator;
+                lastCondition.querySelector('.value-input').value = cond.value;
+            });
+            
+            // 设置做多开仓逻辑运算符
+            if (config.long_entry_logic) {
+                const longEntryLogic = document.getElementById('longEntryLogic');
+                if (longEntryLogic) {
+                    longEntryLogic.value = config.long_entry_logic;
+                }
+            }
+        }
+        
+        // 加载做空开仓条件
+        if (config.short_entry_conditions && config.short_entry_conditions.length > 0) {
+            config.short_entry_conditions.forEach(cond => {
+                addShortEntryCondition();
+                const container = document.getElementById('shortEntryConditions');
+                const lastCondition = container.lastElementChild;
+                lastCondition.querySelector('.indicator-select').value = cond.indicator;
+                lastCondition.querySelector('.operator-select').value = cond.operator;
+                lastCondition.querySelector('.value-input').value = cond.value;
+            });
+            
+            // 设置做空开仓逻辑运算符
+            if (config.short_entry_logic) {
+                const shortEntryLogic = document.getElementById('shortEntryLogic');
+                if (shortEntryLogic) {
+                    shortEntryLogic.value = config.short_entry_logic;
+                }
+            }
+        }
+        
+        // 加载做多平仓条件
+        if (config.long_exit_conditions && config.long_exit_conditions.length > 0) {
+            config.long_exit_conditions.forEach(cond => {
+                addLongExitCondition();
+                const container = document.getElementById('longExitConditions');
+                const lastCondition = container.lastElementChild;
+                lastCondition.querySelector('.indicator-select').value = cond.indicator;
+                lastCondition.querySelector('.operator-select').value = cond.operator;
+                lastCondition.querySelector('.value-input').value = cond.value;
+            });
+            
+            // 设置做多平仓逻辑运算符
+            if (config.long_exit_logic) {
+                const longExitLogic = document.getElementById('longExitLogic');
+                if (longExitLogic) {
+                    longExitLogic.value = config.long_exit_logic;
+                }
+            }
+        }
+        
+        // 加载做空平仓条件
+        if (config.short_exit_conditions && config.short_exit_conditions.length > 0) {
+            config.short_exit_conditions.forEach(cond => {
+                addShortExitCondition();
+                const container = document.getElementById('shortExitConditions');
+                const lastCondition = container.lastElementChild;
+                lastCondition.querySelector('.indicator-select').value = cond.indicator;
+                lastCondition.querySelector('.operator-select').value = cond.operator;
+                lastCondition.querySelector('.value-input').value = cond.value;
+            });
+            
+            // 设置做空平仓逻辑运算符
+            if (config.short_exit_logic) {
+                const shortExitLogic = document.getElementById('shortExitLogic');
+                if (shortExitLogic) {
+                    shortExitLogic.value = config.short_exit_logic;
+                }
+            }
+        }
+        
+        // 加载做多止盈止损百分比
+        if (config.long_take_profit_pct !== undefined) {
+            const longTakeProfitPct = document.getElementById('longTakeProfitPct');
+            if (longTakeProfitPct) {
+                longTakeProfitPct.value = config.long_take_profit_pct;
+            }
+        }
+        if (config.long_stop_loss_pct !== undefined) {
+            const longStopLossPct = document.getElementById('longStopLossPct');
+            if (longStopLossPct) {
+                longStopLossPct.value = config.long_stop_loss_pct;
+            }
+        }
+        
+        // 加载做空止盈止损百分比
+        if (config.short_take_profit_pct !== undefined) {
+            const shortTakeProfitPct = document.getElementById('shortTakeProfitPct');
+            if (shortTakeProfitPct) {
+                shortTakeProfitPct.value = config.short_take_profit_pct;
+            }
+        }
+        if (config.short_stop_loss_pct !== undefined) {
+            const shortStopLossPct = document.getElementById('shortStopLossPct');
+            if (shortStopLossPct) {
+                shortStopLossPct.value = config.short_stop_loss_pct;
+            }
+        }
+        
+    } else {
+        // 单向策略模板（向后兼容）
+        
+        // 设置持仓方向（如果存在单选框）
+        if (config.position_side) {
+            const positionSideRadio = document.querySelector(`input[name="positionSide"][value="${config.position_side}"]`);
+            if (positionSideRadio) {
+                positionSideRadio.checked = true;
+            }
+        }
+        
+        // 清空旧版条件容器
+        const entryContainer = document.getElementById('entryConditions');
+        const exitContainer = document.getElementById('exitConditions');
+        
+        if (entryContainer) entryContainer.innerHTML = '';
+        if (exitContainer) exitContainer.innerHTML = '';
+        
+        // 加载旧版开仓条件
+        if (config.entry_conditions && config.entry_conditions.length > 0) {
+            config.entry_conditions.forEach(cond => {
+                addEntryCondition();
+                const container = document.getElementById('entryConditions');
+                const lastCondition = container.lastElementChild;
+                lastCondition.querySelector('.indicator-select').value = cond.indicator;
+                lastCondition.querySelector('.operator-select').value = cond.operator;
+                lastCondition.querySelector('.value-input').value = cond.value;
+            });
+            
+            // 设置开仓逻辑运算符
+            if (config.entry_logic) {
+                const entryLogic = document.getElementById('entryLogic');
+                if (entryLogic) {
+                    entryLogic.value = config.entry_logic;
+                }
+            }
+        }
+        
+        // 加载旧版平仓条件
+        if (config.exit_conditions && config.exit_conditions.length > 0) {
+            config.exit_conditions.forEach(cond => {
+                addExitCondition();
+                const container = document.getElementById('exitConditions');
+                const lastCondition = container.lastElementChild;
+                lastCondition.querySelector('.indicator-select').value = cond.indicator;
+                lastCondition.querySelector('.operator-select').value = cond.operator;
+                lastCondition.querySelector('.value-input').value = cond.value;
+            });
+            
+            // 设置平仓逻辑运算符
+            if (config.exit_logic) {
+                const exitLogic = document.getElementById('exitLogic');
+                if (exitLogic) {
+                    exitLogic.value = config.exit_logic;
+                }
+            }
+        }
+        
+        // 加载旧版止盈止损百分比
+        if (config.take_profit_pct !== undefined) {
+            const takeProfitPct = document.getElementById('takeProfitPct');
+            if (takeProfitPct) {
+                takeProfitPct.value = config.take_profit_pct;
+            }
+        }
+        if (config.stop_loss_pct !== undefined) {
+            const stopLossPct = document.getElementById('stopLossPct');
+            if (stopLossPct) {
+                stopLossPct.value = config.stop_loss_pct;
+            }
+        }
     }
-    if (config.stop_loss_pct) {
-        document.getElementById('stopLossPct').value = config.stop_loss_pct;
-    }
-    
-    // 清空现有条件
-    document.getElementById('entryConditions').innerHTML = '';
-    document.getElementById('exitConditions').innerHTML = '';
-    
-    // 添加开仓条件
-    config.entry_conditions.forEach(cond => {
-        addEntryCondition();
-        const container = document.getElementById('entryConditions');
-        const lastCondition = container.lastElementChild;
-        lastCondition.querySelector('.indicator-select').value = cond.indicator;
-        lastCondition.querySelector('.operator-select').value = cond.operator;
-        lastCondition.querySelector('.value-input').value = cond.value;
-    });
-    
-    // 添加平仓条件
-    config.exit_conditions.forEach(cond => {
-        addExitCondition();
-        const container = document.getElementById('exitConditions');
-        const lastCondition = container.lastElementChild;
-        lastCondition.querySelector('.indicator-select').value = cond.indicator;
-        lastCondition.querySelector('.operator-select').value = cond.operator;
-        lastCondition.querySelector('.value-input').value = cond.value;
-    });
-    
-    // 设置逻辑运算符
-    document.getElementById('entryLogic').value = config.entry_logic;
-    document.getElementById('exitLogic').value = config.exit_logic;
     
     showSuccess(`已加载模板: ${template.name}`);
 }
@@ -256,33 +442,221 @@ function validateForm() {
         return false;
     }
     
+    // 收集双向策略的开仓条件
+    const longEntryConditions = collectConditions('longEntryConditions');
+    const shortEntryConditions = collectConditions('shortEntryConditions');
+    
+    // 收集旧版开仓条件（向后兼容）
     const entryConditions = collectConditions('entryConditions');
-    if (entryConditions.length === 0) {
-        showError('请至少添加一个开仓条件');
+    
+    // 验证至少配置了一个方向的开仓条件
+    if (longEntryConditions.length === 0 && shortEntryConditions.length === 0 && entryConditions.length === 0) {
+        showError('请至少配置一个方向的开仓条件（做多或做空）');
+        return false;
+    }
+    
+    // 验证做多开仓条件的完整性
+    if (!validateConditions(longEntryConditions, '做多开仓条件')) {
+        return false;
+    }
+    
+    // 验证做空开仓条件的完整性
+    if (!validateConditions(shortEntryConditions, '做空开仓条件')) {
+        return false;
+    }
+    
+    // 验证做多平仓条件的完整性
+    const longExitConditions = collectConditions('longExitConditions');
+    if (!validateConditions(longExitConditions, '做多平仓条件')) {
+        return false;
+    }
+    
+    // 验证做空平仓条件的完整性
+    const shortExitConditions = collectConditions('shortExitConditions');
+    if (!validateConditions(shortExitConditions, '做空平仓条件')) {
+        return false;
+    }
+    
+    // 验证旧版开仓条件的完整性（向后兼容）
+    if (!validateConditions(entryConditions, '开仓条件')) {
+        return false;
+    }
+    
+    // 验证旧版平仓条件的完整性（向后兼容）
+    const exitConditions = collectConditions('exitConditions');
+    if (!validateConditions(exitConditions, '平仓条件')) {
+        return false;
+    }
+    
+    // 验证做多止盈止损百分比
+    const longTakeProfitPct = parseFloatOrNull(document.getElementById('longTakeProfitPct').value);
+    const longStopLossPct = parseFloatOrNull(document.getElementById('longStopLossPct').value);
+    
+    if (longTakeProfitPct !== null && longTakeProfitPct <= 0) {
+        showError('做多止盈百分比必须为正数');
+        return false;
+    }
+    
+    if (longStopLossPct !== null && longStopLossPct <= 0) {
+        showError('做多止损百分比必须为正数');
+        return false;
+    }
+    
+    // 验证做空止盈止损百分比
+    const shortTakeProfitPct = parseFloatOrNull(document.getElementById('shortTakeProfitPct').value);
+    const shortStopLossPct = parseFloatOrNull(document.getElementById('shortStopLossPct').value);
+    
+    if (shortTakeProfitPct !== null && shortTakeProfitPct <= 0) {
+        showError('做空止盈百分比必须为正数');
+        return false;
+    }
+    
+    if (shortStopLossPct !== null && shortStopLossPct <= 0) {
+        showError('做空止损百分比必须为正数');
+        return false;
+    }
+    
+    // 验证旧版止盈止损百分比（向后兼容）
+    const takeProfitPct = parseFloatOrNull(document.getElementById('takeProfitPct').value);
+    const stopLossPct = parseFloatOrNull(document.getElementById('stopLossPct').value);
+    
+    if (takeProfitPct !== null && takeProfitPct <= 0) {
+        showError('止盈百分比必须为正数');
+        return false;
+    }
+    
+    if (stopLossPct !== null && stopLossPct <= 0) {
+        showError('止损百分比必须为正数');
         return false;
     }
     
     return true;
 }
 
+/**
+ * 验证条件列表的完整性
+ * @param {Array} conditions - 条件数组
+ * @param {string} conditionType - 条件类型名称（用于错误提示）
+ * @returns {boolean} - 验证是否通过
+ */
+function validateConditions(conditions, conditionType) {
+    for (let i = 0; i < conditions.length; i++) {
+        const condition = conditions[i];
+        
+        // 验证指标不能为空
+        if (!condition.indicator || condition.indicator.trim() === '') {
+            showError(`${conditionType}的第 ${i + 1} 个条件：指标不能为空`);
+            return false;
+        }
+        
+        // 验证运算符不能为空
+        if (!condition.operator || condition.operator.trim() === '') {
+            showError(`${conditionType}的第 ${i + 1} 个条件：运算符不能为空`);
+            return false;
+        }
+        
+        // 验证值不能为空
+        if (condition.value === null || condition.value === undefined || condition.value === '') {
+            showError(`${conditionType}的第 ${i + 1} 个条件：值不能为空`);
+            return false;
+        }
+    }
+    
+    return true;
+}
+
 function collectFormData() {
-    return {
+    const data = {
         strategy_name: document.getElementById('strategyName').value.trim(),
         timeframe: document.getElementById('timeframe').value,
         start_date: document.getElementById('startDate').value,
         end_date: document.getElementById('endDate').value,
         initial_capital: parseFloat(document.getElementById('initialCapital').value),
-        entry_conditions: collectConditions('entryConditions'),
-        entry_logic: document.getElementById('entryLogic').value,
-        exit_conditions: collectConditions('exitConditions'),
-        exit_logic: document.getElementById('exitLogic').value,
-        position_side: document.querySelector('input[name="positionSide"]:checked').value,
         position_size: parseFloat(document.getElementById('positionSize').value),
         position_size_type: "fixed",  // 固定为固定金额类型
-        leverage: parseFloat(document.getElementById('leverage').value) || 5.0,  // 读取杠杆值，默认5倍
-        take_profit_pct: parseFloatOrNull(document.getElementById('takeProfitPct').value),
-        stop_loss_pct: parseFloatOrNull(document.getElementById('stopLossPct').value)
+        leverage: parseFloat(document.getElementById('leverage').value) || 5.0  // 读取杠杆值，默认5倍
     };
+    
+    // 收集双向策略的新字段
+    const longEntryConditions = collectConditions('longEntryConditions');
+    const shortEntryConditions = collectConditions('shortEntryConditions');
+    const longExitConditions = collectConditions('longExitConditions');
+    const shortExitConditions = collectConditions('shortExitConditions');
+    
+    // 如果配置了做多开仓条件
+    if (longEntryConditions.length > 0) {
+        data.long_entry_conditions = longEntryConditions;
+        data.long_entry_logic = document.getElementById('longEntryLogic').value;
+    }
+    
+    // 如果配置了做空开仓条件
+    if (shortEntryConditions.length > 0) {
+        data.short_entry_conditions = shortEntryConditions;
+        data.short_entry_logic = document.getElementById('shortEntryLogic').value;
+    }
+    
+    // 如果配置了做多平仓条件
+    if (longExitConditions.length > 0) {
+        data.long_exit_conditions = longExitConditions;
+        data.long_exit_logic = document.getElementById('longExitLogic').value;
+    }
+    
+    // 做多止盈止损
+    const longTakeProfitPct = parseFloatOrNull(document.getElementById('longTakeProfitPct').value);
+    const longStopLossPct = parseFloatOrNull(document.getElementById('longStopLossPct').value);
+    if (longTakeProfitPct !== null) {
+        data.long_take_profit_pct = longTakeProfitPct;
+    }
+    if (longStopLossPct !== null) {
+        data.long_stop_loss_pct = longStopLossPct;
+    }
+    
+    // 如果配置了做空平仓条件
+    if (shortExitConditions.length > 0) {
+        data.short_exit_conditions = shortExitConditions;
+        data.short_exit_logic = document.getElementById('shortExitLogic').value;
+    }
+    
+    // 做空止盈止损
+    const shortTakeProfitPct = parseFloatOrNull(document.getElementById('shortTakeProfitPct').value);
+    const shortStopLossPct = parseFloatOrNull(document.getElementById('shortStopLossPct').value);
+    if (shortTakeProfitPct !== null) {
+        data.short_take_profit_pct = shortTakeProfitPct;
+    }
+    if (shortStopLossPct !== null) {
+        data.short_stop_loss_pct = shortStopLossPct;
+    }
+    
+    // 向后兼容：收集旧版字段（如果存在）
+    const entryConditions = collectConditions('entryConditions');
+    if (entryConditions.length > 0) {
+        data.entry_conditions = entryConditions;
+        data.entry_logic = document.getElementById('entryLogic').value;
+    }
+    
+    const exitConditions = collectConditions('exitConditions');
+    if (exitConditions.length > 0) {
+        data.exit_conditions = exitConditions;
+        data.exit_logic = document.getElementById('exitLogic').value;
+    }
+    
+    // 旧版持仓方向（如果存在单选框）
+    const positionSideRadio = document.querySelector('input[name="positionSide"]:checked');
+    if (positionSideRadio) {
+        data.position_side = positionSideRadio.value;
+    }
+    
+    // 旧版止盈止损
+    const takeProfitPct = parseFloatOrNull(document.getElementById('takeProfitPct').value);
+    const stopLossPct = parseFloatOrNull(document.getElementById('stopLossPct').value);
+    if (takeProfitPct !== null) {
+        data.take_profit_pct = takeProfitPct;
+    }
+    if (stopLossPct !== null) {
+        data.stop_loss_pct = stopLossPct;
+    }
+    
+    return data;
 }
 
 function collectConditions(containerId) {

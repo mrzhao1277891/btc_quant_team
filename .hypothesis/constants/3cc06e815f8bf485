@@ -1,0 +1,4 @@
+# file: /Users/zhaojun/ideaprojects/btc_quant_team/backend/backtest/engine.py
+# hypothesis_version: 6.141.1
+
+[0.0, 1e-09, 100, 'ATR', 'Bollinger_Lower', 'Bollinger_Middle', 'Bollinger_Upper', 'EMA25', 'EMA50', 'EMA7', 'MACD_DEA', 'MACD_DIF', 'MACD_Histogram', 'RSI14', 'RSI6', 'amount', 'atr', 'backtest_end', 'boll_dn', 'boll_md', 'boll_up', 'close', 'dea', 'dif', 'ema25', 'ema50', 'ema7', 'long', 'macd', 'price', 'rsi14', 'rsi6', 'short', 'stop_loss_amount', 'stop_loss_percentage', 'take_profit_amount', 'timestamp', 'to_pydatetime', 'volume']
