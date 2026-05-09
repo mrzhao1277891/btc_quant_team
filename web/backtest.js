@@ -25,9 +25,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 设置默认日期
     setDefaultDates();
     
-    // 添加初始条件
-    addEntryCondition();
-    addExitCondition();
+    // 添加初始条件（双向策略）
+    addLongEntryCondition();
+    addShortEntryCondition();
+    addLongExitCondition();
+    addShortExitCondition();
     
     console.log('✅ 初始化完成');
 });
@@ -110,18 +112,6 @@ function addLongExitCondition() {
 function addShortExitCondition() {
     const container = document.getElementById('shortExitConditions');
     const conditionHtml = createConditionHtml('shortExit');
-    container.insertAdjacentHTML('beforeend', conditionHtml);
-}
-
-function addEntryCondition() {
-    const container = document.getElementById('entryConditions');
-    const conditionHtml = createConditionHtml('entry');
-    container.insertAdjacentHTML('beforeend', conditionHtml);
-}
-
-function addExitCondition() {
-    const container = document.getElementById('exitConditions');
-    const conditionHtml = createConditionHtml('exit');
     container.insertAdjacentHTML('beforeend', conditionHtml);
 }
 
@@ -311,67 +301,6 @@ function loadTemplate(templateId) {
                 positionSideRadio.checked = true;
             }
         }
-        
-        // 清空旧版条件容器
-        const entryContainer = document.getElementById('entryConditions');
-        const exitContainer = document.getElementById('exitConditions');
-        
-        if (entryContainer) entryContainer.innerHTML = '';
-        if (exitContainer) exitContainer.innerHTML = '';
-        
-        // 加载旧版开仓条件
-        if (config.entry_conditions && config.entry_conditions.length > 0) {
-            config.entry_conditions.forEach(cond => {
-                addEntryCondition();
-                const container = document.getElementById('entryConditions');
-                const lastCondition = container.lastElementChild;
-                lastCondition.querySelector('.indicator-select').value = cond.indicator;
-                lastCondition.querySelector('.operator-select').value = cond.operator;
-                lastCondition.querySelector('.value-input').value = cond.value;
-            });
-            
-            // 设置开仓逻辑运算符
-            if (config.entry_logic) {
-                const entryLogic = document.getElementById('entryLogic');
-                if (entryLogic) {
-                    entryLogic.value = config.entry_logic;
-                }
-            }
-        }
-        
-        // 加载旧版平仓条件
-        if (config.exit_conditions && config.exit_conditions.length > 0) {
-            config.exit_conditions.forEach(cond => {
-                addExitCondition();
-                const container = document.getElementById('exitConditions');
-                const lastCondition = container.lastElementChild;
-                lastCondition.querySelector('.indicator-select').value = cond.indicator;
-                lastCondition.querySelector('.operator-select').value = cond.operator;
-                lastCondition.querySelector('.value-input').value = cond.value;
-            });
-            
-            // 设置平仓逻辑运算符
-            if (config.exit_logic) {
-                const exitLogic = document.getElementById('exitLogic');
-                if (exitLogic) {
-                    exitLogic.value = config.exit_logic;
-                }
-            }
-        }
-        
-        // 加载旧版止盈止损百分比
-        if (config.take_profit_pct !== undefined) {
-            const takeProfitPct = document.getElementById('takeProfitPct');
-            if (takeProfitPct) {
-                takeProfitPct.value = config.take_profit_pct;
-            }
-        }
-        if (config.stop_loss_pct !== undefined) {
-            const stopLossPct = document.getElementById('stopLossPct');
-            if (stopLossPct) {
-                stopLossPct.value = config.stop_loss_pct;
-            }
-        }
     }
     
     showSuccess(`已加载模板: ${template.name}`);
@@ -446,11 +375,8 @@ function validateForm() {
     const longEntryConditions = collectConditions('longEntryConditions');
     const shortEntryConditions = collectConditions('shortEntryConditions');
     
-    // 收集旧版开仓条件（向后兼容）
-    const entryConditions = collectConditions('entryConditions');
-    
     // 验证至少配置了一个方向的开仓条件
-    if (longEntryConditions.length === 0 && shortEntryConditions.length === 0 && entryConditions.length === 0) {
+    if (longEntryConditions.length === 0 && shortEntryConditions.length === 0) {
         showError('请至少配置一个方向的开仓条件（做多或做空）');
         return false;
     }
@@ -477,20 +403,9 @@ function validateForm() {
         return false;
     }
     
-    // 验证旧版开仓条件的完整性（向后兼容）
-    if (!validateConditions(entryConditions, '开仓条件')) {
-        return false;
-    }
-    
-    // 验证旧版平仓条件的完整性（向后兼容）
-    const exitConditions = collectConditions('exitConditions');
-    if (!validateConditions(exitConditions, '平仓条件')) {
-        return false;
-    }
-    
     // 验证做多止盈止损百分比
-    const longTakeProfitPct = parseFloatOrNull(document.getElementById('longTakeProfitPct').value);
-    const longStopLossPct = parseFloatOrNull(document.getElementById('longStopLossPct').value);
+    const longTakeProfitPct = parseFloatOrNull(safeGetElementValue('longTakeProfitPct'));
+    const longStopLossPct = parseFloatOrNull(safeGetElementValue('longStopLossPct'));
     
     if (longTakeProfitPct !== null && longTakeProfitPct <= 0) {
         showError('做多止盈百分比必须为正数');
@@ -503,8 +418,8 @@ function validateForm() {
     }
     
     // 验证做空止盈止损百分比
-    const shortTakeProfitPct = parseFloatOrNull(document.getElementById('shortTakeProfitPct').value);
-    const shortStopLossPct = parseFloatOrNull(document.getElementById('shortStopLossPct').value);
+    const shortTakeProfitPct = parseFloatOrNull(safeGetElementValue('shortTakeProfitPct'));
+    const shortStopLossPct = parseFloatOrNull(safeGetElementValue('shortStopLossPct'));
     
     if (shortTakeProfitPct !== null && shortTakeProfitPct <= 0) {
         showError('做空止盈百分比必须为正数');
@@ -513,20 +428,6 @@ function validateForm() {
     
     if (shortStopLossPct !== null && shortStopLossPct <= 0) {
         showError('做空止损百分比必须为正数');
-        return false;
-    }
-    
-    // 验证旧版止盈止损百分比（向后兼容）
-    const takeProfitPct = parseFloatOrNull(document.getElementById('takeProfitPct').value);
-    const stopLossPct = parseFloatOrNull(document.getElementById('stopLossPct').value);
-    
-    if (takeProfitPct !== null && takeProfitPct <= 0) {
-        showError('止盈百分比必须为正数');
-        return false;
-    }
-    
-    if (stopLossPct !== null && stopLossPct <= 0) {
-        showError('止损百分比必须为正数');
         return false;
     }
     
@@ -602,8 +503,8 @@ function collectFormData() {
     }
     
     // 做多止盈止损
-    const longTakeProfitPct = parseFloatOrNull(document.getElementById('longTakeProfitPct').value);
-    const longStopLossPct = parseFloatOrNull(document.getElementById('longStopLossPct').value);
+    const longTakeProfitPct = parseFloatOrNull(safeGetElementValue('longTakeProfitPct'));
+    const longStopLossPct = parseFloatOrNull(safeGetElementValue('longStopLossPct'));
     if (longTakeProfitPct !== null) {
         data.long_take_profit_pct = longTakeProfitPct;
     }
@@ -618,42 +519,13 @@ function collectFormData() {
     }
     
     // 做空止盈止损
-    const shortTakeProfitPct = parseFloatOrNull(document.getElementById('shortTakeProfitPct').value);
-    const shortStopLossPct = parseFloatOrNull(document.getElementById('shortStopLossPct').value);
+    const shortTakeProfitPct = parseFloatOrNull(safeGetElementValue('shortTakeProfitPct'));
+    const shortStopLossPct = parseFloatOrNull(safeGetElementValue('shortStopLossPct'));
     if (shortTakeProfitPct !== null) {
         data.short_take_profit_pct = shortTakeProfitPct;
     }
     if (shortStopLossPct !== null) {
         data.short_stop_loss_pct = shortStopLossPct;
-    }
-    
-    // 向后兼容：收集旧版字段（如果存在）
-    const entryConditions = collectConditions('entryConditions');
-    if (entryConditions.length > 0) {
-        data.entry_conditions = entryConditions;
-        data.entry_logic = document.getElementById('entryLogic').value;
-    }
-    
-    const exitConditions = collectConditions('exitConditions');
-    if (exitConditions.length > 0) {
-        data.exit_conditions = exitConditions;
-        data.exit_logic = document.getElementById('exitLogic').value;
-    }
-    
-    // 旧版持仓方向（如果存在单选框）
-    const positionSideRadio = document.querySelector('input[name="positionSide"]:checked');
-    if (positionSideRadio) {
-        data.position_side = positionSideRadio.value;
-    }
-    
-    // 旧版止盈止损
-    const takeProfitPct = parseFloatOrNull(document.getElementById('takeProfitPct').value);
-    const stopLossPct = parseFloatOrNull(document.getElementById('stopLossPct').value);
-    if (takeProfitPct !== null) {
-        data.take_profit_pct = takeProfitPct;
-    }
-    if (stopLossPct !== null) {
-        data.stop_loss_pct = stopLossPct;
     }
     
     return data;
@@ -662,6 +534,11 @@ function collectFormData() {
 function collectConditions(containerId) {
     const container = document.getElementById(containerId);
     const conditions = [];
+    
+    // 如果容器不存在，返回空数组
+    if (!container) {
+        return conditions;
+    }
     
     container.querySelectorAll('.condition-item').forEach(item => {
         const indicator = item.querySelector('.indicator-select').value;
@@ -681,8 +558,19 @@ function collectConditions(containerId) {
 }
 
 function parseFloatOrNull(value) {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
     const num = parseFloat(value);
     return isNaN(num) ? null : num;
+}
+
+/**
+ * 安全地获取元素的值，如果元素不存在则返回空字符串
+ */
+function safeGetElementValue(elementId) {
+    const element = document.getElementById(elementId);
+    return element ? element.value : '';
 }
 
 // ============================================================================
@@ -866,6 +754,13 @@ function displayTrades(trades) {
         return;
     }
     
+    // 调试：打印第一条交易记录
+    if (trades.length > 0) {
+        console.log('第一条交易记录:', trades[0]);
+        console.log('entry_time:', trades[0].entry_time);
+        console.log('exit_time:', trades[0].exit_time);
+    }
+    
     trades.forEach((trade, index) => {
         const row = document.createElement('tr');
         const profitClass = trade.profit_loss >= 0 ? 'profit' : 'loss';
@@ -892,14 +787,33 @@ function displayTrades(trades) {
 
 function formatDateTime(timestamp) {
     if (!timestamp) return '--';
-    const date = new Date(timestamp);
-    return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    
+    try {
+        // 如果是浮点数时间戳，转换为整数
+        let ts = timestamp;
+        if (typeof ts === 'number' || typeof ts === 'string') {
+            ts = Math.floor(parseFloat(ts));
+        }
+        
+        const date = new Date(ts);
+        
+        // 检查日期是否有效
+        if (isNaN(date.getTime())) {
+            console.warn('Invalid timestamp:', timestamp);
+            return '--';
+        }
+        
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (error) {
+        console.error('Error formatting timestamp:', timestamp, error);
+        return '--';
+    }
 }
 
 function formatExitReason(reason) {
@@ -1011,17 +925,28 @@ function saveStrategy() {
 function resetForm() {
     if (confirm('确定要重置表单吗？')) {
         document.getElementById('strategyName').value = '';
-        document.getElementById('initialCapital').value = '10000';
-        document.getElementById('positionSize').value = '10';
-        document.getElementById('takeProfitPct').value = '';
-        document.getElementById('stopLossPct').value = '';
+        document.getElementById('initialCapital').value = '2000';
+        document.getElementById('positionSize').value = '10000';
+        document.getElementById('leverage').value = '5';
         document.getElementById('templateSelect').value = '';
         
-        document.getElementById('entryConditions').innerHTML = '';
-        document.getElementById('exitConditions').innerHTML = '';
+        // 清空双向策略条件
+        document.getElementById('longEntryConditions').innerHTML = '';
+        document.getElementById('shortEntryConditions').innerHTML = '';
+        document.getElementById('longExitConditions').innerHTML = '';
+        document.getElementById('shortExitConditions').innerHTML = '';
         
-        addEntryCondition();
-        addExitCondition();
+        // 重置止盈止损
+        document.getElementById('longTakeProfitPct').value = '';
+        document.getElementById('longStopLossPct').value = '';
+        document.getElementById('shortTakeProfitPct').value = '';
+        document.getElementById('shortStopLossPct').value = '';
+        
+        // 添加初始条件
+        addLongEntryCondition();
+        addShortEntryCondition();
+        addLongExitCondition();
+        addShortExitCondition();
         
         setDefaultDates();
         
