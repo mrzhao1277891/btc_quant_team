@@ -33,13 +33,25 @@
 
     <!-- Main dashboard grid - 4 cards -->
     <main class="dashboard-grid">
-        <!-- Card 1: Price & Moving Averages & Bollinger Bands -->
+        <!-- Card 1: Price & Moving Averages -->
         <div class="card" id="priceCard">
             <div class="card-header">
-                <h2 class="card-title">价格与均线布林带</h2>
+                <h2 class="card-title">价格与均线 (EMA)</h2>
             </div>
             <div class="card-body">
                 <div id="priceCardContent" class="card-content">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Bollinger Bands -->
+        <div class="card" id="bollCard">
+            <div class="card-header">
+                <h2 class="card-title">布林带 (BOLL)</h2>
+            </div>
+            <div class="card-body">
+                <div id="bollCardContent" class="card-content">
                     <div class="loading">加载中...</div>
                 </div>
             </div>
@@ -203,15 +215,28 @@
     <script type="module">
         import { DashboardController } from './components/DashboardController.js';
         
-        // Card 1: Price & Moving Averages & Bollinger Bands (Combined)
+        // Card 1: Price & Moving Averages (EMA)
         const priceCardConfig = {
             containerId: 'priceCardContent',
-            title: '价格与均线布林带',
+            title: '价格与均线 (EMA)',
             indicators: [
-                { key: 'close', label: '当前价格', style: 'solid', markerShape: 'circle' },
                 { key: 'ema7', label: 'EMA7', style: 'solid', markerShape: 'circle' },
                 { key: 'ema25', label: 'EMA25', style: 'solid', markerShape: 'triangle' },
-                { key: 'ema50', label: 'EMA50', style: 'solid', markerShape: 'square' },
+                { key: 'ema50', label: 'EMA50', style: 'solid', markerShape: 'square' }
+            ],
+            yAxisConfig: { type: 'auto', ticks: 6 },
+            colorScheme: {
+                positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8',
+                ema7: '#3b82f6', ema25: '#8b5cf6', ema50: '#06b6d4'
+            },
+            referenceLines: []
+        };
+
+        // Card 2: Bollinger Bands
+        const bollCardConfig = {
+            containerId: 'bollCardContent',
+            title: '布林带 (BOLL)',
+            indicators: [
                 { key: 'boll_up', label: '布林上轨', style: 'solid', markerShape: 'circle' },
                 { key: 'boll_md', label: '布林中轨', style: 'solid', markerShape: 'triangle' },
                 { key: 'boll_dn', label: '布林下轨', style: 'solid', markerShape: 'square' }
@@ -219,9 +244,7 @@
             yAxisConfig: { type: 'auto', ticks: 6 },
             colorScheme: {
                 positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8',
-                ema7: '#3b82f6', ema25: '#8b5cf6', ema50: '#06b6d4',
-                bollUp: '#f87171', bollMd: '#fb923c', bollDn: '#fbbf24',
-                price: '#22c55e'
+                bollUp: '#f87171', bollMd: '#fb923c', bollDn: '#fbbf24'
             },
             referenceLines: []
         };
@@ -285,7 +308,7 @@
                 apiBaseUrl: 'http://127.0.0.1:8000',
                 refreshInterval: 30000, // 30 seconds
                 timeframes: ['1m', '1w', '1d', '4h'],
-                cards: [priceCardConfig, rsiCardConfig, macdCardConfig, fibonacciCardConfig]
+                cards: [priceCardConfig, bollCardConfig, rsiCardConfig, macdCardConfig, fibonacciCardConfig]
             };
             
             try {

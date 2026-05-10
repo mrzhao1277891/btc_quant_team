@@ -137,8 +137,8 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
         "name": request.strategy_name,
         "description": f"回测策略: {request.strategy_name}",
         "timeframe": request.timeframe,
-        "position_size_type": "amount",  # 固定使用amount类型
-        "position_size_value": request.position_size,  # 直接使用固定金额
+        "position_size_type": "percentage" if request.position_size_type == "percentage" else "amount",
+        "position_size_value": request.position_size,
         "initial_capital": request.initial_capital,
         "leverage": request.leverage,  # 使用用户设置的杠杆
     }
@@ -184,8 +184,8 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
                 }
                 for cond in request.long_exit_conditions
             ] if request.long_exit_conditions else [],
-            "take_profit_pct": request.long_take_profit_pct / 100 if request.long_take_profit_pct else None,
-            "stop_loss_pct": request.long_stop_loss_pct / 100 if request.long_stop_loss_pct else None,
+            "take_profit_pct": request.long_take_profit_pct if request.long_take_profit_pct else None,
+            "stop_loss_pct": request.long_stop_loss_pct if request.long_stop_loss_pct else None,
             "logic_operator": request.long_exit_logic
         }
     
@@ -201,8 +201,8 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
                 }
                 for cond in request.short_exit_conditions
             ] if request.short_exit_conditions else [],
-            "take_profit_pct": request.short_take_profit_pct / 100 if request.short_take_profit_pct else None,
-            "stop_loss_pct": request.short_stop_loss_pct / 100 if request.short_stop_loss_pct else None,
+            "take_profit_pct": request.short_take_profit_pct if request.short_take_profit_pct else None,
+            "stop_loss_pct": request.short_stop_loss_pct if request.short_stop_loss_pct else None,
             "logic_operator": request.short_exit_logic
         }
     
@@ -234,8 +234,8 @@ def convert_request_to_strategy_config(request: BacktestRequest) -> Dict[str, An
                 }
                 for cond in request.exit_conditions
             ],
-            "take_profit_pct": request.take_profit_pct / 100 if request.take_profit_pct else None,
-            "stop_loss_pct": request.stop_loss_pct / 100 if request.stop_loss_pct else None,
+            "take_profit_pct": request.take_profit_pct if request.take_profit_pct else None,
+            "stop_loss_pct": request.stop_loss_pct if request.stop_loss_pct else None,
             "take_profit_amount": request.take_profit_amount,
             "stop_loss_amount": request.stop_loss_amount,
             "logic_operator": request.exit_logic
@@ -277,9 +277,18 @@ async def run_backtest_task(backtest_id: str, request: BacktestRequest):
         
         backtest_status[backtest_id]["progress"] = 30
         
-        # 2. 计算技术指标
-        calculator = IndicatorCalculator()
-        klines_with_indicators = calculator.calculate_all_indicators(klines_df)
+        # 2. 检查是否需要计算技术指标
+        # 如果数据库中已有指标，直接使用；否则重新计算
+        required_indicators = ['ema7', 'ema25', 'ema50', 'rsi14', 'rsi6', 'dif', 'dea', 'macd', 'boll_up', 'boll_md', 'boll_dn']
+        missing_indicators = [ind for ind in required_indicators if ind not in klines_df.columns or klines_df[ind].isna().all()]
+        
+        if missing_indicators:
+            logger.info(f"Missing indicators: {missing_indicators}. Calculating...")
+            calculator = IndicatorCalculator()
+            klines_with_indicators = calculator.calculate_all_indicators(klines_df)
+        else:
+            logger.info("Using indicators from database (no recalculation needed)")
+            klines_with_indicators = klines_df
         
         backtest_status[backtest_id]["progress"] = 50
         

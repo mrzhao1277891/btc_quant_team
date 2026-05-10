@@ -474,7 +474,7 @@ function collectFormData() {
         end_date: document.getElementById('endDate').value,
         initial_capital: parseFloat(document.getElementById('initialCapital').value),
         position_size: parseFloat(document.getElementById('positionSize').value),
-        position_size_type: "fixed",  // 固定为固定金额类型
+        position_size_type: document.getElementById('positionSizeType').value,
         leverage: parseFloat(document.getElementById('leverage').value) || 5.0  // 读取杠杆值，默认5倍
     };
     
@@ -653,7 +653,7 @@ function displayResults(data) {
     // 更新性能指标
     updateMetricCard('totalReturn', metrics.total_return, metrics.total_return_pct);
     updateMetricCard('winRate', metrics.win_rate, `${metrics.total_trades} 笔交易`);
-    updateMetricCard('maxDrawdown', metrics.max_drawdown);
+    updateMetricCard('maxDrawdown', metrics.max_drawdown_pct);  // 使用百分比字段
     updateMetricCard('sharpeRatio', metrics.sharpe_ratio);
     
     // 绘制图表
@@ -675,12 +675,14 @@ function updateMetricCard(id, value, subValue = null) {
             document.getElementById('totalReturnPct').textContent = `${subValue.toFixed(2)}%`;
         }
     } else if (id === 'winRate') {
-        element.textContent = `${value.toFixed(2)}%`;
+        // 后端返回的是小数形式（0.61 = 61%），需要乘以100
+        element.textContent = `${(value * 100).toFixed(2)}%`;
         if (subValue) {
             document.getElementById('tradeCount').textContent = subValue;
         }
     } else if (id === 'maxDrawdown') {
-        element.textContent = `${value.toFixed(2)}%`;
+        // 后端返回的是小数形式（0.15 = 15%），需要乘以100
+        element.textContent = `${(value * 100).toFixed(2)}%`;
         element.className = 'metric-value negative';
     } else if (id === 'sharpeRatio') {
         element.textContent = value.toFixed(2);
@@ -951,5 +953,26 @@ function resetForm() {
         setDefaultDates();
         
         showSuccess('表单已重置');
+    }
+}
+
+
+// 持仓类型切换时更新标签
+function updatePositionSizeLabel() {
+    const type = document.getElementById('positionSizeType').value;
+    const label = document.getElementById('positionSizeLabel');
+    const input = document.getElementById('positionSize');
+    const hint = document.getElementById('positionSizeHint');
+    
+    if (type === 'percentage') {
+        label.textContent = '持仓百分比 (%)';
+        input.value = '100';
+        input.placeholder = '100表示全部本金';
+        hint.textContent = '💡 100 = 全部本金×杠杆开仓，50 = 一半本金×杠杆开仓';
+    } else {
+        label.textContent = '持仓大小 (USDT)';
+        input.value = '10000';
+        input.placeholder = '每次开仓使用的金额';
+        hint.textContent = '💡 每次开仓时使用的固定金额（USDT）';
     }
 }

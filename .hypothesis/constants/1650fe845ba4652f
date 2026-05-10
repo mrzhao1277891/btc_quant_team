@@ -1,0 +1,4 @@
+# file: /Users/zhaojun/ideaprojects/btc_quant_team/backend/database.py
+# hypothesis_version: 6.141.1
+
+[0.1, 1000, 3306, '1d', '1m', '1w', '4h', 'BTCUSDT', 'Empty dataframe', '__main__', 'backtest_pool', 'btc_assistant', 'charset', 'close', 'database', 'earliest_date', 'high', 'host', 'latest_date', 'localhost', 'low', 'ms', 'open', 'password', 'pool_name', 'pool_size', 'port', 'root', 'timestamp', 'user', 'utf8mb4', 'volume']

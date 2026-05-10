@@ -165,9 +165,17 @@
                     <h3>持仓设置</h3>
 
                     <div class="form-group">
-                        <label>持仓大小 (USDT)</label>
-                        <input type="number" id="positionSize" class="form-control" value="10000" min="1" step="1" placeholder="每次开仓使用的金额">
-                        <small class="form-hint">💡 每次开仓时使用的固定金额（USDT）</small>
+                        <label>持仓类型</label>
+                        <select id="positionSizeType" class="form-control" onchange="updatePositionSizeLabel()">
+                            <option value="percentage">百分比（剩余本金 × 百分比 × 杠杆）</option>
+                            <option value="amount">固定金额（USDT）</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label id="positionSizeLabel">持仓百分比 (%)</label>
+                        <input type="number" id="positionSize" class="form-control" value="100" min="1" step="1" placeholder="100表示全部本金">
+                        <small class="form-hint" id="positionSizeHint">💡 100 = 全部本金×杠杆开仓，50 = 一半本金×杠杆开仓</small>
                     </div>
 
                     <div class="form-group">

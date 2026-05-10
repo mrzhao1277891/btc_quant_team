@@ -47,6 +47,10 @@ class BacktestEngine:
         self.capital = strategy_config.initial_capital
         self.trade_id_counter = 1
         
+        # 统计信息
+        self.missed_signals_insufficient_capital = 0  # 因资金不足错过的信号
+        self._intrabar_exit_price = None  # 盘中止损/止盈精确价格
+        
         logger.info(f"BacktestEngine initialized with strategy: {strategy_config.name}")
         logger.info(f"Initial capital: {self.capital}, Timeframe: {strategy_config.timeframe}")
         
@@ -397,8 +401,14 @@ class BacktestEngine:
             if hasattr(timestamp, 'to_pydatetime'):
                 timestamp = timestamp.to_pydatetime()
             
+            # 生成可读时间
+            try:
+                readable_time = pd.to_datetime(timestamp, unit='ms').strftime('%Y-%m-%d %H:%M') if isinstance(timestamp, (int, float)) else str(timestamp)
+            except:
+                readable_time = str(timestamp)
+            
             logger.info("=" * 80)
-            logger.info(f"🟢 做多开仓信号触发 @ {timestamp}")
+            logger.info(f"🟢 做多开仓信号触发 @ {timestamp} ({readable_time})")
             logger.info(f"  价格: {row.get('close', 'N/A')}")
             logger.info(f"  逻辑运算符: {logic_operator.value}")
             logger.info(f"  条件评估结果:")
@@ -456,8 +466,14 @@ class BacktestEngine:
             if hasattr(timestamp, 'to_pydatetime'):
                 timestamp = timestamp.to_pydatetime()
             
+            # 生成可读时间
+            try:
+                readable_time = pd.to_datetime(timestamp, unit='ms').strftime('%Y-%m-%d %H:%M') if isinstance(timestamp, (int, float)) else str(timestamp)
+            except:
+                readable_time = str(timestamp)
+            
             logger.info("=" * 80)
-            logger.info(f"🔴 做空开仓信号触发 @ {timestamp}")
+            logger.info(f"🔴 做空开仓信号触发 @ {timestamp} ({readable_time})")
             logger.info(f"  价格: {row.get('close', 'N/A')}")
             logger.info(f"  逻辑运算符: {logic_operator.value}")
             logger.info(f"  条件评估结果:")
@@ -518,12 +534,14 @@ class BacktestEngine:
         """检测做多平仓信号
         
         评估策略配置中的做多平仓条件（long_exit_conditions）。
+        使用K线的high/low模拟盘中止损/止盈，更真实地反映实际交易。
+        
         评估顺序：
-        1. 绝对值止损（优先级最高）
-        2. 绝对值止盈
-        3. 百分比止损
-        4. 百分比止盈
-        5. 基于指标的平仓条件
+        1. 百分比止损（使用low价格检测，止损价平仓）
+        2. 百分比止盈（使用high价格检测，止盈价平仓）
+        3. 绝对值止损（使用low价格检测）
+        4. 绝对值止盈（使用high价格检测）
+        5. 基于指标的平仓条件（使用close价格）
         
         Args:
             row: 当前K线数据行
@@ -537,32 +555,53 @@ class BacktestEngine:
             return False, ""
         
         exit_conditions = self.strategy_config.long_exit_conditions
-        current_price = row['close']
         
-        # 计算当前盈亏
-        pnl_amount, pnl_pct = self._calculate_pnl(position, current_price)
+        # 获取K线的high和low价格，用于模拟盘中止损/止盈
+        low_price = row.get('low', row['close'])
+        high_price = row.get('high', row['close'])
         
-        # 1. 检查绝对值止损（优先级最高）
-        if exit_conditions.stop_loss_amount is not None:
-            if pnl_amount <= -exit_conditions.stop_loss_amount:
-                return True, "stop_loss_amount"
-        
-        # 2. 检查绝对值止盈
-        if exit_conditions.take_profit_amount is not None:
-            if pnl_amount >= exit_conditions.take_profit_amount:
-                return True, "take_profit_amount"
-        
-        # 3. 检查百分比止损
+        # 1. 检查百分比止损（使用low价格 - 做多时价格越低亏损越大）
         if exit_conditions.stop_loss_pct is not None:
-            if pnl_pct <= -exit_conditions.stop_loss_pct:
+            # 计算止损价位
+            # stop_loss_pct 是本金亏损百分比（如2代表本金亏损2%）
+            # 本金亏损2% = entry_capital × 2% = position_value / leverage × 2%
+            # 对应价格跌幅 = stop_loss_pct / leverage %
+            # 做多止损价 = 开仓价 × (1 - stop_loss_pct / 100 / leverage)
+            stop_loss_price = position.entry_price * (1 - exit_conditions.stop_loss_pct / 100 / self.strategy_config.leverage)
+            if low_price <= stop_loss_price + 1e-6:
+                self._intrabar_exit_price = stop_loss_price
                 return True, "stop_loss_percentage"
         
-        # 4. 检查百分比止盈
+        # 2. 检查百分比止盈（使用high价格 - 做多时价格越高盈利越大）
         if exit_conditions.take_profit_pct is not None:
-            if pnl_pct >= exit_conditions.take_profit_pct:
+            # 计算止盈价位
+            # take_profit_pct 是本金盈利百分比（如4代表本金盈利4%）
+            # 做多止盈价 = 开仓价 × (1 + take_profit_pct / 100 / leverage)
+            take_profit_price = position.entry_price * (1 + exit_conditions.take_profit_pct / 100 / self.strategy_config.leverage)
+            if high_price >= take_profit_price - 1e-6:
+                self._intrabar_exit_price = take_profit_price
                 return True, "take_profit_percentage"
         
-        # 5. 检查基于指标的平仓条件
+        # 3. 检查绝对值止损（使用low价格）
+        if exit_conditions.stop_loss_amount is not None:
+            pnl_at_low, _ = self._calculate_pnl(position, low_price)
+            if pnl_at_low <= -exit_conditions.stop_loss_amount:
+                # 计算精确止损价位
+                # pnl = (price - entry_price) * position_size = -stop_loss_amount
+                stop_price = position.entry_price - exit_conditions.stop_loss_amount / position.position_size
+                self._intrabar_exit_price = stop_price
+                return True, "stop_loss_amount"
+        
+        # 4. 检查绝对值止盈（使用high价格）
+        if exit_conditions.take_profit_amount is not None:
+            pnl_at_high, _ = self._calculate_pnl(position, high_price)
+            if pnl_at_high >= exit_conditions.take_profit_amount:
+                # 计算精确止盈价位
+                tp_price = position.entry_price + exit_conditions.take_profit_amount / position.position_size
+                self._intrabar_exit_price = tp_price
+                return True, "take_profit_amount"
+        
+        # 5. 检查基于指标的平仓条件（使用close价格）
         indicator_conditions = exit_conditions.indicator_conditions
         if indicator_conditions:
             results = [self._evaluate_condition(cond, row) for cond in indicator_conditions]
@@ -575,24 +614,29 @@ class BacktestEngine:
                     for i, result in enumerate(results):
                         if result:
                             cond = indicator_conditions[i]
+                            self._intrabar_exit_price = None  # 指标条件用close价格
                             return True, f"indicator_{cond.indicator}_{cond.operator.value}"
             elif logic_operator == LogicOperator.AND:
                 if all(results):
+                    self._intrabar_exit_price = None
                     return True, "indicator_conditions_all_met"
         
         # 没有满足任何平仓条件
+        self._intrabar_exit_price = None
         return False, ""
     
     def _check_short_exit_signal(self, row: pd.Series, position: Position) -> Tuple[bool, str]:
         """检测做空平仓信号
         
         评估策略配置中的做空平仓条件（short_exit_conditions）。
+        使用K线的high/low模拟盘中止损/止盈，更真实地反映实际交易。
+        
         评估顺序：
-        1. 绝对值止损（优先级最高）
-        2. 绝对值止盈
-        3. 百分比止损
-        4. 百分比止盈
-        5. 基于指标的平仓条件
+        1. 百分比止损（使用high价格检测，止损价平仓）
+        2. 百分比止盈（使用low价格检测，止盈价平仓）
+        3. 绝对值止损（使用high价格检测）
+        4. 绝对值止盈（使用low价格检测）
+        5. 基于指标的平仓条件（使用close价格）
         
         Args:
             row: 当前K线数据行
@@ -606,32 +650,51 @@ class BacktestEngine:
             return False, ""
         
         exit_conditions = self.strategy_config.short_exit_conditions
-        current_price = row['close']
         
-        # 计算当前盈亏
-        pnl_amount, pnl_pct = self._calculate_pnl(position, current_price)
+        # 获取K线的high和low价格，用于模拟盘中止损/止盈
+        low_price = row.get('low', row['close'])
+        high_price = row.get('high', row['close'])
         
-        # 1. 检查绝对值止损（优先级最高）
-        if exit_conditions.stop_loss_amount is not None:
-            if pnl_amount <= -exit_conditions.stop_loss_amount:
-                return True, "stop_loss_amount"
-        
-        # 2. 检查绝对值止盈
-        if exit_conditions.take_profit_amount is not None:
-            if pnl_amount >= exit_conditions.take_profit_amount:
-                return True, "take_profit_amount"
-        
-        # 3. 检查百分比止损
+        # 1. 检查百分比止损（使用high价格 - 做空时价格越高亏损越大）
         if exit_conditions.stop_loss_pct is not None:
-            if pnl_pct <= -exit_conditions.stop_loss_pct:
+            # 计算止损价位
+            # stop_loss_pct 是本金亏损百分比（如2代表本金亏损2%）
+            # 做空止损价 = 开仓价 × (1 + stop_loss_pct / 100 / leverage)
+            stop_loss_price = position.entry_price * (1 + exit_conditions.stop_loss_pct / 100 / self.strategy_config.leverage)
+            if high_price >= stop_loss_price - 1e-6:
+                self._intrabar_exit_price = stop_loss_price
                 return True, "stop_loss_percentage"
         
-        # 4. 检查百分比止盈
+        # 2. 检查百分比止盈（使用low价格 - 做空时价格越低盈利越大）
         if exit_conditions.take_profit_pct is not None:
-            if pnl_pct >= exit_conditions.take_profit_pct:
+            # 计算止盈价位
+            # take_profit_pct 是本金盈利百分比（如4代表本金盈利4%）
+            # 做空止盈价 = 开仓价 × (1 - take_profit_pct / 100 / leverage)
+            take_profit_price = position.entry_price * (1 - exit_conditions.take_profit_pct / 100 / self.strategy_config.leverage)
+            if low_price <= take_profit_price + 1e-6:
+                self._intrabar_exit_price = take_profit_price
                 return True, "take_profit_percentage"
         
-        # 5. 检查基于指标的平仓条件
+        # 3. 检查绝对值止损（使用high价格）
+        if exit_conditions.stop_loss_amount is not None:
+            pnl_at_high, _ = self._calculate_pnl(position, high_price)
+            if pnl_at_high <= -exit_conditions.stop_loss_amount:
+                # 计算精确止损价位
+                # pnl = (entry_price - price) * position_size = -stop_loss_amount
+                stop_price = position.entry_price + exit_conditions.stop_loss_amount / position.position_size
+                self._intrabar_exit_price = stop_price
+                return True, "stop_loss_amount"
+        
+        # 4. 检查绝对值止盈（使用low价格）
+        if exit_conditions.take_profit_amount is not None:
+            pnl_at_low, _ = self._calculate_pnl(position, low_price)
+            if pnl_at_low >= exit_conditions.take_profit_amount:
+                # 计算精确止盈价位
+                tp_price = position.entry_price - exit_conditions.take_profit_amount / position.position_size
+                self._intrabar_exit_price = tp_price
+                return True, "take_profit_amount"
+        
+        # 5. 检查基于指标的平仓条件（使用close价格）
         indicator_conditions = exit_conditions.indicator_conditions
         if indicator_conditions:
             results = [self._evaluate_condition(cond, row) for cond in indicator_conditions]
@@ -644,12 +707,15 @@ class BacktestEngine:
                     for i, result in enumerate(results):
                         if result:
                             cond = indicator_conditions[i]
+                            self._intrabar_exit_price = None
                             return True, f"indicator_{cond.indicator}_{cond.operator.value}"
             elif logic_operator == LogicOperator.AND:
                 if all(results):
+                    self._intrabar_exit_price = None
                     return True, "indicator_conditions_all_met"
         
         # 没有满足任何平仓条件
+        self._intrabar_exit_price = None
         return False, ""
     
     def _check_exit_signal(self, row: pd.Series, position: Position) -> Tuple[bool, str]:
@@ -785,7 +851,10 @@ class BacktestEngine:
             position_value = self.strategy_config.position_size_value
         else:  # percentage
             # 百分比（基于当前资金）
-            position_value = self.capital * (self.strategy_config.position_size_value / 100)
+            # 计算保证金 = 当前资金 × 百分比
+            # 仓位 = 保证金 × 杠杆
+            margin = self.capital * (self.strategy_config.position_size_value / 100)
+            position_value = margin * self.strategy_config.leverage
         
         # 获取杠杆倍数
         leverage = self.strategy_config.leverage
@@ -797,12 +866,15 @@ class BacktestEngine:
         )
         
         # 计算实际需要的保证金（本金）
-        # 实际仓位 = 保证金 × 杠杆
-        # 保证金 = 实际仓位 / 杠杆
+        # 保证金 = 仓位 / 杠杆
         entry_capital = position_value / leverage
         
-        # 检查资金是否足够（检查保证金是否足够）
-        if entry_capital > self.capital:
+        # 检查资金是否足够（检查保证金是否足够，允许微小浮点误差）
+        if entry_capital > self.capital + 1e-6:
+            self.missed_signals_insufficient_capital += 1  # 统计错过的信号
+            logger.warning(
+                f"⚠️  信号 #{self.missed_signals_insufficient_capital} 因资金不足被跳过"
+            )
             logger.warning(
                 f"Insufficient capital for {direction} entry. Required margin: {entry_capital:.2f}, "
                 f"Available: {self.capital:.2f}, Position value: {position_value:.2f}, "
@@ -846,7 +918,13 @@ class BacktestEngine:
         Returns:
             TradeRecord: 交易记录对象
         """
-        exit_price = row['close']
+        # 如果有盘中止损/止盈价格，使用该价格；否则使用close价格
+        if hasattr(self, '_intrabar_exit_price') and self._intrabar_exit_price is not None:
+            exit_price = self._intrabar_exit_price
+            self._intrabar_exit_price = None  # 重置
+        else:
+            exit_price = row['close']
+        
         exit_time = row['timestamp'] if 'timestamp' in row.index else row.name
         # 转换 pandas Timestamp 为 Python datetime
         if hasattr(exit_time, 'to_pydatetime'):
@@ -918,6 +996,10 @@ class BacktestEngine:
         
         # 遍历每一行K线数据
         for idx, row in self.kline_data.iterrows():
+            # Track if a position was closed due to exit conditions on this candle
+            # Used to prevent same-direction reentry on the same candle
+            last_closed_direction = None
+            
             # 记录当前权益
             current_equity = self.capital
             if self.current_position is not None:
@@ -938,6 +1020,9 @@ class BacktestEngine:
                 should_exit, exit_reason = self._check_exit_signal(row, self.current_position)
                 
                 if should_exit:
+                    # Capture direction before closing (for same-direction reentry prevention)
+                    last_closed_direction = self.current_position.direction
+                    
                     # 平仓
                     trade = self._close_position(self.current_position, row, exit_reason)
                     self.trades.append(trade)
@@ -974,11 +1059,22 @@ class BacktestEngine:
                     # 使用新版双向信号检测
                     has_signal, signal_direction = self._check_entry_signal(row)
                     
+                    # Prevent same-direction reentry on the same candle
                     if has_signal and signal_direction is not None:
-                        # 开仓
-                        position = self._open_position(row, direction=signal_direction)
-                        if position is not None:
-                            self.current_position = position
+                        if signal_direction != last_closed_direction:
+                            # Allow entry: either no close this candle, or opposite direction
+                            position = self._open_position(row, direction=signal_direction)
+                            if position is not None:
+                                self.current_position = position
+                            else:
+                                # 资金不足，无法开仓（警告日志已在_open_position中记录）
+                                pass
+                        else:
+                            # Same-direction reentry prevented
+                            logger.debug(
+                                f"Prevented same-direction reentry: {signal_direction} position "
+                                f"was just closed on this candle"
+                            )
         
         # 如果回测结束时还有持仓，强制平仓
         if self.current_position is not None:
@@ -995,6 +1091,13 @@ class BacktestEngine:
         logger.info(f"Backtest completed in {execution_time:.2f} seconds")
         logger.info(f"Total trades: {len(self.trades)}")
         logger.info(f"Final capital: {self.capital:.2f}")
+        
+        # 显示统计信息
+        if self.missed_signals_insufficient_capital > 0:
+            logger.warning("=" * 80)
+            logger.warning(f"⚠️  因资金不足错过的信号数: {self.missed_signals_insufficient_capital}")
+            logger.warning("建议: 增加初始资金或减小持仓大小")
+            logger.warning("=" * 80)
         
         # 计算性能指标
         if len(self.trades) > 0:

@@ -98,7 +98,7 @@ class DatabaseConnector:
             start_timestamp = int(start_date.timestamp() * 1000)
             end_timestamp = int(end_date.timestamp() * 1000)
             
-            # Query to fetch K-line data
+            # Query to fetch K-line data with technical indicators
             query = """
                 SELECT 
                     timestamp,
@@ -106,7 +106,22 @@ class DatabaseConnector:
                     high,
                     low,
                     close,
-                    volume
+                    volume,
+                    ema7,
+                    ema25,
+                    ema50,
+                    ema12,
+                    ma5,
+                    ma10,
+                    dif,
+                    dea,
+                    macd,
+                    rsi14,
+                    rsi6,
+                    boll_up,
+                    boll_md,
+                    boll_dn,
+                    atr
                 FROM klines
                 WHERE symbol = %s
                     AND timeframe = %s
