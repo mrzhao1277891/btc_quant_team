@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 class BTCDataInitializerTA:
     """BTC数据初始化器 - 使用TA-Lib"""
     
+    # 默认支持的交易对列表
+    DEFAULT_SYMBOLS = ['BTCUSDT', 'SOLUSDT']
+    
     def __init__(self, host='localhost', port=3306, user='root', password='', database='btc_assistant'):
         self.config = {
             'host': host,
@@ -47,7 +50,7 @@ class BTCDataInitializerTA:
         }
         
         # 支持的交易对
-        self.symbols = ['BTCUSDT']
+        self.symbols = self.DEFAULT_SYMBOLS.copy()
     
     def connect(self):
         """连接到数据库"""
@@ -456,21 +459,31 @@ class BTCDataInitializerTA:
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description='BTC数据初始化工具 - TA-Lib专业版')
+    parser = argparse.ArgumentParser(description='数据初始化工具 - TA-Lib专业版')
     parser.add_argument('--host', default='localhost', help='MySQL主机 (默认: localhost)')
     parser.add_argument('--port', type=int, default=3306, help='MySQL端口 (默认: 3306)')
     parser.add_argument('--user', default='root', help='MySQL用户 (默认: root)')
     parser.add_argument('--password', default='', help='MySQL密码')
     parser.add_argument('--database', default='btc_assistant', help='数据库名 (默认: btc_assistant)')
-    parser.add_argument('--symbol', default='BTCUSDT', help='交易对 (默认: BTCUSDT)')
+    parser.add_argument('--symbol', default=None, help='单个交易对 (如: BTCUSDT)')
+    parser.add_argument('--symbols', nargs='+', default=None,
+                       help='多个交易对列表 (如: BTCUSDT SOLUSDT ETHUSDT)')
     parser.add_argument('--force', action='store_true', help='强制重新获取所有数据')
     parser.add_argument('--summary', action='store_true', help='只显示数据摘要')
     
     args = parser.parse_args()
     
-    print(f"🚀 BTC数据初始化工具 - TA-Lib专业版")
+    # 确定要处理的交易对列表
+    if args.symbols:
+        symbols = [s.upper() for s in args.symbols]
+    elif args.symbol:
+        symbols = [args.symbol.upper()]
+    else:
+        symbols = BTCDataInitializerTA.DEFAULT_SYMBOLS
+    
+    print(f"🚀 数据初始化工具 - TA-Lib专业版")
     print(f"   数据库: {args.database}")
-    print(f"   交易对: {args.symbol}")
+    print(f"   交易对: {', '.join(symbols)}")
     print(f"   强制模式: {'是' if args.force else '否'}")
     print("="*60)
     
@@ -503,7 +516,12 @@ def main():
                 print(f"     - {tf}周期: {cfg['limit']}条")
             print()
             
-            total = initializer.initialize_data(args.symbol, args.force)
+            total = 0
+            for symbol in symbols:
+                print(f"\n{'='*60}")
+                print(f"📈 处理交易对: {symbol}")
+                print(f"{'='*60}")
+                total += initializer.initialize_data(symbol, args.force)
             
             if total > 0:
                 print(f"\n✅ 数据初始化完成，共处理 {total} 条数据")

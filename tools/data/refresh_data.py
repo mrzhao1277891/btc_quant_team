@@ -66,27 +66,16 @@ class DataRefresher:
     """
     数据刷新器
     
-    职责: 刷新和补充BTC量化分析数据库的数据
+    职责: 刷新和补充量化分析数据库的数据
     
     属性:
         config (Dict): 数据库配置
         connection (mysql.connector.connection): 数据库连接
         binance_api (str): Binance API地址
-    
-    方法:
-        connect(): 连接到数据库
-        disconnect(): 断开数据库连接
-        check_freshness(): 检查数据新鲜度
-        refresh_data(): 刷新数据
-        fill_gaps(): 填充数据缺口
-    
-    示例:
-        >>> refresher = DataRefresher()
-        >>> refresher.connect()
-        >>> report = refresher.check_freshness('BTCUSDT')
-        >>> refresher.refresh_data('BTCUSDT')
-        >>> refresher.disconnect()
     """
+    
+    # 默认支持的交易对列表
+    DEFAULT_SYMBOLS = ['BTCUSDT', 'SOLUSDT']
     
     def __init__(
         self,
@@ -710,13 +699,15 @@ class DataRefresher:
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description='BTC数据刷新工具')
+    parser = argparse.ArgumentParser(description='数据刷新工具')
     parser.add_argument('--host', default='localhost', help='MySQL主机 (默认: localhost)')
     parser.add_argument('--port', type=int, default=3306, help='MySQL端口 (默认: 3306)')
     parser.add_argument('--user', default='root', help='MySQL用户 (默认: root)')
     parser.add_argument('--password', default='', help='MySQL密码')
     parser.add_argument('--database', default='btc_assistant', help='数据库名 (默认: btc_assistant)')
-    parser.add_argument('--symbol', default='BTCUSDT', help='交易对 (默认: BTCUSDT)')
+    parser.add_argument('--symbol', default=None, help='单个交易对 (如: BTCUSDT)')
+    parser.add_argument('--symbols', nargs='+', default=None,
+                       help='多个交易对列表 (如: BTCUSDT SOLUSDT ETHUSDT)')
     parser.add_argument('--action', default='refresh',
                        choices=['check', 'refresh', 'fill-gaps', 'all'],
                        help='执行动作 (默认: refresh)')
@@ -725,9 +716,17 @@ def main():
     
     args = parser.parse_args()
     
-    print(f"🚀 BTC数据刷新工具")
+    # 确定要处理的交易对列表
+    if args.symbols:
+        symbols = [s.upper() for s in args.symbols]
+    elif args.symbol:
+        symbols = [args.symbol.upper()]
+    else:
+        symbols = DataRefresher.DEFAULT_SYMBOLS
+    
+    print(f"🚀 数据刷新工具")
     print(f"   数据库: {args.database}")
-    print(f"   交易对: {args.symbol}")
+    print(f"   交易对: {', '.join(symbols)}")
     print(f"   动作: {args.action}")
     print(f"   强制模式: {'是' if args.force else '否'}")
     print("="*60)
@@ -746,90 +745,83 @@ def main():
         if not refresher.connect():
             return
         
-        if args.action == 'check':
-            # 检查数据新鲜度
-            print(f"\n🔍 检查数据新鲜度...")
-            report = refresher.check_data_freshness(args.symbol)
+        for symbol in symbols:
+            print(f"\n{'='*60}")
+            print(f"📈 处理交易对: {symbol}")
+            print(f"{'='*60}")
             
-            print(f"\n📊 数据新鲜度报告:")
-            print("-" * 80)
-            for tf in report['timeframes']:
-                status_icon = '✅' if tf['status'] == 'FRESH' else '⚠️' if tf['status'] == 'STALE' else '❌'
-                print(f"  {status_icon} {tf['timeframe']:4} | 状态: {tf['status']:8} | "
-                      f"数量: {tf['total_count']:6} | 最新: {tf['latest_time'] or '无数据'}")
-                if tf['hours_behind']:
-                    print(f"      落后: {tf['hours_behind']}小时 (阈值: {tf['config']['refresh_hours']}小时)")
-            
-            print(f"\n📋 摘要:")
-            print(f"   总时间框架: {report['summary']['total_timeframes']}")
-            print(f"   新鲜: {report['summary']['fresh_timeframes']}")
-            print(f"   过期: {report['summary']['stale_timeframes']}")
-            print(f"   缺失: {report['summary']['missing_timeframes']}")
-            
-            if report['issues']:
-                print(f"\n⚠️  发现的问题:")
-                for issue in report['issues']:
-                    print(f"   - {issue['timeframe']}: {issue['issue']}")
-        
-        elif args.action == 'refresh':
-            # 刷新数据
-            if args.timeframe:
-                # 刷新指定时间框架
-                print(f"\n🔄 刷新 {args.timeframe} 数据...")
-                result = refresher.refresh_timeframe_data(
-                    args.symbol, args.timeframe, args.force
-                )
+            if args.action == 'check':
+                # 检查数据新鲜度
+                print(f"\n🔍 检查数据新鲜度...")
+                report = refresher.check_data_freshness(symbol)
                 
-                if result['success']:
-                    if result.get('skipped', False):
-                        print(f"✅ 跳过刷新: {result.get('reason', '未知原因')}")
-                    else:
-                        print(f"✅ 刷新成功!")
-                        print(f"   新增: {result.get('inserted', 0)}条")
-                        print(f"   更新: {result.get('updated', 0)}条")
-                        print(f"   错误: {result.get('errors', 0)}条")
-                else:
-                    print(f"❌ 刷新失败: {result.get('error', '未知错误')}")
-            else:
-                # 刷新所有时间框架
-                results = refresher.refresh_all_data(args.symbol, args.force)
-                
-                print(f"\n📊 刷新结果摘要:")
+                print(f"\n📊 {symbol} 数据新鲜度报告:")
                 print("-" * 80)
-                for timeframe, result in results['timeframes'].items():
-                    if result.get('skipped', False):
-                        print(f"  ⏭️  {timeframe:4} | 跳过: {result.get('reason', '未知原因')}")
-                    elif result.get('success', False):
-                        print(f"  ✅  {timeframe:4} | 新增: {result.get('inserted', 0):3}条 | "
-                              f"更新: {result.get('updated', 0):3}条")
+                for tf in report['timeframes']:
+                    status_icon = '✅' if tf['status'] == 'FRESH' else '⚠️' if tf['status'] == 'STALE' else '❌'
+                    print(f"  {status_icon} {tf['timeframe']:4} | 状态: {tf['status']:8} | "
+                          f"数量: {tf['total_count']:6} | 最新: {tf['latest_time'] or '无数据'}")
+                    if tf['hours_behind']:
+                        print(f"      落后: {tf['hours_behind']}小时 (阈值: {tf['config']['refresh_hours']}小时)")
+                
+                print(f"\n📋 摘要:")
+                print(f"   总时间框架: {report['summary']['total_timeframes']}")
+                print(f"   新鲜: {report['summary']['fresh_timeframes']}")
+                print(f"   过期: {report['summary']['stale_timeframes']}")
+                print(f"   缺失: {report['summary']['missing_timeframes']}")
+            
+            elif args.action == 'refresh':
+                # 刷新数据
+                if args.timeframe:
+                    print(f"\n🔄 刷新 {args.timeframe} 数据...")
+                    result = refresher.refresh_timeframe_data(
+                        symbol, args.timeframe, args.force
+                    )
+                    
+                    if result['success']:
+                        if result.get('skipped', False):
+                            print(f"✅ 跳过刷新: {result.get('reason', '未知原因')}")
+                        else:
+                            print(f"✅ 刷新成功!")
+                            print(f"   新增: {result.get('inserted', 0)}条")
+                            print(f"   更新: {result.get('updated', 0)}条")
                     else:
-                        print(f"  ❌  {timeframe:4} | 失败: {result.get('error', '未知错误')}")
-        
-        elif args.action == 'fill-gaps':
-            # 填充数据缺口
-            print(f"\n🔍 填充数据缺口...")
-            report = refresher.fill_data_gaps(args.symbol)
-            
-            print(f"\n📊 数据缺口报告:")
-            print("-" * 80)
-            for timeframe, info in report['timeframes'].items():
-                if info['status'] == 'MISSING':
-                    print(f"  ❌  {timeframe:4} | 状态: 数据缺失")
+                        print(f"❌ 刷新失败: {result.get('error', '未知错误')}")
                 else:
-                    print(f"  ✅  {timeframe:4} | 状态: 已检查 | 数量: {info['total_count']:6}条")
-        
-        elif args.action == 'all':
-            # 执行所有操作
-            print(f"\n🔍 检查数据新鲜度...")
-            freshness = refresher.check_data_freshness(args.symbol)
+                    results = refresher.refresh_all_data(symbol, args.force)
+                    
+                    print(f"\n📊 {symbol} 刷新结果:")
+                    print("-" * 80)
+                    for timeframe, result in results['timeframes'].items():
+                        if result.get('skipped', False):
+                            print(f"  ⏭️  {timeframe:4} | 跳过: {result.get('reason', '未知原因')}")
+                        elif result.get('success', False):
+                            print(f"  ✅  {timeframe:4} | 新增: {result.get('inserted', 0):3}条 | "
+                                  f"更新: {result.get('updated', 0):3}条")
+                        else:
+                            print(f"  ❌  {timeframe:4} | 失败: {result.get('error', '未知错误')}")
             
-            print(f"\n🔄 刷新数据...")
-            refresh_results = refresher.refresh_all_data(args.symbol, args.force)
+            elif args.action == 'fill-gaps':
+                print(f"\n🔍 填充数据缺口...")
+                report = refresher.fill_data_gaps(symbol)
+                
+                print(f"\n📊 {symbol} 数据缺口报告:")
+                print("-" * 80)
+                for timeframe, info in report['timeframes'].items():
+                    if info['status'] == 'MISSING':
+                        print(f"  ❌  {timeframe:4} | 状态: 数据缺失")
+                    else:
+                        print(f"  ✅  {timeframe:4} | 状态: 已检查 | 数量: {info['total_count']:6}条")
             
-            print(f"\n🔍 填充数据缺口...")
-            gaps = refresher.fill_data_gaps(args.symbol)
-            
-            print(f"\n🎉 所有操作完成!")
+            elif args.action == 'all':
+                print(f"\n🔍 检查数据新鲜度...")
+                refresher.check_data_freshness(symbol)
+                
+                print(f"\n🔄 刷新数据...")
+                refresher.refresh_all_data(symbol, args.force)
+                
+                print(f"\n🔍 填充数据缺口...")
+                refresher.fill_data_gaps(symbol)
         
         print("\n🎉 操作完成!")
         
