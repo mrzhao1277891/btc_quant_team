@@ -23,6 +23,7 @@ export class DashboardController {
     constructor(config) {
         this.config = {
             apiBaseUrl: config.apiBaseUrl || 'http://127.0.0.1:8000',
+            symbol: config.symbol || 'BTCUSDT',
             refreshInterval: config.refreshInterval || 30000, // 30 seconds
             timeframes: config.timeframes || ['1m', '1w', '1d', '4h'],
             cards: config.cards || []
@@ -38,7 +39,7 @@ export class DashboardController {
         };
         
         // Initialize DataFetcher
-        this.dataFetcher = new DataFetcher(this.config.apiBaseUrl);
+        this.dataFetcher = new DataFetcher(this.config.apiBaseUrl, this.config.symbol);
         
         // Initialize CardRenderer instances
         this.cardRenderers = [];

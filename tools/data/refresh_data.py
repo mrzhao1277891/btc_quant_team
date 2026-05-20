@@ -576,9 +576,12 @@ class DataRefresher:
         """
         刷新所有时间框架的数据
         
+        每次刷新都会获取最新数据（包括未收盘K线），确保各周期最新一条
+        数据始终反映实时行情。
+        
         参数:
             symbol (str): 交易对，默认'BTCUSDT'
-            force (bool): 是否强制刷新所有数据
+            force (bool): 是否强制刷新所有历史数据
         
         返回:
             Dict: 刷新结果报告
@@ -605,9 +608,15 @@ class DataRefresher:
         for timeframe in timeframes:
             logger.info(f"\n📈 处理 {timeframe} 时间框架...")
             
-            result = self.refresh_timeframe_data(symbol, timeframe, force)
-            results['timeframes'][timeframe] = result
+            # 始终获取最新数据（至少获取最近几条，确保未收盘K线被更新）
+            # force模式获取全量，非force模式只获取最近少量数据来更新最新K线
+            if force:
+                result = self.refresh_timeframe_data(symbol, timeframe, force=True)
+            else:
+                # 非force模式：始终获取最近的数据来更新最新K线（包括未收盘的）
+                result = self._refresh_latest_candles(symbol, timeframe)
             
+            results['timeframes'][timeframe] = result
             results['summary']['total_timeframes'] += 1
             
             if result.get('skipped', False):
@@ -627,6 +636,124 @@ class DataRefresher:
         logger.info(f"   新增: {results['summary']['total_inserted']}条, 更新: {results['summary']['total_updated']}条")
         
         return results
+    
+    def _refresh_latest_candles(
+        self,
+        symbol: str,
+        timeframe: str
+    ) -> Dict[str, Any]:
+        """
+        增量刷新最新K线数据（包括未收盘K线）
+        
+        逻辑：
+        1. 查DB最新K线时间戳
+        2. 从币安只拉取新数据（startTime = DB最新时间戳）
+        3. 从DB读取历史数据用于指标计算
+        4. 拼接历史+新数据计算指标
+        5. 只写入新数据部分
+        
+        参数:
+            symbol (str): 交易对
+            timeframe (str): 时间框架
+        
+        返回:
+            Dict: 刷新结果
+        """
+        try:
+            # 1. 查DB最新K线时间戳
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT MAX(timestamp) as max_ts FROM klines WHERE symbol = %s AND timeframe = %s",
+                (symbol, timeframe)
+            )
+            result = cursor.fetchone()
+            max_ts = result['max_ts'] if result and result['max_ts'] else None
+            cursor.close()
+            
+            if max_ts is None:
+                # DB没有数据，走全量刷新
+                logger.info(f"  {timeframe} 无历史数据，执行全量获取")
+                return self.refresh_timeframe_data(symbol, timeframe, force=True)
+            
+            # 2. 从币安拉取最新数据（startTime = DB最新时间戳，这样会包含该条+之后的新数据）
+            url = f"{self.binance_api}{BINANCE_KLINES_ENDPOINT}"
+            params = {
+                'symbol': symbol,
+                'interval': timeframe,
+                'startTime': int(max_ts),  # 从DB最新时间戳开始
+                'limit': 10  # 最多拉10条（正常情况只有1-2条）
+            }
+            
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                return {'success': True, 'skipped': True, 'reason': '无新数据', 'inserted': 0, 'updated': 0}
+            
+            # 解析新K线
+            new_klines = []
+            for item in data:
+                kline = {
+                    'timestamp': int(item[0]),
+                    'symbol': symbol,
+                    'timeframe': timeframe,
+                    'open': float(item[1]),
+                    'high': float(item[2]),
+                    'low': float(item[3]),
+                    'close': float(item[4]),
+                    'volume': float(item[5]),
+                    'close_time': int(item[6]),
+                    'quote_volume': float(item[7]),
+                    'trades': int(item[8]),
+                    'taker_buy_base': float(item[9]),
+                    'taker_buy_quote': float(item[10])
+                }
+                new_klines.append(kline)
+            
+            logger.info(f"  {timeframe} 拉取到 {len(new_klines)} 条数据（含未收盘K线）")
+            
+            # 3. 从DB读取历史数据用于指标计算（最近200条，确保EMA50等长周期指标准确）
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute(
+                """SELECT timestamp, symbol, timeframe, open, high, low, close, volume
+                   FROM klines 
+                   WHERE symbol = %s AND timeframe = %s AND timestamp < %s
+                   ORDER BY timestamp DESC LIMIT 200""",
+                (symbol, timeframe, int(max_ts))
+            )
+            history_rows = cursor.fetchall()
+            cursor.close()
+            
+            # 转换为kline格式并按时间正序排列
+            history_klines = sorted(history_rows, key=lambda x: x['timestamp'])
+            
+            # 4. 拼接历史+新数据计算指标
+            combined = history_klines + new_klines
+            combined_with_indicators = self.calculate_indicators(combined)
+            
+            # 5. 只写入新数据部分（带指标的）
+            # 对于已存在的历史K线，只更新OHLCV（不覆盖已有的准确指标值）
+            # 对于新K线和最新未收盘K线，写入完整数据（含指标）
+            new_start_idx = len(history_klines)
+            klines_to_write = combined_with_indicators[new_start_idx:]
+            
+            inserted, updated, errors = self.insert_klines(klines_to_write)
+            
+            time.sleep(0.3)
+            
+            return {
+                'success': True,
+                'skipped': False,
+                'inserted': inserted,
+                'updated': updated,
+                'errors': errors,
+                'total': inserted + updated
+            }
+            
+        except Exception as e:
+            logger.error(f"刷新 {timeframe} 最新数据失败: {e}")
+            return {'success': False, 'error': str(e)}
     
     def fill_data_gaps(self, symbol: str = 'BTCUSDT') -> Dict[str, Any]:
         """

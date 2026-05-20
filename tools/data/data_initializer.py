@@ -43,10 +43,10 @@ class BTCDataInitializerTA:
         
         # 数据采集配置
         self.data_config = {
-            '4h': {'limit': 4380, 'interval': '4h'},
-            '1d': {'limit': 730, 'interval': '1d'},
-            '1w': {'limit': 250, 'interval': '1w'},
-            '1M': {'limit': 60, 'interval': '1M'}
+            '4h': {'limit': 17000, 'interval': '4h'},   # 尽量拉全量（约8年数据）
+            '1d': {'limit': 3000, 'interval': '1d'},    # 约8年日线
+            '1w': {'limit': 500, 'interval': '1w'},     # 约10年周线
+            '1M': {'limit': 100, 'interval': '1M'}      # 约8年月线
         }
         
         # 支持的交易对

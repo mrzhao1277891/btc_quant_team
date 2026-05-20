@@ -58,14 +58,14 @@ def ms_to_iso(ts_ms: int) -> str:
     return dt.isoformat()
 
 
-def fetch_klines(timeframe: str, limit: int = 120, descending: bool = False) -> List[dict]:
+def fetch_klines(timeframe: str, limit: int = 120, descending: bool = False, symbol: str = 'BTCUSDT') -> List[dict]:
     """Fetch klines for a given timeframe, ordered by timestamp."""
     col_names = ", ".join(COLUMNS)
     order = "DESC" if descending else "ASC"
     sql = f"""
         SELECT {col_names}
         FROM klines
-        WHERE symbol = 'BTCUSDT' AND timeframe = %s
+        WHERE symbol = %s AND timeframe = %s
         ORDER BY timestamp {order}
         LIMIT %s
     """
@@ -73,7 +73,7 @@ def fetch_klines(timeframe: str, limit: int = 120, descending: bool = False) -> 
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute(sql, (timeframe, limit))
+        cursor.execute(sql, (symbol, timeframe, limit))
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -86,8 +86,9 @@ def fetch_klines(timeframe: str, limit: int = 120, descending: bool = False) -> 
 def get_klines(
     timeframe: str = Query(..., pattern="^(1m|1w|1d|4h)$"),
     limit: int = Query(60, ge=3, le=500),
+    symbol: str = Query('BTCUSDT'),
 ):
-    rows = fetch_klines(timeframe, limit)
+    rows = fetch_klines(timeframe, limit, symbol=symbol)
     data = []
     for r in rows:
         entry = {
@@ -119,11 +120,11 @@ def get_klines(
 
 
 @app.get("/api/all")
-def get_all_timeframes(limit: int = Query(60, ge=3, le=300)):
+def get_all_timeframes(limit: int = Query(60, ge=3, le=300), symbol: str = Query('BTCUSDT')):
     """Return all 4 timeframes in one call."""
     result = {}
     for tf in ["1m", "1w", "1d", "4h"]:
-        rows = fetch_klines(tf, limit)
+        rows = fetch_klines(tf, limit, symbol=symbol)
         data = []
         for r in rows:
             entry = {
@@ -151,11 +152,11 @@ def get_all_timeframes(limit: int = Query(60, ge=3, le=300)):
 
 
 @app.get("/api/latest")
-def get_latest():
+def get_latest(symbol: str = 'BTCUSDT'):
     """Get the latest row for each timeframe (current values)."""
     result = {}
     for tf in ["1m", "1w", "1d", "4h"]:
-        rows = fetch_klines(tf, 1, descending=True)  # get the most recent row
+        rows = fetch_klines(tf, 1, descending=True, symbol=symbol)  # get the most recent row
         if rows:
             r = rows[0]  # first row is the most recent since we fetch DESC
             result[tf] = {

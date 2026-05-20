@@ -12,9 +12,11 @@
 export class DataFetcher {
   /**
    * @param {string} apiBaseUrl - Base URL for the backend API (e.g., 'http://127.0.0.1:8000')
+   * @param {string} symbol - Trading pair symbol (default: 'BTCUSDT')
    */
-  constructor(apiBaseUrl) {
+  constructor(apiBaseUrl, symbol = 'BTCUSDT') {
     this.apiBaseUrl = apiBaseUrl;
+    this.symbol = symbol;
     this.binanceApiUrl = 'https://api.binance.com';
     this.requestTimeout = 10000; // 10 seconds
     this.retryDelay = 1000; // 1 second
@@ -101,7 +103,7 @@ export class DataFetcher {
    * }
    */
   async fetchLatestValues() {
-    const url = `${this.apiBaseUrl}/api/latest`;
+    const url = `${this.apiBaseUrl}/api/latest?symbol=${this.symbol}`;
     try {
       const data = await this._fetchWithRetry(url);
       return data;
@@ -124,7 +126,7 @@ export class DataFetcher {
    * }
    */
   async fetchRealtimePrice() {
-    const url = `${this.binanceApiUrl}/api/v3/ticker/price?symbol=BTCUSDT`;
+    const url = `${this.binanceApiUrl}/api/v3/ticker/price?symbol=${this.symbol}`;
     try {
       const data = await this._fetchWithRetry(url);
       const currentPrice = parseFloat(data.price);
@@ -198,7 +200,7 @@ export class DataFetcher {
    * }
    */
   async fetchAllTimeframes(limit = 60) {
-    const url = `${this.apiBaseUrl}/api/all?limit=${limit}`;
+    const url = `${this.apiBaseUrl}/api/all?limit=${limit}&symbol=${this.symbol}`;
     try {
       const data = await this._fetchWithRetry(url);
       return data;
