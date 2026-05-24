@@ -93,6 +93,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- Card 6: Price Zone Density -->
+        <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">关键价位分布（每2U区间）</h2>
+            </div>
+            <div class="card-body">
+                <div id="zoneDensityContent" class="card-content">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -336,6 +348,10 @@
                 }
                 
                 window.dashboardController = dashboard;
+                
+                // Render zone density panel
+                renderZoneDensity(dashboard);
+                
                 console.log('仪表板初始化成功');
             } catch (error) {
                 console.error('仪表板初始化失败:', error);
@@ -343,6 +359,120 @@
                 document.getElementById('errorModal').classList.remove('hidden');
             }
         });
+
+        // ===========================
+        // Zone Density Panel
+        // ===========================
+        
+        function renderZoneDensity(dashboard) {
+            const container = document.getElementById('zoneDensityContent');
+            if (!container) return;
+            
+            const state = dashboard.state;
+            const latestData = state.latestData;
+            const realtimePrice = state.realtimePrice;
+            
+            const pricePoints = [];
+            const timeframes = ['1m', '1w', '1d', '4h'];
+            const tfLabels = { '1m': '月', '1w': '周', '1d': '日', '4h': '4H' };
+            const typeColors = { 'EMA': '#3b82f6', 'BOLL': '#f59e0b', 'FIB': '#a855f7' };
+            
+            for (const tf of timeframes) {
+                const d = latestData[tf];
+                if (!d) continue;
+                const label = tfLabels[tf];
+                
+                if (d.ema7) pricePoints.push({ price: d.ema7, label: `${label} EMA7`, type: 'EMA' });
+                if (d.ema25) pricePoints.push({ price: d.ema25, label: `${label} EMA25`, type: 'EMA' });
+                if (d.ema50) pricePoints.push({ price: d.ema50, label: `${label} EMA50`, type: 'EMA' });
+                if (d.boll_up) pricePoints.push({ price: d.boll_up, label: `${label} BOLL上`, type: 'BOLL' });
+                if (d.boll_md) pricePoints.push({ price: d.boll_md, label: `${label} BOLL中`, type: 'BOLL' });
+                if (d.boll_dn) pricePoints.push({ price: d.boll_dn, label: `${label} BOLL下`, type: 'BOLL' });
+                
+                const fibKey = `fib_params_sol_${tf}`;
+                const fibStored = localStorage.getItem(fibKey);
+                if (fibStored) {
+                    const fibParams = JSON.parse(fibStored);
+                    const high = fibParams.high, low = fibParams.low, dir = fibParams.direction;
+                    for (const level of [0.236, 0.382, 0.5, 0.618]) {
+                        let price = dir === 'up' ? high - (high - low) * level : low + (high - low) * level;
+                        pricePoints.push({ price, label: `${label} Fib${(level*100).toFixed(1)}%`, type: 'FIB' });
+                    }
+                }
+            }
+            
+            if (pricePoints.length === 0) { container.innerHTML = '<div class="loading">暂无数据</div>'; return; }
+            
+            const currentPrice = realtimePrice ? realtimePrice.price : (latestData['4h'] ? latestData['4h'].close : 0);
+            const allPrices = pricePoints.map(p => p.price).concat(currentPrice ? [currentPrice] : []);
+            const minPrice = Math.floor(Math.min(...allPrices) / 2) * 2;
+            const maxPrice = Math.ceil(Math.max(...allPrices) / 2) * 2;
+            
+            const zones = [];
+            for (let start = minPrice; start < maxPrice; start += 2) {
+                zones.push({ start, end: start + 2, points: pricePoints.filter(p => p.price >= start && p.price < start + 2) });
+            }
+            
+            let html = '<div style="display:flex; flex-direction:column; gap:2px; font-size:12px; padding:8px;">';
+            html += '<div style="display:flex; gap:12px; margin-bottom:8px; font-size:11px; color:#8a8fa8;">';
+            html += `<span><span style="color:${typeColors.EMA}">●</span> EMA</span>`;
+            html += `<span><span style="color:${typeColors.BOLL}">●</span> BOLL</span>`;
+            html += `<span><span style="color:${typeColors.FIB}">●</span> FIB</span>`;
+            html += `<span><span style="color:#22c55e">▸</span> 当前价格</span>`;
+            html += '</div>';
+            
+            for (let i = zones.length - 1; i >= 0; i--) {
+                const zone = zones[i];
+                const isCurrentZone = currentPrice >= zone.start && currentPrice < zone.end;
+                if (zone.points.length === 0 && !isCurrentZone) continue;
+                
+                const bgColor = isCurrentZone ? 'rgba(34,197,94,0.1)' : 'transparent';
+                const borderLeft = isCurrentZone ? '3px solid #22c55e' : '3px solid transparent';
+                
+                html += `<div style="display:flex; align-items:center; padding:3px 6px; background:${bgColor}; border-left:${borderLeft}; border-radius:2px;">`;
+                html += `<span style="width:80px; color:#8a8fa8; flex-shrink:0;">${zone.start.toLocaleString()}-${zone.end.toLocaleString()}</span>`;
+                html += '<span style="display:flex; flex-wrap:wrap; gap:3px; align-items:center;">';
+                
+                if (isCurrentZone) {
+                    html += `<span style="color:#22c55e; font-weight:bold;" title="当前价格 ${currentPrice.toFixed(0)}">▸</span>`;
+                }
+                for (const point of zone.points) {
+                    const color = typeColors[point.type] || '#8a8fa8';
+                    html += `<span style="color:${color}; cursor:pointer; font-size:14px;" class="zone-dot" data-tooltip="${point.label}: ${point.price.toFixed(0)}">●</span>`;
+                }
+                html += '<span style="margin-left:8px; display:flex; flex-wrap:wrap; gap:4px;">';
+                for (const point of zone.points) {
+                    const color = typeColors[point.type] || '#8a8fa8';
+                    html += `<span style="color:${color}; font-size:11px;">${point.label}:${point.price.toFixed(0)}</span>`;
+                }
+                html += '</span>';
+                html += '</span></div>';
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+            
+            // Tooltip behavior
+            const dots = container.querySelectorAll('.zone-dot');
+            dots.forEach(dot => {
+                dot.addEventListener('mouseenter', (e) => {
+                    document.querySelectorAll('.zone-tooltip').forEach(t => t.remove());
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'zone-tooltip';
+                    tooltip.textContent = e.target.dataset.tooltip;
+                    tooltip.style.cssText = 'position:fixed;background:#1e293b;color:#f1f5f9;padding:6px 10px;border-radius:4px;font-size:14px;font-weight:500;white-space:nowrap;z-index:9999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:1px solid #334155;';
+                    document.body.appendChild(tooltip);
+                    const rect = e.target.getBoundingClientRect();
+                    tooltip.style.left = (rect.left + rect.width/2 - tooltip.offsetWidth/2) + 'px';
+                    tooltip.style.top = (rect.top - tooltip.offsetHeight - 6) + 'px';
+                });
+                dot.addEventListener('mouseleave', () => {
+                    document.querySelectorAll('.zone-tooltip').forEach(t => t.remove());
+                });
+            });
+        }
+        
+        setInterval(() => { if (window.dashboardController) renderZoneDensity(window.dashboardController); }, 30000);
 
         // ===========================
         // Fibonacci Modal Event Handlers
