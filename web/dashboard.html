@@ -463,7 +463,7 @@
                 
                 html += `<div style="display:flex; align-items:center; padding:3px 6px; background:${bgColor}; border-left:${borderLeft}; border-radius:2px;">`;
                 html += `<span style="width:100px; color:#8a8fa8; flex-shrink:0;">${zone.start.toLocaleString()}-${zone.end.toLocaleString()}</span>`;
-                html += '<span style="display:flex; flex-wrap:wrap; gap:3px;">';
+                html += '<span style="display:flex; flex-wrap:wrap; gap:3px; align-items:center;">';
                 
                 if (isCurrentZone) {
                     html += `<span style="color:#22c55e; font-weight:bold;" title="当前价格 ${currentPrice.toFixed(0)}">▸</span>`;
@@ -473,6 +473,14 @@
                     const color = typeColors[point.type] || '#8a8fa8';
                     html += `<span style="color:${color}; cursor:pointer; font-size:14px; position:relative;" class="zone-dot" data-tooltip="${point.label}: ${point.price.toFixed(0)}">●</span>`;
                 }
+                
+                // Right side: show labels inline
+                html += '<span style="margin-left:8px; display:flex; flex-wrap:wrap; gap:4px;">';
+                for (const point of zone.points) {
+                    const color = typeColors[point.type] || '#8a8fa8';
+                    html += `<span style="color:${color}; font-size:11px;">${point.label}:${point.price.toFixed(0)}</span>`;
+                }
+                html += '</span>';
                 
                 html += '</span></div>';
             }
