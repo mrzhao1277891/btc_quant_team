@@ -93,6 +93,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- Card 6: Price Zone Density -->
+        <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">关键价位分布（每1000U区间）</h2>
+            </div>
+            <div class="card-body">
+                <div id="zoneDensityContent" class="card-content">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -299,7 +311,8 @@
                 positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8'
             },
             referenceLines: [],
-            isFibonacci: true  // Special flag to identify Fibonacci card
+            isFibonacci: true,  // Special flag to identify Fibonacci card
+            fibStoragePrefix: 'btc'  // localStorage key prefix for this symbol
         };
         
         // Initialize dashboard when DOM is ready
@@ -334,6 +347,10 @@
                 }
                 
                 window.dashboardController = dashboard;
+                
+                // Render zone density panel
+                renderZoneDensity(dashboard);
+                
                 console.log('仪表板初始化成功');
             } catch (error) {
                 console.error('仪表板初始化失败:', error);
@@ -341,6 +358,135 @@
                 document.getElementById('errorModal').classList.remove('hidden');
             }
         });
+
+        // ===========================
+        // Zone Density Panel
+        // ===========================
+        
+        function renderZoneDensity(dashboard) {
+            const container = document.getElementById('zoneDensityContent');
+            if (!container) return;
+            
+            const state = dashboard.state;
+            const latestData = state.latestData;
+            const realtimePrice = state.realtimePrice;
+            
+            // Collect all key price levels
+            const pricePoints = [];
+            const timeframes = ['1m', '1w', '1d', '4h'];
+            const tfLabels = { '1m': '月', '1w': '周', '1d': '日', '4h': '4H' };
+            
+            // Colors for different indicator types
+            const typeColors = {
+                'EMA': '#3b82f6',
+                'BOLL': '#f59e0b', 
+                'FIB': '#a855f7'
+            };
+            
+            for (const tf of timeframes) {
+                const d = latestData[tf];
+                if (!d) continue;
+                const label = tfLabels[tf];
+                
+                // EMA indicators
+                if (d.ema7) pricePoints.push({ price: d.ema7, label: `${label} EMA7`, type: 'EMA' });
+                if (d.ema25) pricePoints.push({ price: d.ema25, label: `${label} EMA25`, type: 'EMA' });
+                if (d.ema50) pricePoints.push({ price: d.ema50, label: `${label} EMA50`, type: 'EMA' });
+                
+                // Bollinger Bands
+                if (d.boll_up) pricePoints.push({ price: d.boll_up, label: `${label} BOLL上`, type: 'BOLL' });
+                if (d.boll_md) pricePoints.push({ price: d.boll_md, label: `${label} BOLL中`, type: 'BOLL' });
+                if (d.boll_dn) pricePoints.push({ price: d.boll_dn, label: `${label} BOLL下`, type: 'BOLL' });
+                
+                // Fibonacci levels
+                const fibKey = `fib_params_btc_${tf}`;
+                const fibStored = localStorage.getItem(fibKey);
+                if (fibStored) {
+                    const fibParams = JSON.parse(fibStored);
+                    const high = fibParams.high;
+                    const low = fibParams.low;
+                    const dir = fibParams.direction;
+                    const fibLevels = [0.236, 0.382, 0.5, 0.618];
+                    
+                    for (const level of fibLevels) {
+                        let price;
+                        if (dir === 'up') {
+                            price = high - (high - low) * level;
+                        } else {
+                            price = low + (high - low) * level;
+                        }
+                        pricePoints.push({ price, label: `${label} Fib${(level*100).toFixed(1)}%`, type: 'FIB' });
+                    }
+                }
+            }
+            
+            if (pricePoints.length === 0) {
+                container.innerHTML = '<div class="loading">暂无数据</div>';
+                return;
+            }
+            
+            // Determine price range (centered on current price)
+            const currentPrice = realtimePrice ? realtimePrice.price : (latestData['4h'] ? latestData['4h'].close : 0);
+            const allPrices = pricePoints.map(p => p.price).concat(currentPrice ? [currentPrice] : []);
+            const minPrice = Math.floor(Math.min(...allPrices) / 1000) * 1000;
+            const maxPrice = Math.ceil(Math.max(...allPrices) / 1000) * 1000;
+            
+            // Build zones (every 1000U)
+            const zones = [];
+            for (let start = minPrice; start < maxPrice; start += 1000) {
+                const end = start + 1000;
+                const pointsInZone = pricePoints.filter(p => p.price >= start && p.price < end);
+                zones.push({ start, end, points: pointsInZone });
+            }
+            
+            // Render
+            let html = '<div style="display:flex; flex-direction:column; gap:2px; font-size:12px; padding:8px;">';
+            
+            // Legend
+            html += '<div style="display:flex; gap:12px; margin-bottom:8px; font-size:11px; color:#8a8fa8;">';
+            html += `<span><span style="color:${typeColors.EMA}">●</span> EMA</span>`;
+            html += `<span><span style="color:${typeColors.BOLL}">●</span> BOLL</span>`;
+            html += `<span><span style="color:${typeColors.FIB}">●</span> FIB</span>`;
+            html += `<span><span style="color:#22c55e">▸</span> 当前价格</span>`;
+            html += '</div>';
+            
+            // Zones (from high to low) - only show zones with points or current price
+            for (let i = zones.length - 1; i >= 0; i--) {
+                const zone = zones[i];
+                const isCurrentZone = currentPrice >= zone.start && currentPrice < zone.end;
+                
+                // Skip empty zones (no points and not current price zone)
+                if (zone.points.length === 0 && !isCurrentZone) continue;
+                
+                const bgColor = isCurrentZone ? 'rgba(34,197,94,0.1)' : 'transparent';
+                const borderLeft = isCurrentZone ? '3px solid #22c55e' : '3px solid transparent';
+                
+                html += `<div style="display:flex; align-items:center; padding:3px 6px; background:${bgColor}; border-left:${borderLeft}; border-radius:2px;">`;
+                html += `<span style="width:100px; color:#8a8fa8; flex-shrink:0;">${zone.start.toLocaleString()}-${zone.end.toLocaleString()}</span>`;
+                html += '<span style="display:flex; flex-wrap:wrap; gap:3px;">';
+                
+                if (isCurrentZone) {
+                    html += `<span style="color:#22c55e; font-weight:bold;" title="当前价格 ${currentPrice.toFixed(0)}">▸</span>`;
+                }
+                
+                for (const point of zone.points) {
+                    const color = typeColors[point.type] || '#8a8fa8';
+                    html += `<span style="color:${color}; cursor:default;" title="${point.label}: ${point.price.toFixed(0)}">●</span>`;
+                }
+                
+                html += '</span></div>';
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // Re-render zone density on refresh
+        setInterval(() => {
+            if (window.dashboardController) {
+                renderZoneDensity(window.dashboardController);
+            }
+        }, 30000);
 
         // ===========================
         // Fibonacci Modal Event Handlers
@@ -357,7 +503,7 @@
             };
             
             timeframes.forEach(tf => {
-                const key = `fib_params_${tf}`;
+                const key = `fib_params_btc_${tf}`;
                 const stored = localStorage.getItem(key);
                 const params = stored ? JSON.parse(stored) : defaultParams[tf];
                 
@@ -377,7 +523,7 @@
                 const direction = document.getElementById(`fib_${tf}_direction`).value;
                 
                 const params = { high, low, direction };
-                const key = `fib_params_${tf}`;
+                const key = `fib_params_btc_${tf}`;
                 localStorage.setItem(key, JSON.stringify(params));
             });
         }

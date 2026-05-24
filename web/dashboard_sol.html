@@ -299,7 +299,8 @@
                 positive: '#22c55e', negative: '#ef4444', neutral: '#8a8fa8'
             },
             referenceLines: [],
-            isFibonacci: true  // Special flag to identify Fibonacci card
+            isFibonacci: true,  // Special flag to identify Fibonacci card
+            fibStoragePrefix: 'sol'  // localStorage key prefix for this symbol
         };
         
         // Initialize dashboard when DOM is ready
@@ -358,7 +359,7 @@
             };
             
             timeframes.forEach(tf => {
-                const key = `fib_params_${tf}`;
+                const key = `fib_params_sol_${tf}`;
                 const stored = localStorage.getItem(key);
                 const params = stored ? JSON.parse(stored) : defaultParams[tf];
                 
@@ -378,7 +379,7 @@
                 const direction = document.getElementById(`fib_${tf}_direction`).value;
                 
                 const params = { high, low, direction };
-                const key = `fib_params_${tf}`;
+                const key = `fib_params_sol_${tf}`;
                 localStorage.setItem(key, JSON.stringify(params));
             });
         }

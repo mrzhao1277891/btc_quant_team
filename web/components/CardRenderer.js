@@ -239,10 +239,11 @@ export class CardRenderer {
      */
     _calculateFibonacciYAxisScale() {
         const values = [];
+        const prefix = this.config.fibStoragePrefix || 'fib_params';
         
         // Collect all Fibonacci level prices from all timeframes
         for (const timeframe of this.timeframes) {
-            const key = `fib_params_${timeframe}`;
+            const key = `fib_params_${prefix}_${timeframe}`;
             const stored = localStorage.getItem(key);
             
             let params;
@@ -275,6 +276,11 @@ export class CardRenderer {
             });
         }
         
+        // Include current price in range calculation so price line is always visible
+        if (this.realtimePrice && ValueFormatter.isValidNumber(this.realtimePrice.price)) {
+            values.push(this.realtimePrice.price);
+        }
+        
         if (values.length === 0) {
             // No valid data, use default range
             return { min: 60000, max: 70000 };
@@ -283,9 +289,9 @@ export class CardRenderer {
         const min = Math.min(...values);
         const max = Math.max(...values);
         
-        // Add 10% padding to top and bottom
+        // Add 5% padding to top and bottom
         const range = max - min;
-        const padding = range * 0.1;
+        const padding = range * 0.05;
         
         return {
             min: min - padding,
@@ -521,6 +527,7 @@ export class CardRenderer {
      * @param {number} max - Y-axis maximum value
      */
     _drawFibonacciLevels(data, min, max) {
+        const prefix = this.config.fibStoragePrefix || 'fib_params';
         // Timeframe visual hierarchy
         const timeframeStyles = {
             '1m': { 
@@ -563,7 +570,7 @@ export class CardRenderer {
         // Prepare zone labels with direction indicators
         const zoneLabels = [];
         for (const timeframe of this.timeframes) {
-            const key = `fib_params_${timeframe}`;
+            const key = `fib_params_${prefix}_${timeframe}`;
             const stored = localStorage.getItem(key);
             
             let direction = 'up';
@@ -595,7 +602,7 @@ export class CardRenderer {
             const style = timeframeStyles[timeframe];
             
             // Load parameters from localStorage
-            const key = `fib_params_${timeframe}`;
+            const key = `fib_params_${prefix}_${timeframe}`;
             const stored = localStorage.getItem(key);
             
             if (!stored) {
