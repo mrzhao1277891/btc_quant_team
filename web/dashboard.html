@@ -471,7 +471,7 @@
                 
                 for (const point of zone.points) {
                     const color = typeColors[point.type] || '#8a8fa8';
-                    html += `<span style="color:${color}; cursor:default;" title="${point.label}: ${point.price.toFixed(0)}">●</span>`;
+                    html += `<span style="color:${color}; cursor:pointer; font-size:14px; position:relative;" class="zone-dot" data-tooltip="${point.label}: ${point.price.toFixed(0)}">●</span>`;
                 }
                 
                 html += '</span></div>';
@@ -479,6 +479,42 @@
             
             html += '</div>';
             container.innerHTML = html;
+            
+            // Add tooltip behavior
+            const dots = container.querySelectorAll('.zone-dot');
+            dots.forEach(dot => {
+                dot.addEventListener('mouseenter', (e) => {
+                    // Remove existing tooltips
+                    document.querySelectorAll('.zone-tooltip').forEach(t => t.remove());
+                    
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'zone-tooltip';
+                    tooltip.textContent = e.target.dataset.tooltip;
+                    tooltip.style.cssText = `
+                        position: fixed;
+                        background: #1e293b;
+                        color: #f1f5f9;
+                        padding: 6px 10px;
+                        border-radius: 4px;
+                        font-size: 14px;
+                        font-weight: 500;
+                        white-space: nowrap;
+                        z-index: 9999;
+                        pointer-events: none;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        border: 1px solid #334155;
+                    `;
+                    document.body.appendChild(tooltip);
+                    
+                    const rect = e.target.getBoundingClientRect();
+                    tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+                    tooltip.style.top = (rect.top - tooltip.offsetHeight - 6) + 'px';
+                });
+                
+                dot.addEventListener('mouseleave', () => {
+                    document.querySelectorAll('.zone-tooltip').forEach(t => t.remove());
+                });
+            });
         }
         
         // Re-render zone density on refresh
