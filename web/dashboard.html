@@ -129,6 +129,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- Card 9: Volume Multi-Timeframe Chart -->
+        <div class="card" id="volumeChartCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">成交量 多周期趋势</h2>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <div id="volumeChartContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -555,6 +567,7 @@
                 renderZoneDensity(window.dashboardController);
                 renderMacdChart();
                 renderBollChart();
+                renderVolumeChart();
             }
         }, 30000);
 
@@ -675,7 +688,78 @@
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(renderMacdChart, 2000); // Wait for API to be ready
             setTimeout(renderBollChart, 2500);
+            setTimeout(renderVolumeChart, 3000);
         });
+
+        // ===========================
+        // Volume Multi-Timeframe Chart
+        // ===========================
+        
+        async function renderVolumeChart() {
+            const container = document.getElementById('volumeChartContent');
+            if (!container) return;
+            
+            try {
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=50&symbol=BTCUSDT');
+                const data = await resp.json();
+                
+                const timeframes = ['4h', '1d', '1w', '1m'];
+                const tfLabels = { '4h': '4小时', '1d': '日线', '1w': '周线', '1m': '月线' };
+                
+                let html = '';
+                
+                for (const tf of timeframes) {
+                    let tfData = data[tf];
+                    if (!tfData || tfData.length === 0) continue;
+                    tfData = tfData.filter(d => d.volume > 0).slice(-50);
+                    if (tfData.length === 0) continue;
+                    
+                    const volumes = tfData.map(d => d.volume);
+                    const closes = tfData.map(d => d.close);
+                    const max = Math.max(...volumes);
+                    const min = 0;
+                    
+                    const W = 400, H = 180, PL = 60, PR = 10, PT = 25, PB = 20;
+                    const chartW = W - PL - PR, chartH = H - PT - PB;
+                    const toX = (i) => PL + (i / (tfData.length - 1)) * chartW;
+                    const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
+                    
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${(max/1000).toFixed(0)}k</text>`;
+                    svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">0</text>`;
+                    
+                    // Volume bars with color based on price direction
+                    const barW = Math.max(2, chartW / tfData.length - 1);
+                    for (let i = 0; i < tfData.length; i++) {
+                        const v = volumes[i];
+                        const x = toX(i) - barW / 2;
+                        const barH = (v / max) * chartH;
+                        const barY = PT + chartH - barH;
+                        // Green if price went up, red if down
+                        const color = i > 0 && closes[i] >= closes[i-1] ? '#22c55e' : '#ef4444';
+                        svg += `<rect x="${x}" y="${barY}" width="${barW}" height="${barH}" fill="${color}" opacity="0.6"/>`;
+                    }
+                    
+                    // Average volume line
+                    const avgVol = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+                    const avgY = toY(avgVol);
+                    svg += `<line x1="${PL}" y1="${avgY}" x2="${W-PR}" y2="${avgY}" stroke="#8b5cf6" stroke-width="1" stroke-dasharray="4,2"/>`;
+                    svg += `<text x="${W-PR+2}" y="${avgY+3}" fill="#8b5cf6" font-size="8">avg</text>`;
+                    
+                    // Latest value
+                    svg += `<text x="${PL+5}" y="${H-4}" fill="#8a8fa8" font-size="9">最新: ${(volumes[volumes.length-1]/1000).toFixed(1)}k | 均值: ${(avgVol/1000).toFixed(1)}k</text>`;
+                    
+                    svg += '</svg>';
+                    html += `<div>${svg}</div>`;
+                }
+                
+                container.innerHTML = html || '<div class="loading">暂无数据</div>';
+            } catch (e) {
+                console.error('Volume chart error:', e);
+                container.innerHTML = '<div class="loading">加载失败</div>';
+            }
+        }
 
         // ===========================
         // Bollinger Bands Multi-Timeframe Chart
