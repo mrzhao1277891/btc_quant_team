@@ -88,7 +88,9 @@ def get_klines(
     limit: int = Query(60, ge=3, le=500),
     symbol: str = Query('BTCUSDT'),
 ):
-    rows = fetch_klines(timeframe, limit, symbol=symbol)
+    # Fetch most recent rows, then reverse to chronological order
+    rows = fetch_klines(timeframe, limit, descending=True, symbol=symbol)
+    rows.reverse()
     data = []
     for r in rows:
         entry = {
@@ -121,10 +123,12 @@ def get_klines(
 
 @app.get("/api/all")
 def get_all_timeframes(limit: int = Query(60, ge=3, le=300), symbol: str = Query('BTCUSDT')):
-    """Return all 4 timeframes in one call."""
+    """Return all 4 timeframes in one call. Returns most recent data in chronological order."""
     result = {}
     for tf in ["1m", "1w", "1d", "4h"]:
-        rows = fetch_klines(tf, limit, symbol=symbol)
+        # Fetch most recent rows (DESC), then reverse to chronological order
+        rows = fetch_klines(tf, limit, descending=True, symbol=symbol)
+        rows.reverse()  # Now in chronological order (oldest first)
         data = []
         for r in rows:
             entry = {

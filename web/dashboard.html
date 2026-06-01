@@ -105,6 +105,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- Card 7: MACD Multi-Timeframe Chart -->
+        <div class="card" id="macdChartCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">MACD 多周期曲线（最近50根K线）</h2>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <div id="macdChartContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -529,8 +541,127 @@
         setInterval(() => {
             if (window.dashboardController) {
                 renderZoneDensity(window.dashboardController);
+                renderMacdChart();
             }
         }, 30000);
+
+        // ===========================
+        // MACD Multi-Timeframe Chart
+        // ===========================
+        
+        async function renderMacdChart() {
+            const container = document.getElementById('macdChartContent');
+            if (!container) return;
+            
+            try {
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=BTCUSDT');
+                const data = await resp.json();
+                
+                const timeframes = ['4h', '1d', '1w', '1m'];
+                const tfLabels = { '4h': '4小时', '1d': '日线', '1w': '周线', '1m': '月线' };
+                const colors = { dif: '#3b82f6', dea: '#f59e0b', macd: '#22c55e' };
+                
+                let html = '';
+                
+                for (const tf of timeframes) {
+                    let tfData = data[tf];
+                    if (!tfData || tfData.length === 0) continue;
+                    
+                    // Filter to only records with valid MACD indicators, take last 50
+                    tfData = tfData.filter(d => d.dif !== null && d.dea !== null && d.macd !== null).slice(-50);
+                    
+                    const difs = tfData.map(d => d.dif);
+                    const deas = tfData.map(d => d.dea);
+                    const macds = tfData.map(d => d.macd);
+                    
+                    if (difs.length === 0) continue;
+                    
+                    // Calculate Y range
+                    const allVals = [...difs, ...deas, ...macds];
+                    const yMin = Math.min(...allVals, 0);
+                    const yMax = Math.max(...allVals, 0);
+                    const yRange = yMax - yMin || 1;
+                    const padding = yRange * 0.1;
+                    const min = yMin - padding;
+                    const max = yMax + padding;
+                    
+                    const W = 400, H = 180, PL = 50, PR = 10, PT = 25, PB = 20;
+                    const chartW = W - PL - PR;
+                    const chartH = H - PT - PB;
+                    
+                    const toX = (i, len) => PL + (i / (len - 1)) * chartW;
+                    const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
+                    
+                    // Build SVG
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
+                    
+                    // Title
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    
+                    // Zero axis
+                    const zeroY = toY(0);
+                    svg += `<line x1="${PL}" y1="${zeroY}" x2="${W-PR}" y2="${zeroY}" stroke="#475569" stroke-width="1" stroke-dasharray="4,2"/>`;
+                    svg += `<text x="${PL-4}" y="${zeroY+3}" text-anchor="end" fill="#64748b" font-size="9">0</text>`;
+                    
+                    // Y axis labels
+                    svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(0)}</text>`;
+                    svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(0)}</text>`;
+                    
+                    // MACD histogram bars
+                    const barW = Math.max(1, chartW / tfData.length - 1);
+                    for (let i = 0; i < tfData.length; i++) {
+                        const v = tfData[i].macd;
+                        const x = toX(i, tfData.length) - barW/2;
+                        const barColor = v >= 0 ? '#22c55e' : '#ef4444';
+                        const y1 = toY(v);
+                        const y2 = zeroY;
+                        const barH = Math.abs(y2 - y1);
+                        const barY = Math.min(y1, y2);
+                        svg += `<rect x="${x}" y="${barY}" width="${barW}" height="${barH}" fill="${barColor}" opacity="0.4"/>`;
+                    }
+                    
+                    // DIF line
+                    if (tfData.length > 1) {
+                        let path = `M ${toX(0, tfData.length)} ${toY(tfData[0].dif)}`;
+                        for (let i = 1; i < tfData.length; i++) {
+                            path += ` L ${toX(i, tfData.length)} ${toY(tfData[i].dif)}`;
+                        }
+                        svg += `<path d="${path}" fill="none" stroke="${colors.dif}" stroke-width="1.5"/>`;
+                    }
+                    
+                    // DEA line
+                    if (tfData.length > 1) {
+                        let path = `M ${toX(0, tfData.length)} ${toY(tfData[0].dea)}`;
+                        for (let i = 1; i < tfData.length; i++) {
+                            path += ` L ${toX(i, tfData.length)} ${toY(tfData[i].dea)}`;
+                        }
+                        svg += `<path d="${path}" fill="none" stroke="${colors.dea}" stroke-width="1.5"/>`;
+                    }
+                    
+                    // Latest values
+                    const lastDif = tfData[tfData.length-1].dif;
+                    const lastDea = tfData[tfData.length-1].dea;
+                    const lastMacd = tfData[tfData.length-1].macd;
+                    
+                    svg += `<text x="${PL+5}" y="${H-4}" fill="${colors.dif}" font-size="9">DIF:${lastDif !== null ? lastDif.toFixed(1) : '-'}</text>`;
+                    svg += `<text x="${PL+100}" y="${H-4}" fill="${colors.dea}" font-size="9">DEA:${lastDea !== null ? lastDea.toFixed(1) : '-'}</text>`;
+                    svg += `<text x="${PL+200}" y="${H-4}" fill="${lastMacd >= 0 ? '#22c55e' : '#ef4444'}" font-size="9">MACD:${lastMacd !== null ? lastMacd.toFixed(1) : '-'}</text>`;
+                    
+                    svg += '</svg>';
+                    html += `<div>${svg}</div>`;
+                }
+                
+                container.innerHTML = html || '<div class="loading">暂无数据</div>';
+            } catch (e) {
+                console.error('MACD chart error:', e);
+                container.innerHTML = '<div class="loading">加载失败</div>';
+            }
+        }
+        
+        // Initial render
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(renderMacdChart, 2000); // Wait for API to be ready
+        });
 
         // ===========================
         // Fibonacci Modal Event Handlers
