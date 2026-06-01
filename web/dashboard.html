@@ -117,6 +117,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- Card 8: Bollinger Bands Multi-Timeframe Chart -->
+        <div class="card" id="bollChartCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">布林带 多周期趋势</h2>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <div id="bollChartContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -542,6 +554,7 @@
             if (window.dashboardController) {
                 renderZoneDensity(window.dashboardController);
                 renderMacdChart();
+                renderBollChart();
             }
         }, 30000);
 
@@ -661,7 +674,130 @@
         // Initial render
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(renderMacdChart, 2000); // Wait for API to be ready
+            setTimeout(renderBollChart, 2500);
         });
+
+        // ===========================
+        // Bollinger Bands Multi-Timeframe Chart
+        // ===========================
+        
+        async function renderBollChart() {
+            const container = document.getElementById('bollChartContent');
+            if (!container) return;
+            
+            try {
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=BTCUSDT');
+                const data = await resp.json();
+                
+                const timeframes = ['4h', '1d', '1w', '1m'];
+                const tfLabels = { '4h': '4小时', '1d': '日线', '1w': '周线', '1m': '月线' };
+                const colors = { boll_up: '#f87171', boll_md: '#fb923c', boll_dn: '#fbbf24', close: '#22c55e' };
+                
+                let html = '';
+                
+                for (const tf of timeframes) {
+                    let tfData = data[tf];
+                    if (!tfData || tfData.length === 0) continue;
+                    
+                    // Filter to records with valid BOLL indicators, take last 50
+                    tfData = tfData.filter(d => d.boll_up !== null && d.boll_md !== null && d.boll_dn !== null).slice(-50);
+                    if (tfData.length === 0) continue;
+                    
+                    const bollUps = tfData.map(d => d.boll_up);
+                    const bollMds = tfData.map(d => d.boll_md);
+                    const bollDns = tfData.map(d => d.boll_dn);
+                    const closes = tfData.map(d => d.close);
+                    
+                    // Calculate Y range
+                    const allVals = [...bollUps, ...bollDns, ...closes];
+                    const yMin = Math.min(...allVals);
+                    const yMax = Math.max(...allVals);
+                    const yRange = yMax - yMin || 1;
+                    const padding = yRange * 0.05;
+                    const min = yMin - padding;
+                    const max = yMax + padding;
+                    
+                    const W = 400, H = 180, PL = 60, PR = 10, PT = 25, PB = 20;
+                    const chartW = W - PL - PR;
+                    const chartH = H - PT - PB;
+                    
+                    const toX = (i, len) => PL + (i / (len - 1)) * chartW;
+                    const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
+                    
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
+                    
+                    // Title
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    
+                    // Y axis labels
+                    svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(0)}</text>`;
+                    svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(0)}</text>`;
+                    const midVal = (max + min) / 2;
+                    const midY = toY(midVal);
+                    svg += `<line x1="${PL}" y1="${midY}" x2="${W-PR}" y2="${midY}" stroke="#334155" stroke-width="0.5" stroke-dasharray="2,2"/>`;
+                    svg += `<text x="${PL-4}" y="${midY+3}" text-anchor="end" fill="#64748b" font-size="9">${midVal.toFixed(0)}</text>`;
+                    
+                    // Bollinger band fill (area between upper and lower)
+                    if (tfData.length > 1) {
+                        let areaPath = `M ${toX(0, tfData.length)} ${toY(bollUps[0])}`;
+                        for (let i = 1; i < tfData.length; i++) {
+                            areaPath += ` L ${toX(i, tfData.length)} ${toY(bollUps[i])}`;
+                        }
+                        for (let i = tfData.length - 1; i >= 0; i--) {
+                            areaPath += ` L ${toX(i, tfData.length)} ${toY(bollDns[i])}`;
+                        }
+                        areaPath += ' Z';
+                        svg += `<path d="${areaPath}" fill="#475569" opacity="0.15"/>`;
+                    }
+                    
+                    // Upper band line
+                    if (tfData.length > 1) {
+                        let path = `M ${toX(0, tfData.length)} ${toY(bollUps[0])}`;
+                        for (let i = 1; i < tfData.length; i++) path += ` L ${toX(i, tfData.length)} ${toY(bollUps[i])}`;
+                        svg += `<path d="${path}" fill="none" stroke="${colors.boll_up}" stroke-width="1.2"/>`;
+                    }
+                    
+                    // Middle band line
+                    if (tfData.length > 1) {
+                        let path = `M ${toX(0, tfData.length)} ${toY(bollMds[0])}`;
+                        for (let i = 1; i < tfData.length; i++) path += ` L ${toX(i, tfData.length)} ${toY(bollMds[i])}`;
+                        svg += `<path d="${path}" fill="none" stroke="${colors.boll_md}" stroke-width="1.5"/>`;
+                    }
+                    
+                    // Lower band line
+                    if (tfData.length > 1) {
+                        let path = `M ${toX(0, tfData.length)} ${toY(bollDns[0])}`;
+                        for (let i = 1; i < tfData.length; i++) path += ` L ${toX(i, tfData.length)} ${toY(bollDns[i])}`;
+                        svg += `<path d="${path}" fill="none" stroke="${colors.boll_dn}" stroke-width="1.2"/>`;
+                    }
+                    
+                    // Close price line
+                    if (tfData.length > 1) {
+                        let path = `M ${toX(0, tfData.length)} ${toY(closes[0])}`;
+                        for (let i = 1; i < tfData.length; i++) path += ` L ${toX(i, tfData.length)} ${toY(closes[i])}`;
+                        svg += `<path d="${path}" fill="none" stroke="${colors.close}" stroke-width="1.5"/>`;
+                    }
+                    
+                    // Latest values
+                    const lastUp = bollUps[bollUps.length-1];
+                    const lastMd = bollMds[bollMds.length-1];
+                    const lastDn = bollDns[bollDns.length-1];
+                    
+                    svg += `<text x="${PL+2}" y="${H-4}" fill="${colors.boll_up}" font-size="9">上:${lastUp.toFixed(0)}</text>`;
+                    svg += `<text x="${PL+80}" y="${H-4}" fill="${colors.boll_md}" font-size="9">中:${lastMd.toFixed(0)}</text>`;
+                    svg += `<text x="${PL+160}" y="${H-4}" fill="${colors.boll_dn}" font-size="9">下:${lastDn.toFixed(0)}</text>`;
+                    svg += `<text x="${PL+240}" y="${H-4}" fill="${colors.close}" font-size="9">价:${closes[closes.length-1].toFixed(0)}</text>`;
+                    
+                    svg += '</svg>';
+                    html += `<div>${svg}</div>`;
+                }
+                
+                container.innerHTML = html || '<div class="loading">暂无数据</div>';
+            } catch (e) {
+                console.error('BOLL chart error:', e);
+                container.innerHTML = '<div class="loading">加载失败</div>';
+            }
+        }
 
         // ===========================
         // Fibonacci Modal Event Handlers
