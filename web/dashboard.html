@@ -153,6 +153,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- Card 11: EMA7-Close Deviation Chart -->
+        <div class="card" id="emaDeviationCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">Close-EMA7 偏离度</h2>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <div id="emaDeviationContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -581,6 +593,7 @@
                 renderBollChart();
                 renderVolumeChart();
                 renderEmaChart();
+                renderEmaDeviation();
             }
         }, 30000);
 
@@ -703,7 +716,120 @@
             setTimeout(renderBollChart, 2500);
             setTimeout(renderVolumeChart, 3000);
             setTimeout(renderEmaChart, 3500);
+            setTimeout(renderEmaDeviation, 4000);
         });
+
+        // ===========================
+        // EMA7-Close Deviation Chart
+        // ===========================
+        
+        async function renderEmaDeviation() {
+            const container = document.getElementById('emaDeviationContent');
+            if (!container) return;
+            
+            try {
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=BTCUSDT');
+                const data = await resp.json();
+                
+                const timeframes = ['4h', '1d', '1w', '1m'];
+                const tfLabels = { '4h': '4小时', '1d': '日线', '1w': '周线', '1m': '月线' };
+                
+                let html = '';
+                
+                for (const tf of timeframes) {
+                    let tfData = data[tf];
+                    if (!tfData || tfData.length === 0) continue;
+                    tfData = tfData.filter(d => d.ema7 !== null && d.close > 0).slice(-50);
+                    if (tfData.length === 0) continue;
+                    
+                    // Calculate Close - EMA7 for each point
+                    const deviations = tfData.map(d => d.close - d.ema7);
+                    
+                    const allVals = [...deviations, 0];
+                    const yMin = Math.min(...allVals);
+                    const yMax = Math.max(...allVals);
+                    const yRange = yMax - yMin || 1;
+                    const pad = yRange * 0.1;
+                    const min = yMin - pad, max = yMax + pad;
+                    
+                    const W = 400, H = 180, PL = 60, PR = 10, PT = 25, PB = 20;
+                    const chartW = W - PL - PR, chartH = H - PT - PB;
+                    const toX = (i, len) => PL + (i / (len - 1)) * chartW;
+                    const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
+                    
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    
+                    // Zero axis
+                    const zeroY = toY(0);
+                    svg += `<line x1="${PL}" y1="${zeroY}" x2="${W-PR}" y2="${zeroY}" stroke="#475569" stroke-width="1" stroke-dasharray="4,2"/>`;
+                    svg += `<text x="${PL-4}" y="${zeroY+3}" text-anchor="end" fill="#64748b" font-size="9">0</text>`;
+                    svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(0)}</text>`;
+                    svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(0)}</text>`;
+                    
+                    // Price line (secondary Y axis on right)
+                    const closes = tfData.map(d => d.close);
+                    const priceMin = Math.min(...closes);
+                    const priceMax = Math.max(...closes);
+                    const priceRange = priceMax - priceMin || 1;
+                    const pricePad = priceRange * 0.05;
+                    const pMin = priceMin - pricePad, pMax = priceMax + pricePad;
+                    const toPriceY = (v) => PT + (1 - (v - pMin) / (pMax - pMin)) * chartH;
+                    
+                    if (tfData.length > 1) {
+                        let path = `M ${toX(0, closes.length)} ${toPriceY(closes[0])}`;
+                        for (let i = 1; i < closes.length; i++) path += ` L ${toX(i, closes.length)} ${toPriceY(closes[i])}`;
+                        svg += `<path d="${path}" fill="none" stroke="#64748b" stroke-width="1" opacity="0.6"/>`;
+                    }
+                    // Right Y axis labels for price
+                    svg += `<text x="${W-PR+2}" y="${PT+6}" text-anchor="start" fill="#64748b" font-size="8">${pMax.toFixed(0)}</text>`;
+                    svg += `<text x="${W-PR+2}" y="${H-PB+4}" text-anchor="start" fill="#64748b" font-size="8">${pMin.toFixed(0)}</text>`;
+                    
+                    // Area fill
+                    if (tfData.length > 1) {
+                        // Positive area (above zero)
+                        for (let i = 0; i < deviations.length - 1; i++) {
+                            const x1 = toX(i, deviations.length), x2 = toX(i+1, deviations.length);
+                            const y1 = toY(deviations[i]), y2 = toY(deviations[i+1]);
+                            const color = deviations[i] >= 0 ? '#22c55e' : '#ef4444';
+                            // Bar style
+                            const barW = (x2 - x1) * 0.8;
+                            const barX = x1;
+                            const barH = Math.abs(toY(deviations[i]) - zeroY);
+                            const barY = deviations[i] >= 0 ? toY(deviations[i]) : zeroY;
+                            svg += `<rect x="${barX}" y="${barY}" width="${barW}" height="${barH}" fill="${color}" opacity="0.4"/>`;
+                        }
+                        // Last bar
+                        const lastI = deviations.length - 1;
+                        const lastColor = deviations[lastI] >= 0 ? '#22c55e' : '#ef4444';
+                        const lastBarH = Math.abs(toY(deviations[lastI]) - zeroY);
+                        const lastBarY = deviations[lastI] >= 0 ? toY(deviations[lastI]) : zeroY;
+                        const barWidth = chartW / deviations.length * 0.8;
+                        svg += `<rect x="${toX(lastI, deviations.length)}" y="${lastBarY}" width="${barWidth}" height="${lastBarH}" fill="${lastColor}" opacity="0.4"/>`;
+                    }
+                    
+                    // Deviation line
+                    if (tfData.length > 1) {
+                        let path = `M ${toX(0, deviations.length)} ${toY(deviations[0])}`;
+                        for (let i = 1; i < deviations.length; i++) path += ` L ${toX(i, deviations.length)} ${toY(deviations[i])}`;
+                        svg += `<path d="${path}" fill="none" stroke="#f59e0b" stroke-width="1.5"/>`;
+                    }
+                    
+                    // Latest value
+                    const lastDev = deviations[deviations.length-1];
+                    const devColor = lastDev >= 0 ? '#22c55e' : '#ef4444';
+                    svg += `<text x="${PL+5}" y="${H-4}" fill="${devColor}" font-size="9">Close-EMA7: ${lastDev.toFixed(1)} (${lastDev >= 0 ? '价格高于EMA7' : '价格低于EMA7'})</text>`;
+                    
+                    svg += '</svg>';
+                    html += `<div>${svg}</div>`;
+                }
+                
+                container.innerHTML = html || '<div class="loading">暂无数据</div>';
+            } catch (e) {
+                console.error('EMA Deviation chart error:', e);
+                container.innerHTML = '<div class="loading">加载失败</div>';
+            }
+        }
 
         // ===========================
         // EMA Multi-Timeframe Chart
