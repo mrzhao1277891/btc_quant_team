@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC 多周期趋势状态</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0f172a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { font-size: 24px; margin-bottom: 4px; }
+        .header .subtitle { color: #64748b; font-size: 14px; }
+        .refresh-info { text-align: center; margin-bottom: 16px; color: #64748b; font-size: 12px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1200px; margin: 0 auto; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .card { background: #1e293b; border-radius: 8px; padding: 16px; border: 1px solid #334155; }
+        .card h2 { font-size: 16px; margin-bottom: 12px; color: #f1f5f9; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+        .item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #1e293b; }
+        .item:last-child { border-bottom: none; }
+        .item .label { color: #94a3b8; font-size: 13px; }
+        .item .value { font-size: 13px; font-weight: 500; text-align: right; max-width: 60%; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+        .badge-green { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .badge-red { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .badge-yellow { background: rgba(234,179,8,0.15); color: #eab308; }
+        .badge-blue { background: rgba(59,130,246,0.15); color: #3b82f6; }
+        .badge-purple { background: rgba(168,85,247,0.15); color: #a855f7; }
+        .badge-gray { background: rgba(100,116,139,0.15); color: #94a3b8; }
+        .price { font-size: 20px; font-weight: bold; color: #22c55e; text-align: center; margin-bottom: 16px; }
+        .error { color: #ef4444; text-align: center; padding: 20px; }
+        .loading { color: #64748b; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 BTC 多周期趋势状态</h1>
+        <p class="subtitle">综合指标分析面板</p>
+    </div>
+    <div class="refresh-info">
+        <span id="updateTime">加载中...</span>
+        <button onclick="loadAllStates()" style="background:#334155; color:#e2e8f0; border:none; padding:4px 12px; border-radius:4px; cursor:pointer; margin-left:8px;">⟳ 刷新</button>
+    </div>
+    <div id="priceDisplay" class="price">—</div>
+    <div class="grid" id="stateGrid">
+        <div class="loading">加载中...</div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+        const TIMEFRAMES = [
+            { key: '1w', label: '周线' },
+            { key: '1d', label: '日线' },
+            { key: '4h', label: '4小时' }
+        ];
+
+        function getBadgeClass(text) {
+            if (text.includes('上涨') || text.includes('金叉') || text.includes('多头') || text.includes('放量') || text.includes('向上') || text.includes('扩口'))
+                return 'badge-green';
+            if (text.includes('下跌') || text.includes('死叉') || text.includes('空头') || text.includes('缩量') || text.includes('向下') || text.includes('缩口'))
+                return 'badge-red';
+            if (text.includes('转向'))
+                return 'badge-yellow';
+            if (text.includes('零轴上'))
+                return 'badge-blue';
+            if (text.includes('零轴下'))
+                return 'badge-purple';
+            return 'badge-gray';
+        }
+
+        function renderCard(data) {
+            if (data.error) {
+                return `<div class="card"><h2>${data.timeframe}</h2><div class="error">${data.error}</div></div>`;
+            }
+
+            const tfLabel = TIMEFRAMES.find(t => t.key === data.timeframe)?.label || data.timeframe;
+            
+            let html = `<div class="card"><h2>${tfLabel}</h2>`;
+            
+            // MACD区间
+            html += `<div class="item"><span class="label">MACD区间</span><span class="value"><span class="badge ${getBadgeClass(data.macd_zone)}">${data.macd_zone}</span></span></div>`;
+            
+            // MACD转向
+            html += `<div class="item"><span class="label">MACD转向</span><span class="value"><span class="badge ${getBadgeClass(data.macd_turning)}">${data.macd_turning}</span></span></div>`;
+            
+            // DIF/DEA
+            html += `<div class="item"><span class="label">DIF/DEA</span><span class="value">`;
+            html += `<span class="badge ${getBadgeClass(data.dif_dea.cross)}">${data.dif_dea.cross}</span> `;
+            html += `<span class="badge ${getBadgeClass(data.dif_dea.dif_position)}">DIF ${data.dif_dea.dif_position}</span>`;
+            html += `</span></div>`;
+            html += `<div class="item"><span class="label">DIF/DEA值</span><span class="value" style="color:#64748b;font-size:11px;">DIF:${data.dif_dea.dif} DEA:${data.dif_dea.dea} MACD:${data.dif_dea.macd}</span></div>`;
+            
+            // EMA
+            html += `<div class="item"><span class="label">EMA排列</span><span class="value"><span class="badge ${getBadgeClass(data.ema.state)}">${data.ema.state}</span></span></div>`;
+            html += `<div class="item"><span class="label">EMA方向</span><span class="value"><span class="badge ${getBadgeClass(data.ema.direction)}">${data.ema.direction}</span></span></div>`;
+            
+            // BOLL
+            html += `<div class="item"><span class="label">布林带</span><span class="value"><span class="badge ${getBadgeClass(data.boll)}">${data.boll}</span></span></div>`;
+            
+            // Volume
+            html += `<div class="item"><span class="label">交易量</span><span class="value"><span class="badge ${getBadgeClass(data.volume)}">${data.volume}</span></span></div>`;
+            
+            html += '</div>';
+            return html;
+        }
+
+        async function loadAllStates() {
+            const grid = document.getElementById('stateGrid');
+            grid.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                // Fetch price
+                const priceResp = await fetch(`${API_BASE}/api/latest?symbol=BTCUSDT`);
+                const priceData = await priceResp.json();
+                const price = priceData['4h']?.close || priceData['1d']?.close;
+                if (price) {
+                    document.getElementById('priceDisplay').textContent = `$${price.toLocaleString()}`;
+                }
+                
+                // Fetch trend states for all timeframes
+                const results = await Promise.all(
+                    TIMEFRAMES.map(tf => 
+                        fetch(`${API_BASE}/api/trend-state?symbol=BTCUSDT&timeframe=${tf.key}`)
+                            .then(r => r.json())
+                            .catch(e => ({ error: e.message, timeframe: tf.key }))
+                    )
+                );
+                
+                grid.innerHTML = results.map(renderCard).join('');
+                document.getElementById('updateTime').textContent = `更新时间: ${new Date().toLocaleTimeString()}`;
+            } catch (e) {
+                grid.innerHTML = `<div class="error">加载失败: ${e.message}</div>`;
+            }
+        }
+
+        // Initial load
+        loadAllStates();
+        
+        // Auto refresh every 60s
+        setInterval(loadAllStates, 60000);
+    </script>
+</body>
+</html>
