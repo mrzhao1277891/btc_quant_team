@@ -94,6 +94,20 @@
             </div>
         </div>
 
+        <!-- Card: Fibonacci K线标记工具 -->
+        <div class="card" id="fibKlineCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">斐波那契标记工具（点击两根K线自动计算）</h2>
+                <button id="fibKlineClearBtn" class="edit-btn" aria-label="清除标记" style="font-size:12px;">🗑️ 清除所有</button>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <div id="fibKlineStatus" style="font-size:11px; color:#64748b; margin-bottom:8px;">点击第一根K线选择高/低点，再点击第二根选择高/低点，自动计算斐波那契回调位</div>
+                <div id="fibKlineContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Card 6: Price Zone Density -->
         <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1;">
             <div class="card-header">
@@ -917,6 +931,261 @@
                 });
             }, 100);
         }
+
+        // ===========================
+        // Fibonacci K线标记工具
+        // ===========================
+        
+        // State for fibonacci kline tool
+        const fibKlineState = {};  // { tf: { pointA: {idx, price, type}, pointB: null } }
+        
+        async function renderFibKlineChart() {
+            const container = document.getElementById('fibKlineContent');
+            if (!container) return;
+            
+            try {
+                const tfConfigs = [
+                    { key: '1m', label: '月线', limit: 100 },
+                    { key: '1w', label: '周线', limit: 100 },
+                    { key: '1d', label: '日线', limit: 100 },
+                    { key: '4h', label: '4小时', limit: 100 }
+                ];
+                
+                let html = '';
+                
+                for (const tfCfg of tfConfigs) {
+                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=BTCUSDT`);
+                    const result = await resp.json();
+                    const tfData = result.data;
+                    if (!tfData || tfData.length === 0) continue;
+                    
+                    const opens = tfData.map(d => d.open);
+                    const highs = tfData.map(d => d.high);
+                    const lows = tfData.map(d => d.low);
+                    const closes = tfData.map(d => d.close);
+                    
+                    const allVals = [...highs, ...lows];
+                    const yMin = Math.min(...allVals), yMax = Math.max(...allVals);
+                    const yRange = yMax - yMin || 1;
+                    const pad = yRange * 0.05;
+                    const min = yMin - pad, max = yMax + pad;
+                    
+                    const W = 500, H = 220, PL = 60, PR = 60, PT = 25, PB = 20;
+                    const chartW = W - PL - PR, chartH = H - PT - PB;
+                    const gap = chartW / tfData.length;
+                    const candleW = Math.max(1, gap * 0.7);
+                    const toX = (i) => PL + i * gap + gap / 2;
+                    const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
+                    
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;" id="fibSvg_${tfCfg.key}">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfCfg.label}</text>`;
+                    svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(0)}</text>`;
+                    svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(0)}</text>`;
+                    
+                    // Draw candles
+                    for (let i = 0; i < tfData.length; i++) {
+                        const o = opens[i], h = highs[i], l = lows[i], c = closes[i];
+                        const x = toX(i);
+                        const isUp = c >= o;
+                        const color = isUp ? '#22c55e' : '#ef4444';
+                        svg += `<line x1="${x}" y1="${toY(h)}" x2="${x}" y2="${toY(l)}" stroke="${color}" stroke-width="1"/>`;
+                        const bodyTop = toY(Math.max(o, c));
+                        const bodyBot = toY(Math.min(o, c));
+                        const bodyH = Math.max(1, bodyBot - bodyTop);
+                        svg += `<rect x="${x - candleW/2}" y="${bodyTop}" width="${candleW}" height="${bodyH}" fill="${isUp ? '#0f172a' : color}" stroke="${color}" stroke-width="1"/>`;
+                        // Click target
+                        svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="fib-kline-click" data-tf="${tfCfg.key}" data-idx="${i}" data-high="${h}" data-low="${l}" style="cursor:crosshair;"/>`;
+                    }
+                    
+                    // Draw saved fibonacci levels
+                    const fibSaveKey = `fib_kline_btc_${tfCfg.key}`;
+                    const savedFib = JSON.parse(localStorage.getItem(fibSaveKey) || 'null');
+                    if (savedFib && savedFib.pointA && savedFib.pointB) {
+                        const priceA = savedFib.pointA.price;
+                        const priceB = savedFib.pointB.price;
+                        const high = Math.max(priceA, priceB);
+                        const low = Math.min(priceA, priceB);
+                        const isUptrend = savedFib.pointA.price < savedFib.pointB.price;
+                        
+                        // Mark point A and B
+                        const xA = toX(savedFib.pointA.idx);
+                        const xB = toX(savedFib.pointB.idx);
+                        svg += `<circle cx="${xA}" cy="${toY(priceA)}" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1"/>`;
+                        svg += `<circle cx="${xB}" cy="${toY(priceB)}" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1"/>`;
+                        svg += `<line x1="${xA}" y1="${toY(priceA)}" x2="${xB}" y2="${toY(priceB)}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>`;
+                        
+                        // Fibonacci levels
+                        const fibLevels = [
+                            { ratio: 0, label: '0%' },
+                            { ratio: 0.236, label: '23.6%' },
+                            { ratio: 0.382, label: '38.2%' },
+                            { ratio: 0.5, label: '50%' },
+                            { ratio: 0.618, label: '61.8%' },
+                            { ratio: 0.786, label: '78.6%' },
+                            { ratio: 1, label: '100%' }
+                        ];
+                        
+                        const fibColors = ['#64748b', '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7', '#64748b'];
+                        
+                        for (let fi = 0; fi < fibLevels.length; fi++) {
+                            const level = fibLevels[fi];
+                            let price;
+                            if (isUptrend) {
+                                // 上涨回调: 从高点往下算
+                                price = high - (high - low) * level.ratio;
+                            } else {
+                                // 下跌反弹: 从低点往上算
+                                price = low + (high - low) * level.ratio;
+                            }
+                            
+                            const y = toY(price);
+                            if (y >= PT && y <= H - PB) {
+                                svg += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${fibColors[fi]}" stroke-width="0.8" stroke-dasharray="4,2" opacity="0.7"/>`;
+                                svg += `<text x="${W-PR+3}" y="${y+3}" fill="${fibColors[fi]}" font-size="8">${level.label} ${price.toFixed(0)}</text>`;
+                            }
+                        }
+                    }
+                    
+                    // Show selection state
+                    const state = fibKlineState[tfCfg.key];
+                    if (state && state.pointA && !state.pointB) {
+                        const xA = toX(state.pointA.idx);
+                        svg += `<circle cx="${xA}" cy="${toY(state.pointA.price)}" r="5" fill="none" stroke="#f59e0b" stroke-width="2"/>`;
+                        svg += `<text x="${xA+8}" y="${toY(state.pointA.price)+4}" fill="#f59e0b" font-size="9">A: ${state.pointA.price.toFixed(0)}</text>`;
+                    }
+                    
+                    svg += '</svg>';
+                    html += `<div>${svg}</div>`;
+                }
+                
+                container.innerHTML = html || '<div class="loading">暂无数据</div>';
+                
+                // Add click handlers
+                container.querySelectorAll('.fib-kline-click').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        const tf = e.target.dataset.tf;
+                        const idx = parseInt(e.target.dataset.idx);
+                        const high = parseFloat(e.target.dataset.high);
+                        const low = parseFloat(e.target.dataset.low);
+                        
+                        const fibSaveKey = `fib_kline_btc_${tf}`;
+                        const savedFib = JSON.parse(localStorage.getItem(fibSaveKey) || 'null');
+                        
+                        // If already has fibonacci drawn, clicking clears it
+                        if (savedFib && savedFib.pointA && savedFib.pointB) {
+                            localStorage.removeItem(fibSaveKey);
+                            fibKlineState[tf] = {};
+                            updateFibStatus('已清除标记，点击第一根K线重新开始');
+                            renderFibKlineChart();
+                            return;
+                        }
+                        
+                        showFibPointMenu(e, tf, idx, high, low);
+                    });
+                });
+                
+            } catch (e) {
+                console.error('Fib Kline chart error:', e);
+                container.innerHTML = '<div class="loading">加载失败</div>';
+            }
+        }
+        
+        function showFibPointMenu(event, tf, idx, high, low) {
+            document.querySelectorAll('.fib-point-menu').forEach(m => m.remove());
+            
+            const state = fibKlineState[tf] || {};
+            const isSelectingB = state.pointA && !state.pointB;
+            const label = isSelectingB ? 'B点' : 'A点';
+            
+            const menu = document.createElement('div');
+            menu.className = 'fib-point-menu';
+            menu.style.cssText = 'position:fixed;z-index:9999;background:#1e293b;border:1px solid #475569;border-radius:6px;padding:4px 0;box-shadow:0 4px 12px rgba(0,0,0,0.4);font-size:13px;';
+            
+            const highBtn = document.createElement('div');
+            highBtn.textContent = `📍 ${label} 最高价: ${high.toLocaleString()}`;
+            highBtn.style.cssText = 'padding:6px 14px;cursor:pointer;color:#fbbf24;';
+            highBtn.onmouseenter = () => highBtn.style.background = '#334155';
+            highBtn.onmouseleave = () => highBtn.style.background = '';
+            highBtn.onclick = () => { selectFibPoint(tf, idx, high, 'high'); menu.remove(); };
+            
+            const lowBtn = document.createElement('div');
+            lowBtn.textContent = `📍 ${label} 最低价: ${low.toLocaleString()}`;
+            lowBtn.style.cssText = 'padding:6px 14px;cursor:pointer;color:#60a5fa;';
+            lowBtn.onmouseenter = () => lowBtn.style.background = '#334155';
+            lowBtn.onmouseleave = () => lowBtn.style.background = '';
+            lowBtn.onclick = () => { selectFibPoint(tf, idx, low, 'low'); menu.remove(); };
+            
+            menu.appendChild(highBtn);
+            menu.appendChild(lowBtn);
+            document.body.appendChild(menu);
+            
+            const rect = event.target.getBoundingClientRect();
+            menu.style.left = (rect.left + rect.width/2) + 'px';
+            menu.style.top = (rect.top - 70) + 'px';
+            
+            setTimeout(() => {
+                document.addEventListener('click', function close(ev) {
+                    if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); }
+                });
+            }, 100);
+        }
+        
+        function selectFibPoint(tf, idx, price, type) {
+            if (!fibKlineState[tf]) fibKlineState[tf] = {};
+            const state = fibKlineState[tf];
+            
+            if (!state.pointA) {
+                // Selecting point A
+                state.pointA = { idx, price, type };
+                state.pointB = null;
+                updateFibStatus(`${tf} A点已选: ${price.toFixed(0)}，请点击第二根K线选择B点`);
+                renderFibKlineChart();
+            } else if (!state.pointB) {
+                // Selecting point B
+                state.pointB = { idx, price, type };
+                
+                // Save to localStorage
+                const fibSaveKey = `fib_kline_btc_${tf}`;
+                localStorage.setItem(fibSaveKey, JSON.stringify({ pointA: state.pointA, pointB: state.pointB }));
+                
+                // Also update the fibonacci card parameters
+                const high = Math.max(state.pointA.price, state.pointB.price);
+                const low = Math.min(state.pointA.price, state.pointB.price);
+                const direction = state.pointA.price < state.pointB.price ? 'up' : 'down';
+                const fibParamKey = `fib_params_btc_${tf}`;
+                localStorage.setItem(fibParamKey, JSON.stringify({ high, low, direction }));
+                
+                updateFibStatus(`${tf} 斐波那契已标记: ${state.pointA.price.toFixed(0)} → ${state.pointB.price.toFixed(0)}（再次点击K线可清除）`);
+                
+                // Reset state
+                fibKlineState[tf] = {};
+                renderFibKlineChart();
+                
+                // Also refresh zone density since fib params changed
+                if (window.dashboardController) renderZoneDensity(window.dashboardController);
+            }
+        }
+        
+        function updateFibStatus(msg) {
+            const el = document.getElementById('fibKlineStatus');
+            if (el) el.textContent = msg;
+        }
+        
+        // Clear all button
+        document.addEventListener('DOMContentLoaded', () => {
+            const clearBtn = document.getElementById('fibKlineClearBtn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    ['1m', '1w', '1d', '4h'].forEach(tf => {
+                        localStorage.removeItem(`fib_kline_btc_${tf}`);
+                        fibKlineState[tf] = {};
+                    });
+                    updateFibStatus('已清除所有标记');
+                    renderFibKlineChart();
+                });
+            }
+            setTimeout(renderFibKlineChart, 1800);
+        });
 
         // ===========================
         // EMA7-Close Deviation Chart
