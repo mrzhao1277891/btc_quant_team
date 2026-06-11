@@ -106,6 +106,18 @@
             </div>
         </div>
 
+        <!-- Card: K线价格走势 -->
+        <div class="card" id="klineChartCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">K线价格走势</h2>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <div id="klineChartContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Card 7: MACD Multi-Timeframe Chart -->
         <div class="card" id="macdChartCard" style="grid-column: 1 / -1;">
             <div class="card-header">
@@ -589,6 +601,7 @@
         setInterval(() => {
             if (window.dashboardController) {
                 renderZoneDensity(window.dashboardController);
+                renderKlineChart();
                 renderMacdChart();
                 renderBollChart();
                 renderVolumeChart();
@@ -712,12 +725,95 @@
         
         // Initial render
         document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(renderKlineChart, 1500);
             setTimeout(renderMacdChart, 2000); // Wait for API to be ready
             setTimeout(renderBollChart, 2500);
             setTimeout(renderVolumeChart, 3000);
             setTimeout(renderEmaChart, 3500);
             setTimeout(renderEmaDeviation, 4000);
         });
+
+        // ===========================
+        // K线价格走势 Chart
+        // ===========================
+        
+        async function renderKlineChart() {
+            const container = document.getElementById('klineChartContent');
+            if (!container) return;
+            
+            try {
+                // 各周期不同数量
+                const tfConfigs = [
+                    { key: '1m', label: '月线', limit: 100 },
+                    { key: '1w', label: '周线', limit: 100 },
+                    { key: '1d', label: '日线', limit: 100 },
+                    { key: '4h', label: '4小时', limit: 100 }
+                ];
+                
+                let html = '';
+                
+                for (const tfCfg of tfConfigs) {
+                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=BTCUSDT`);
+                    const result = await resp.json();
+                    const tfData = result.data;
+                    
+                    if (!tfData || tfData.length === 0) continue;
+                    
+                    const opens = tfData.map(d => d.open);
+                    const highs = tfData.map(d => d.high);
+                    const lows = tfData.map(d => d.low);
+                    const closes = tfData.map(d => d.close);
+                    
+                    const allVals = [...highs, ...lows];
+                    const yMin = Math.min(...allVals), yMax = Math.max(...allVals);
+                    const yRange = yMax - yMin || 1;
+                    const pad = yRange * 0.03;
+                    const min = yMin - pad, max = yMax + pad;
+                    
+                    const W = 500, H = 200, PL = 60, PR = 10, PT = 25, PB = 20;
+                    const chartW = W - PL - PR, chartH = H - PT - PB;
+                    const candleW = Math.max(1, (chartW / tfData.length) * 0.7);
+                    const gap = chartW / tfData.length;
+                    
+                    const toX = (i) => PL + i * gap + gap / 2;
+                    const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
+                    
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfCfg.label} (${tfData.length}根)</text>`;
+                    svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(0)}</text>`;
+                    svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(0)}</text>`;
+                    
+                    // Draw candles
+                    for (let i = 0; i < tfData.length; i++) {
+                        const o = opens[i], h = highs[i], l = lows[i], c = closes[i];
+                        const x = toX(i);
+                        const isUp = c >= o;
+                        const color = isUp ? '#22c55e' : '#ef4444';
+                        
+                        // Wick (high-low line)
+                        svg += `<line x1="${x}" y1="${toY(h)}" x2="${x}" y2="${toY(l)}" stroke="${color}" stroke-width="1"/>`;
+                        
+                        // Body
+                        const bodyTop = toY(Math.max(o, c));
+                        const bodyBot = toY(Math.min(o, c));
+                        const bodyH = Math.max(1, bodyBot - bodyTop);
+                        svg += `<rect x="${x - candleW/2}" y="${bodyTop}" width="${candleW}" height="${bodyH}" fill="${isUp ? '#0f172a' : color}" stroke="${color}" stroke-width="1"/>`;
+                    }
+                    
+                    // Latest price label
+                    const lastClose = closes[closes.length - 1];
+                    svg += `<text x="${PL+5}" y="${H-4}" fill="#22c55e" font-size="9">最新: ${lastClose.toLocaleString()}</text>`;
+                    
+                    svg += '</svg>';
+                    html += `<div>${svg}</div>`;
+                }
+                
+                container.innerHTML = html || '<div class="loading">暂无数据</div>';
+            } catch (e) {
+                console.error('Kline chart error:', e);
+                container.innerHTML = '<div class="loading">加载失败</div>';
+            }
+        }
 
         // ===========================
         // EMA7-Close Deviation Chart
