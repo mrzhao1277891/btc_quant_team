@@ -466,7 +466,8 @@
             const typeColors = {
                 'EMA': '#3b82f6',
                 'BOLL': '#f59e0b', 
-                'FIB': '#a855f7'
+                'FIB': '#a855f7',
+                'PIN': '#ec4899'
             };
             
             for (const tf of timeframes) {
@@ -484,25 +485,33 @@
                 if (d.boll_md) pricePoints.push({ price: d.boll_md, label: `${label} BOLL中`, type: 'BOLL' });
                 if (d.boll_dn) pricePoints.push({ price: d.boll_dn, label: `${label} BOLL下`, type: 'BOLL' });
                 
-                // Fibonacci levels
-                const fibKey = `fib_params_btc_${tf}`;
-                const fibStored = localStorage.getItem(fibKey);
-                if (fibStored) {
-                    const fibParams = JSON.parse(fibStored);
-                    const high = fibParams.high;
-                    const low = fibParams.low;
-                    const dir = fibParams.direction;
-                    const fibLevels = [0.236, 0.382, 0.5, 0.618];
+                // Fibonacci levels - 使用斐波那契标记工具的数据
+                const fibKlineKey = `fib_kline_btc_${tf}`;
+                const fibKlineData = JSON.parse(localStorage.getItem(fibKlineKey) || 'null');
+                
+                if (fibKlineData && fibKlineData.pointA && fibKlineData.pointB) {
+                    const fibHigh = Math.max(fibKlineData.pointA.price, fibKlineData.pointB.price);
+                    const fibLow = Math.min(fibKlineData.pointA.price, fibKlineData.pointB.price);
+                    const fibDir = fibKlineData.pointA.price < fibKlineData.pointB.price ? 'up' : 'down';
                     
+                    const fibLevels = [0.236, 0.382, 0.5, 0.618, 0.786];
                     for (const level of fibLevels) {
                         let price;
-                        if (dir === 'up') {
-                            price = high - (high - low) * level;
+                        if (fibDir === 'up') {
+                            price = fibHigh - (fibHigh - fibLow) * level;
                         } else {
-                            price = low + (high - low) * level;
+                            price = fibLow + (fibHigh - fibLow) * level;
                         }
                         pricePoints.push({ price, label: `${label} Fib${(level*100).toFixed(1)}%`, type: 'FIB' });
                     }
+                }
+                
+                // K线标记价格
+                const pinnedKey = `kline_pins_btc_${tf}`;
+                const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
+                for (const [idx, pin] of Object.entries(pinned)) {
+                    const pinLabel = pin.type === 'high' ? '高' : '低';
+                    pricePoints.push({ price: pin.price, label: `${label} 标记${pinLabel}`, type: 'PIN' });
                 }
             }
             
@@ -533,6 +542,7 @@
             html += `<span><span style="color:${typeColors.EMA}">●</span> EMA</span>`;
             html += `<span><span style="color:${typeColors.BOLL}">●</span> BOLL</span>`;
             html += `<span><span style="color:${typeColors.FIB}">●</span> FIB</span>`;
+            html += `<span><span style="color:${typeColors.PIN}">●</span> 标记</span>`;
             html += `<span><span style="color:#22c55e">▸</span> 当前价格</span>`;
             html += '</div>';
             
