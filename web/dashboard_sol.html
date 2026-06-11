@@ -94,6 +94,32 @@
             </div>
         </div>
 
+        <!-- Card: K线价格走势 -->
+        <div class="card" id="klineChartCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">K线价格走势</h2>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <div id="klineChartContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card: Fibonacci K线标记工具 -->
+        <div class="card" id="fibKlineCard" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">斐波那契标记工具（点击两根K线自动计算）</h2>
+                <button id="fibKlineClearBtn" class="edit-btn" aria-label="清除标记" style="font-size:12px;">🗑️ 清除所有</button>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <div id="fibKlineStatus" style="font-size:11px; color:#64748b; margin-bottom:8px;">点击第一根K线选择高/低点，再点击第二根选择高/低点，自动计算斐波那契回调位</div>
+                <div id="fibKlineContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Card 6: Price Zone Density -->
         <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1;">
             <div class="card-header">
@@ -535,6 +561,7 @@
         setInterval(() => {
             if (window.dashboardController) {
                 renderZoneDensity(window.dashboardController);
+                renderKlineChart();
                 renderMacdChart();
                 renderBollChart();
                 renderVolumeChart();
@@ -542,6 +569,207 @@
                 renderEmaDeviation();
             }
         }, 30000);
+
+        // ===========================
+        // K线价格走势 Chart
+        // ===========================
+        
+        async function renderKlineChart() {
+            const container = document.getElementById('klineChartContent');
+            if (!container) return;
+            try {
+                const tfConfigs = [
+                    { key: '1m', label: '月线', limit: 100 },
+                    { key: '1w', label: '周线', limit: 100 },
+                    { key: '1d', label: '日线', limit: 100 },
+                    { key: '4h', label: '4小时', limit: 100 }
+                ];
+                let html = '';
+                for (const tfCfg of tfConfigs) {
+                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=SOLUSDT`);
+                    const result = await resp.json();
+                    const tfData = result.data;
+                    if (!tfData || tfData.length === 0) continue;
+                    const opens = tfData.map(d => d.open), highs = tfData.map(d => d.high), lows = tfData.map(d => d.low), closes = tfData.map(d => d.close);
+                    const allVals = [...highs, ...lows];
+                    const yMin = Math.min(...allVals), yMax = Math.max(...allVals);
+                    const pad = (yMax - yMin) * 0.03;
+                    const min = yMin - pad, max = yMax + pad;
+                    const W = 500, H = 200, PL = 50, PR = 10, PT = 25, PB = 20;
+                    const chartW = W - PL - PR, chartH = H - PT - PB;
+                    const gap = chartW / tfData.length;
+                    const candleW = Math.max(1, gap * 0.7);
+                    const toX = (i) => PL + i * gap + gap / 2;
+                    const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfCfg.label} (${tfData.length}根)</text>`;
+                    svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(1)}</text>`;
+                    svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(1)}</text>`;
+                    for (let i = 0; i < tfData.length; i++) {
+                        const o = opens[i], h = highs[i], l = lows[i], c = closes[i];
+                        const x = toX(i); const isUp = c >= o;
+                        const color = isUp ? '#22c55e' : '#ef4444';
+                        svg += `<line x1="${x}" y1="${toY(h)}" x2="${x}" y2="${toY(l)}" stroke="${color}" stroke-width="1"/>`;
+                        const bodyTop = toY(Math.max(o, c)), bodyBot = toY(Math.min(o, c));
+                        svg += `<rect x="${x - candleW/2}" y="${bodyTop}" width="${candleW}" height="${Math.max(1, bodyBot - bodyTop)}" fill="${isUp ? '#0f172a' : color}" stroke="${color}" stroke-width="1"/>`;
+                        svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="kline-click" data-tf="${tfCfg.key}" data-idx="${i}" data-high="${h}" data-low="${l}" style="cursor:pointer;"/>`;
+                    }
+                    // Pinned prices
+                    const pinnedKey = `kline_pins_sol_${tfCfg.key}`;
+                    const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
+                    for (const [idx, pin] of Object.entries(pinned)) {
+                        const i = parseInt(idx); if (i >= tfData.length) continue;
+                        const x = toX(i), y = toY(pin.price);
+                        const pinColor = pin.type === 'high' ? '#fbbf24' : '#60a5fa';
+                        svg += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${pinColor}" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.6"/>`;
+                        svg += `<circle cx="${x}" cy="${y}" r="3" fill="${pinColor}"/>`;
+                        svg += `<text x="${x+5}" y="${y-4}" fill="${pinColor}" font-size="9" font-weight="bold">${pin.price.toLocaleString()}</text>`;
+                    }
+                    svg += `<text x="${PL+5}" y="${H-4}" fill="#22c55e" font-size="9">最新: ${closes[closes.length-1].toFixed(2)}</text>`;
+                    svg += '</svg>';
+                    html += `<div>${svg}</div>`;
+                }
+                container.innerHTML = html || '<div class="loading">暂无数据</div>';
+                container.querySelectorAll('.kline-click').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        const tf = e.target.dataset.tf, idx = e.target.dataset.idx;
+                        const high = parseFloat(e.target.dataset.high), low = parseFloat(e.target.dataset.low);
+                        const pinnedKey = `kline_pins_sol_${tf}`;
+                        const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
+                        if (pinned[idx]) { delete pinned[idx]; localStorage.setItem(pinnedKey, JSON.stringify(pinned)); renderKlineChart(); }
+                        else { showKlinePinMenu(e, tf, idx, high, low); }
+                    });
+                });
+            } catch (e) { console.error('Kline chart error:', e); container.innerHTML = '<div class="loading">加载失败</div>'; }
+        }
+        function showKlinePinMenu(event, tf, idx, high, low) {
+            document.querySelectorAll('.kline-pin-menu').forEach(m => m.remove());
+            const menu = document.createElement('div'); menu.className = 'kline-pin-menu';
+            menu.style.cssText = 'position:fixed;z-index:9999;background:#1e293b;border:1px solid #475569;border-radius:6px;padding:4px 0;box-shadow:0 4px 12px rgba(0,0,0,0.4);font-size:13px;';
+            const highBtn = document.createElement('div');
+            highBtn.textContent = `📌 最高价: ${high}`; highBtn.style.cssText = 'padding:6px 14px;cursor:pointer;color:#fbbf24;';
+            highBtn.onmouseenter = () => highBtn.style.background = '#334155'; highBtn.onmouseleave = () => highBtn.style.background = '';
+            highBtn.onclick = () => { const k = `kline_pins_sol_${tf}`; const p = JSON.parse(localStorage.getItem(k)||'{}'); p[idx]={type:'high',price:high}; localStorage.setItem(k,JSON.stringify(p)); menu.remove(); renderKlineChart(); };
+            const lowBtn = document.createElement('div');
+            lowBtn.textContent = `📌 最低价: ${low}`; lowBtn.style.cssText = 'padding:6px 14px;cursor:pointer;color:#60a5fa;';
+            lowBtn.onmouseenter = () => lowBtn.style.background = '#334155'; lowBtn.onmouseleave = () => lowBtn.style.background = '';
+            lowBtn.onclick = () => { const k = `kline_pins_sol_${tf}`; const p = JSON.parse(localStorage.getItem(k)||'{}'); p[idx]={type:'low',price:low}; localStorage.setItem(k,JSON.stringify(p)); menu.remove(); renderKlineChart(); };
+            menu.appendChild(highBtn); menu.appendChild(lowBtn); document.body.appendChild(menu);
+            const rect = event.target.getBoundingClientRect();
+            menu.style.left = (rect.left+rect.width/2)+'px'; menu.style.top = (rect.top-70)+'px';
+            setTimeout(() => { document.addEventListener('click', function c(ev) { if (!menu.contains(ev.target)){menu.remove();document.removeEventListener('click',c);} }); }, 100);
+        }
+
+        // ===========================
+        // Fibonacci K线标记工具
+        // ===========================
+        const fibKlineState = {};
+        async function renderFibKlineChart() {
+            const container = document.getElementById('fibKlineContent');
+            if (!container) return;
+            try {
+                const tfConfigs = [{key:'1m',label:'月线',limit:100},{key:'1w',label:'周线',limit:100},{key:'1d',label:'日线',limit:100},{key:'4h',label:'4小时',limit:100}];
+                let html = '';
+                for (const tfCfg of tfConfigs) {
+                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=SOLUSDT`);
+                    const result = await resp.json(); const tfData = result.data;
+                    if (!tfData || tfData.length === 0) continue;
+                    const opens = tfData.map(d=>d.open), highs = tfData.map(d=>d.high), lows = tfData.map(d=>d.low), closes = tfData.map(d=>d.close);
+                    const allVals = [...highs,...lows]; const yMin = Math.min(...allVals), yMax = Math.max(...allVals);
+                    const pad = (yMax-yMin)*0.05; const min = yMin-pad, max = yMax+pad;
+                    const W=500,H=220,PL=50,PR=60,PT=25,PB=20;
+                    const chartW=W-PL-PR,chartH=H-PT-PB,gap=chartW/tfData.length,candleW=Math.max(1,gap*0.7);
+                    const toX=(i)=>PL+i*gap+gap/2, toY=(v)=>PT+(1-(v-min)/(max-min))*chartH;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a;border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfCfg.label}</text>`;
+                    svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(1)}</text>`;
+                    svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(1)}</text>`;
+                    for (let i=0;i<tfData.length;i++) {
+                        const o=opens[i],h=highs[i],l=lows[i],c=closes[i],x=toX(i),isUp=c>=o,color=isUp?'#22c55e':'#ef4444';
+                        svg += `<line x1="${x}" y1="${toY(h)}" x2="${x}" y2="${toY(l)}" stroke="${color}" stroke-width="1"/>`;
+                        const bT=toY(Math.max(o,c)),bB=toY(Math.min(o,c));
+                        svg += `<rect x="${x-candleW/2}" y="${bT}" width="${candleW}" height="${Math.max(1,bB-bT)}" fill="${isUp?'#0f172a':color}" stroke="${color}" stroke-width="1"/>`;
+                        svg += `<rect x="${x-gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="fib-kline-click" data-tf="${tfCfg.key}" data-idx="${i}" data-high="${h}" data-low="${l}" style="cursor:crosshair;"/>`;
+                    }
+                    // Draw saved fib levels
+                    const fibSaveKey = `fib_kline_sol_${tfCfg.key}`;
+                    const savedFib = JSON.parse(localStorage.getItem(fibSaveKey)||'null');
+                    if (savedFib && savedFib.pointA && savedFib.pointB) {
+                        const pA=savedFib.pointA.price,pB=savedFib.pointB.price;
+                        const high=Math.max(pA,pB),low=Math.min(pA,pB),isUptrend=pA<pB;
+                        const xA=toX(savedFib.pointA.idx),xB=toX(savedFib.pointB.idx);
+                        svg += `<circle cx="${xA}" cy="${toY(pA)}" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1"/>`;
+                        svg += `<circle cx="${xB}" cy="${toY(pB)}" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1"/>`;
+                        svg += `<line x1="${xA}" y1="${toY(pA)}" x2="${xB}" y2="${toY(pB)}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>`;
+                        const fibLevels=[{r:0,l:'0%'},{r:0.236,l:'23.6%'},{r:0.382,l:'38.2%'},{r:0.5,l:'50%'},{r:0.618,l:'61.8%'},{r:0.786,l:'78.6%'},{r:1,l:'100%'}];
+                        const fibColors=['#64748b','#22c55e','#3b82f6','#f59e0b','#ef4444','#a855f7','#64748b'];
+                        for (let fi=0;fi<fibLevels.length;fi++) {
+                            const price = isUptrend ? high-(high-low)*fibLevels[fi].r : low+(high-low)*fibLevels[fi].r;
+                            const y=toY(price);
+                            if(y>=PT&&y<=H-PB){
+                                svg += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${fibColors[fi]}" stroke-width="0.8" stroke-dasharray="4,2" opacity="0.7"/>`;
+                                svg += `<text x="${W-PR+3}" y="${y+3}" fill="${fibColors[fi]}" font-size="8">${fibLevels[fi].l} ${price.toFixed(1)}</text>`;
+                            }
+                        }
+                    }
+                    const state=fibKlineState[tfCfg.key];
+                    if(state&&state.pointA&&!state.pointB){
+                        const xA=toX(state.pointA.idx);
+                        svg += `<circle cx="${xA}" cy="${toY(state.pointA.price)}" r="5" fill="none" stroke="#f59e0b" stroke-width="2"/>`;
+                        svg += `<text x="${xA+8}" y="${toY(state.pointA.price)+4}" fill="#f59e0b" font-size="9">A: ${state.pointA.price.toFixed(1)}</text>`;
+                    }
+                    svg += '</svg>'; html += `<div>${svg}</div>`;
+                }
+                container.innerHTML = html||'<div class="loading">暂无数据</div>';
+                container.querySelectorAll('.fib-kline-click').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        const tf=e.target.dataset.tf,idx=parseInt(e.target.dataset.idx);
+                        const high=parseFloat(e.target.dataset.high),low=parseFloat(e.target.dataset.low);
+                        const fibSaveKey=`fib_kline_sol_${tf}`;
+                        const savedFib=JSON.parse(localStorage.getItem(fibSaveKey)||'null');
+                        if(savedFib&&savedFib.pointA&&savedFib.pointB){localStorage.removeItem(fibSaveKey);fibKlineState[tf]={};updateFibStatus('已清除标记');renderFibKlineChart();return;}
+                        showFibPointMenu(e,tf,idx,high,low);
+                    });
+                });
+            } catch(e){console.error('Fib Kline error:',e);container.innerHTML='<div class="loading">加载失败</div>';}
+        }
+        function showFibPointMenu(event,tf,idx,high,low){
+            document.querySelectorAll('.fib-point-menu').forEach(m=>m.remove());
+            const state=fibKlineState[tf]||{};const isB=state.pointA&&!state.pointB;const label=isB?'B点':'A点';
+            const menu=document.createElement('div');menu.className='fib-point-menu';
+            menu.style.cssText='position:fixed;z-index:9999;background:#1e293b;border:1px solid #475569;border-radius:6px;padding:4px 0;box-shadow:0 4px 12px rgba(0,0,0,0.4);font-size:13px;';
+            const hBtn=document.createElement('div');hBtn.textContent=`📍 ${label} 最高价: ${high}`;hBtn.style.cssText='padding:6px 14px;cursor:pointer;color:#fbbf24;';
+            hBtn.onmouseenter=()=>hBtn.style.background='#334155';hBtn.onmouseleave=()=>hBtn.style.background='';
+            hBtn.onclick=()=>{selectFibPoint(tf,idx,high,'high');menu.remove();};
+            const lBtn=document.createElement('div');lBtn.textContent=`📍 ${label} 最低价: ${low}`;lBtn.style.cssText='padding:6px 14px;cursor:pointer;color:#60a5fa;';
+            lBtn.onmouseenter=()=>lBtn.style.background='#334155';lBtn.onmouseleave=()=>lBtn.style.background='';
+            lBtn.onclick=()=>{selectFibPoint(tf,idx,low,'low');menu.remove();};
+            menu.appendChild(hBtn);menu.appendChild(lBtn);document.body.appendChild(menu);
+            const rect=event.target.getBoundingClientRect();menu.style.left=(rect.left+rect.width/2)+'px';menu.style.top=(rect.top-70)+'px';
+            setTimeout(()=>{document.addEventListener('click',function c(ev){if(!menu.contains(ev.target)){menu.remove();document.removeEventListener('click',c);}});},100);
+        }
+        function selectFibPoint(tf,idx,price,type){
+            if(!fibKlineState[tf])fibKlineState[tf]={};const state=fibKlineState[tf];
+            if(!state.pointA){state.pointA={idx,price,type};state.pointB=null;updateFibStatus(`${tf} A点已选: ${price.toFixed(1)}，请点击B点`);renderFibKlineChart();}
+            else if(!state.pointB){
+                state.pointB={idx,price,type};
+                const fibSaveKey=`fib_kline_sol_${tf}`;
+                localStorage.setItem(fibSaveKey,JSON.stringify({pointA:state.pointA,pointB:state.pointB}));
+                const high=Math.max(state.pointA.price,state.pointB.price),low=Math.min(state.pointA.price,state.pointB.price);
+                const direction=state.pointA.price<state.pointB.price?'up':'down';
+                localStorage.setItem(`fib_params_sol_${tf}`,JSON.stringify({high,low,direction}));
+                updateFibStatus(`${tf} 斐波那契已标记（再次点击可清除）`);
+                fibKlineState[tf]={};renderFibKlineChart();
+                if(window.dashboardController)renderZoneDensity(window.dashboardController);
+            }
+        }
+        function updateFibStatus(msg){const el=document.getElementById('fibKlineStatus');if(el)el.textContent=msg;}
+        document.addEventListener('DOMContentLoaded',()=>{
+            const clearBtn=document.getElementById('fibKlineClearBtn');
+            if(clearBtn)clearBtn.addEventListener('click',()=>{['1m','1w','1d','4h'].forEach(tf=>{localStorage.removeItem(`fib_kline_sol_${tf}`);fibKlineState[tf]={};});updateFibStatus('已清除所有标记');renderFibKlineChart();});
+            setTimeout(renderKlineChart,1500);
+            setTimeout(renderFibKlineChart,1800);
+        });
 
         // ===========================
         // MACD Multi-Timeframe Chart
