@@ -783,7 +783,7 @@
                     svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(0)}</text>`;
                     svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(0)}</text>`;
                     
-                    // Draw candles
+                    // Draw candles with click interaction
                     for (let i = 0; i < tfData.length; i++) {
                         const o = opens[i], h = highs[i], l = lows[i], c = closes[i];
                         const x = toX(i);
@@ -798,6 +798,24 @@
                         const bodyBot = toY(Math.min(o, c));
                         const bodyH = Math.max(1, bodyBot - bodyTop);
                         svg += `<rect x="${x - candleW/2}" y="${bodyTop}" width="${candleW}" height="${bodyH}" fill="${isUp ? '#0f172a' : color}" stroke="${color}" stroke-width="1"/>`;
+                        
+                        // Invisible click target (wider for easier clicking)
+                        svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="kline-click" data-tf="${tfCfg.key}" data-idx="${i}" data-high="${h}" data-low="${l}" data-x="${x}" data-hy="${toY(h)}" data-ly="${toY(l)}" style="cursor:pointer;"/>`;
+                    }
+                    
+                    // Draw pinned price labels from localStorage
+                    const pinnedKey = `kline_pins_btc_${tfCfg.key}`;
+                    const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
+                    for (const [idx, pin] of Object.entries(pinned)) {
+                        const i = parseInt(idx);
+                        if (i >= tfData.length) continue;
+                        const x = toX(i);
+                        const price = pin.price;
+                        const y = toY(price);
+                        const pinColor = pin.type === 'high' ? '#fbbf24' : '#60a5fa';
+                        svg += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${pinColor}" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.6"/>`;
+                        svg += `<circle cx="${x}" cy="${y}" r="3" fill="${pinColor}"/>`;
+                        svg += `<text x="${x+5}" y="${y-4}" fill="${pinColor}" font-size="9" font-weight="bold">${price.toLocaleString()}</text>`;
                     }
                     
                     // Latest price label
@@ -809,10 +827,95 @@
                 }
                 
                 container.innerHTML = html || '<div class="loading">暂无数据</div>';
+                
+                // Add click event listeners
+                container.querySelectorAll('.kline-click').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        const tf = e.target.dataset.tf;
+                        const idx = e.target.dataset.idx;
+                        const high = parseFloat(e.target.dataset.high);
+                        const low = parseFloat(e.target.dataset.low);
+                        
+                        const pinnedKey = `kline_pins_btc_${tf}`;
+                        const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
+                        
+                        if (pinned[idx]) {
+                            // Already pinned - remove it
+                            delete pinned[idx];
+                            localStorage.setItem(pinnedKey, JSON.stringify(pinned));
+                            renderKlineChart();
+                        } else {
+                            // Show menu to choose high or low
+                            showKlinePinMenu(e, tf, idx, high, low);
+                        }
+                    });
+                });
+                
             } catch (e) {
                 console.error('Kline chart error:', e);
                 container.innerHTML = '<div class="loading">加载失败</div>';
             }
+        }
+        
+        // Pin menu for kline chart
+        function showKlinePinMenu(event, tf, idx, high, low) {
+            // Remove existing menu
+            document.querySelectorAll('.kline-pin-menu').forEach(m => m.remove());
+            
+            const menu = document.createElement('div');
+            menu.className = 'kline-pin-menu';
+            menu.style.cssText = `
+                position: fixed; z-index: 9999; background: #1e293b; border: 1px solid #475569;
+                border-radius: 6px; padding: 4px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+                font-size: 13px;
+            `;
+            
+            const highBtn = document.createElement('div');
+            highBtn.textContent = `📌 最高价: ${high.toLocaleString()}`;
+            highBtn.style.cssText = 'padding: 6px 14px; cursor: pointer; color: #fbbf24;';
+            highBtn.onmouseenter = () => highBtn.style.background = '#334155';
+            highBtn.onmouseleave = () => highBtn.style.background = '';
+            highBtn.onclick = () => {
+                const pinnedKey = `kline_pins_btc_${tf}`;
+                const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
+                pinned[idx] = { type: 'high', price: high };
+                localStorage.setItem(pinnedKey, JSON.stringify(pinned));
+                menu.remove();
+                renderKlineChart();
+            };
+            
+            const lowBtn = document.createElement('div');
+            lowBtn.textContent = `📌 最低价: ${low.toLocaleString()}`;
+            lowBtn.style.cssText = 'padding: 6px 14px; cursor: pointer; color: #60a5fa;';
+            lowBtn.onmouseenter = () => lowBtn.style.background = '#334155';
+            lowBtn.onmouseleave = () => lowBtn.style.background = '';
+            lowBtn.onclick = () => {
+                const pinnedKey = `kline_pins_btc_${tf}`;
+                const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
+                pinned[idx] = { type: 'low', price: low };
+                localStorage.setItem(pinnedKey, JSON.stringify(pinned));
+                menu.remove();
+                renderKlineChart();
+            };
+            
+            menu.appendChild(highBtn);
+            menu.appendChild(lowBtn);
+            document.body.appendChild(menu);
+            
+            // Position menu near click
+            const rect = event.target.getBoundingClientRect();
+            menu.style.left = (rect.left + rect.width/2) + 'px';
+            menu.style.top = (rect.top - 70) + 'px';
+            
+            // Close on click outside
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(ev) {
+                    if (!menu.contains(ev.target)) {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 100);
         }
 
         // ===========================
