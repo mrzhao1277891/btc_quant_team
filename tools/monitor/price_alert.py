@@ -109,7 +109,7 @@ def main():
     parser.add_argument('--symbol', default='BTCUSDT', help='交易对 (默认: BTCUSDT)')
     parser.add_argument('--high', type=float, default=None, help='价格上限阈值')
     parser.add_argument('--low', type=float, default=None, help='价格下限阈值')
-    parser.add_argument('--interval', type=int, default=30, help='检查间隔秒数 (默认: 30)')
+    parser.add_argument('--interval', type=int, default=300, help='检查间隔秒数 (默认: 300)')
     parser.add_argument('--cooldown', type=int, default=30, help='触发冷却秒数 (默认: 30)')
     parser.add_argument('--config', type=str, default=None, help='配置文件路径 (JSON)')
     
