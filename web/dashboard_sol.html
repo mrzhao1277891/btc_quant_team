@@ -536,12 +536,12 @@
                 }
                 for (const point of zone.points) {
                     const color = typeColors[point.type] || '#8a8fa8';
-                    html += `<span style="color:${color}; cursor:pointer; font-size:14px;" class="zone-dot" data-tooltip="${point.label}: ${point.price.toFixed(0)}">●</span>`;
+                    html += `<span style="color:${color}; cursor:pointer; font-size:14px;" class="zone-dot" data-tooltip="${point.label}: ${point.price.toFixed(1)}">●</span>`;
                 }
                 html += '<span style="margin-left:8px; display:flex; flex-wrap:wrap; gap:4px;">';
                 for (const point of zone.points) {
                     const color = typeColors[point.type] || '#8a8fa8';
-                    html += `<span style="color:${color}; font-size:11px;">${point.label}:${point.price.toFixed(0)}</span>`;
+                    html += `<span style="color:${color}; font-size:11px;">${point.label}:${point.price.toFixed(1)}</span>`;
                 }
                 html += '</span>';
                 html += '</span></div>';
