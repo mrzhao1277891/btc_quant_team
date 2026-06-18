@@ -1014,7 +1014,7 @@
                 const W=500,H=280,PL=55,PR=10,klineTop=25,klineH=150,macdTop=190,macdH=70;
                 const chartW=W-PL-PR,gap=chartW/tfData.length,candleW=Math.max(1,gap*0.7);
                 const toX=(i)=>PL+i*gap+gap/2;
-                const priceVals=[...highs,...lows];
+                const priceVals=[...highs,...lows,...tfData.map(d=>d.boll_up).filter(v=>v!=null),...tfData.map(d=>d.boll_dn).filter(v=>v!=null)];
                 const pMin=Math.min(...priceVals),pMax=Math.max(...priceVals),pPad=(pMax-pMin)*0.03;
                 const priceMin=pMin-pPad,priceMax=pMax+pPad;
                 const toPriceY=(v)=>klineTop+(1-(v-priceMin)/(priceMax-priceMin))*klineH;
@@ -1044,6 +1044,17 @@
                     svg+=`<rect x="${x-candleW/2}" y="${bT}" width="${candleW}" height="${Math.max(1,bB-bT)}" fill="${isUp?'#0f172a':color}" stroke="${color}" stroke-width="1" opacity="${dim}"/>`;
                 }
                 svg+=`<line x1="${PL}" y1="${klineTop+klineH+7}" x2="${W-PR}" y2="${klineTop+klineH+7}" stroke="#334155" stroke-width="0.5"/>`;
+                // 布林带叠加在K线区
+                const bup=tfData.map(d=>d.boll_up),bmd=tfData.map(d=>d.boll_md),bdn=tfData.map(d=>d.boll_dn);
+                if(tfData.length>1&&bup[0]!=null&&bdn[0]!=null){
+                    let area=`M ${toX(0)} ${toPriceY(bup[0])}`;
+                    for(let i=1;i<tfData.length;i++)area+=` L ${toX(i)} ${toPriceY(bup[i])}`;
+                    for(let i=tfData.length-1;i>=0;i--)area+=` L ${toX(i)} ${toPriceY(bdn[i])}`;
+                    area+=' Z';svg+=`<path d="${area}" fill="#fbbf24" opacity="0.06"/>`;
+                    let pu=`M ${toX(0)} ${toPriceY(bup[0])}`;for(let i=1;i<tfData.length;i++)pu+=` L ${toX(i)} ${toPriceY(bup[i])}`;svg+=`<path d="${pu}" fill="none" stroke="#f87171" stroke-width="0.8" opacity="0.7"/>`;
+                    let pm=`M ${toX(0)} ${toPriceY(bmd[0])}`;for(let i=1;i<tfData.length;i++)pm+=` L ${toX(i)} ${toPriceY(bmd[i])}`;svg+=`<path d="${pm}" fill="none" stroke="#fb923c" stroke-width="0.8" opacity="0.7" stroke-dasharray="3,2"/>`;
+                    let pd=`M ${toX(0)} ${toPriceY(bdn[0])}`;for(let i=1;i<tfData.length;i++)pd+=` L ${toX(i)} ${toPriceY(bdn[i])}`;svg+=`<path d="${pd}" fill="none" stroke="#fbbf24" stroke-width="0.8" opacity="0.7"/>`;
+                }
                 svg+=`<text x="${PL-4}" y="${macdTop+6}" text-anchor="end" fill="#64748b" font-size="8">${macdMax.toFixed(1)}</text>`;
                 svg+=`<text x="${PL-4}" y="${macdTop+macdH}" text-anchor="end" fill="#64748b" font-size="8">${macdMin.toFixed(1)}</text>`;
                 svg+=`<text x="${PL}" y="${macdTop-2}" fill="#64748b" font-size="8">MACD</text>`;
