@@ -196,6 +196,7 @@
         <div class="card" id="klineMacdCard" style="grid-column: 1 / -1;">
             <div class="card-header">
                 <h2 class="card-title">K线 + MACD 融合图</h2>
+                <button id="emaToggleBtn" class="edit-btn" style="font-size:12px;">EMA: 显示</button>
             </div>
             <div class="card-body" style="padding: 12px;">
                 <div id="klineMacdContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -970,12 +971,28 @@
             setTimeout(renderEmaDeviation, 4000);
             setTimeout(renderKlineMacdChart, 4500);
         });
+        
+        // EMA显示切换按钮
+        document.addEventListener('DOMContentLoaded', () => {
+            const emaBtn = document.getElementById('emaToggleBtn');
+            if (emaBtn) {
+                emaBtn.addEventListener('click', () => {
+                    showEma = !showEma;
+                    emaBtn.textContent = showEma ? 'EMA: 显示' : 'EMA: 隐藏';
+                    const container = document.getElementById('klineMacdContent');
+                    if (container && Object.keys(klineMacdCache).length) {
+                        drawKlineMacdCharts(container);
+                    }
+                });
+            }
+        });
 
         // ===========================
         // K线 + MACD 融合图
         // ===========================
         let klineMacdCache = {};
         let klineMacdHighlightTs = null;
+        let showEma = true;
         const klineMacdTfConfigs = [
             { key: '1m', label: '月线', limit: 60 },
             { key: '1w', label: '周线', limit: 60 },
@@ -1014,7 +1031,7 @@
                 const W=500,H=280,PL=55,PR=10,klineTop=25,klineH=150,macdTop=190,macdH=70;
                 const chartW=W-PL-PR,gap=chartW/tfData.length,candleW=Math.max(1,gap*0.7);
                 const toX=(i)=>PL+i*gap+gap/2;
-                const priceVals=[...highs,...lows,...tfData.map(d=>d.boll_up).filter(v=>v!=null),...tfData.map(d=>d.boll_dn).filter(v=>v!=null)];
+                const priceVals=[...highs,...lows,...tfData.map(d=>d.boll_up).filter(v=>v!=null),...tfData.map(d=>d.boll_dn).filter(v=>v!=null),...tfData.map(d=>d.ema50).filter(v=>v!=null),...tfData.map(d=>d.ema7).filter(v=>v!=null)];
                 const pMin=Math.min(...priceVals),pMax=Math.max(...priceVals),pPad=(pMax-pMin)*0.03;
                 const priceMin=pMin-pPad,priceMax=pMax+pPad;
                 const toPriceY=(v)=>klineTop+(1-(v-priceMin)/(priceMax-priceMin))*klineH;
@@ -1044,16 +1061,25 @@
                     svg+=`<rect x="${x-candleW/2}" y="${bT}" width="${candleW}" height="${Math.max(1,bB-bT)}" fill="${isUp?'#0f172a':color}" stroke="${color}" stroke-width="1" opacity="${dim}"/>`;
                 }
                 svg+=`<line x1="${PL}" y1="${klineTop+klineH+7}" x2="${W-PR}" y2="${klineTop+klineH+7}" stroke="#334155" stroke-width="0.5"/>`;
-                // 布林带叠加在K线区
-                const bup=tfData.map(d=>d.boll_up),bmd=tfData.map(d=>d.boll_md),bdn=tfData.map(d=>d.boll_dn);
-                if(tfData.length>1&&bup[0]!=null&&bdn[0]!=null){
-                    let area=`M ${toX(0)} ${toPriceY(bup[0])}`;
-                    for(let i=1;i<tfData.length;i++)area+=` L ${toX(i)} ${toPriceY(bup[i])}`;
-                    for(let i=tfData.length-1;i>=0;i--)area+=` L ${toX(i)} ${toPriceY(bdn[i])}`;
-                    area+=' Z';svg+=`<path d="${area}" fill="#fbbf24" opacity="0.06"/>`;
-                    let pu=`M ${toX(0)} ${toPriceY(bup[0])}`;for(let i=1;i<tfData.length;i++)pu+=` L ${toX(i)} ${toPriceY(bup[i])}`;svg+=`<path d="${pu}" fill="none" stroke="#f87171" stroke-width="0.8" opacity="0.7"/>`;
-                    let pm=`M ${toX(0)} ${toPriceY(bmd[0])}`;for(let i=1;i<tfData.length;i++)pm+=` L ${toX(i)} ${toPriceY(bmd[i])}`;svg+=`<path d="${pm}" fill="none" stroke="#fb923c" stroke-width="0.8" opacity="0.7" stroke-dasharray="3,2"/>`;
-                    let pd=`M ${toX(0)} ${toPriceY(bdn[0])}`;for(let i=1;i<tfData.length;i++)pd+=` L ${toX(i)} ${toPriceY(bdn[i])}`;svg+=`<path d="${pd}" fill="none" stroke="#fbbf24" stroke-width="0.8" opacity="0.7"/>`;
+                // 通用画线函数：跳过null
+                const drawLine=(vals,stroke,width,dash)=>{
+                    let path='',started=false;
+                    for(let i=0;i<tfData.length;i++){
+                        if(vals[i]==null){started=false;continue;}
+                        path+=`${started?' L':' M'} ${toX(i)} ${toPriceY(vals[i])}`;started=true;
+                    }
+                    if(!path)return '';
+                    return `<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${width}" opacity="0.75" ${dash?`stroke-dasharray="${dash}"`:''}/>`;
+                };
+                // 布林带
+                svg+=drawLine(tfData.map(d=>d.boll_up),'#f87171',0.8);
+                svg+=drawLine(tfData.map(d=>d.boll_md),'#fb923c',0.8,'3,2');
+                svg+=drawLine(tfData.map(d=>d.boll_dn),'#fbbf24',0.8);
+                // EMA
+                if(showEma){
+                    svg+=drawLine(tfData.map(d=>d.ema7),'#3b82f6',1);
+                    svg+=drawLine(tfData.map(d=>d.ema25),'#8b5cf6',1);
+                    svg+=drawLine(tfData.map(d=>d.ema50),'#06b6d4',1);
                 }
                 svg+=`<text x="${PL-4}" y="${macdTop+6}" text-anchor="end" fill="#64748b" font-size="8">${macdMax.toFixed(1)}</text>`;
                 svg+=`<text x="${PL-4}" y="${macdTop+macdH}" text-anchor="end" fill="#64748b" font-size="8">${macdMin.toFixed(1)}</text>`;
