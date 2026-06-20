@@ -519,10 +519,11 @@
                     }
                 }
                 
-                // K线标记价格
+                // K线标记价格（只显示按时间戳存储的有效标记，过滤旧的索引标记）
                 const pinnedKey = `kline_pins_btc_${tf}`;
                 const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
-                for (const [idx, pin] of Object.entries(pinned)) {
+                for (const [ts, pin] of Object.entries(pinned)) {
+                    if (parseInt(ts) < 1e10) continue;  // 跳过旧的索引标记
                     const pinLabel = pin.type === 'high' ? '高' : '低';
                     pricePoints.push({ price: pin.price, label: `${label} 标记${pinLabel}`, type: 'PIN' });
                 }
@@ -1057,15 +1058,16 @@
                         svg += `<rect x="${x - candleW/2}" y="${bodyTop}" width="${candleW}" height="${bodyH}" fill="${isUp ? '#0f172a' : color}" stroke="${color}" stroke-width="1"/>`;
                         
                         // Invisible click target (wider for easier clicking)
-                        svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="kline-click" data-tf="${tfCfg.key}" data-idx="${i}" data-high="${h}" data-low="${l}" data-x="${x}" data-hy="${toY(h)}" data-ly="${toY(l)}" style="cursor:pointer;"/>`;
+                        svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="kline-click" data-tf="${tfCfg.key}" data-ts="${tfData[i].ts}" data-high="${h}" data-low="${l}" style="cursor:pointer;"/>`;
                     }
                     
-                    // Draw pinned price labels from localStorage
+                    // Draw pinned price labels from localStorage (按时间戳定位)
                     const pinnedKey = `kline_pins_btc_${tfCfg.key}`;
                     const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
-                    for (const [idx, pin] of Object.entries(pinned)) {
-                        const i = parseInt(idx);
-                        if (i >= tfData.length) continue;
+                    for (const [ts, pin] of Object.entries(pinned)) {
+                        // 按时间戳找当前索引
+                        const i = tfData.findIndex(d => d.ts === parseInt(ts));
+                        if (i < 0) continue;
                         const x = toX(i);
                         const price = pin.price;
                         const y = toY(price);
@@ -1089,21 +1091,21 @@
                 container.querySelectorAll('.kline-click').forEach(el => {
                     el.addEventListener('click', (e) => {
                         const tf = e.target.dataset.tf;
-                        const idx = e.target.dataset.idx;
+                        const ts = e.target.dataset.ts;
                         const high = parseFloat(e.target.dataset.high);
                         const low = parseFloat(e.target.dataset.low);
                         
                         const pinnedKey = `kline_pins_btc_${tf}`;
                         const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
                         
-                        if (pinned[idx]) {
+                        if (pinned[ts]) {
                             // Already pinned - remove it
-                            delete pinned[idx];
+                            delete pinned[ts];
                             localStorage.setItem(pinnedKey, JSON.stringify(pinned));
                             renderKlineChart();
                         } else {
                             // Show menu to choose high or low
-                            showKlinePinMenu(e, tf, idx, high, low);
+                            showKlinePinMenu(e, tf, ts, high, low);
                         }
                     });
                 });
@@ -1115,7 +1117,7 @@
         }
         
         // Pin menu for kline chart
-        function showKlinePinMenu(event, tf, idx, high, low) {
+        function showKlinePinMenu(event, tf, ts, high, low) {
             // Remove existing menu
             document.querySelectorAll('.kline-pin-menu').forEach(m => m.remove());
             
@@ -1135,7 +1137,7 @@
             highBtn.onclick = () => {
                 const pinnedKey = `kline_pins_btc_${tf}`;
                 const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
-                pinned[idx] = { type: 'high', price: high };
+                pinned[ts] = { type: 'high', price: high };
                 localStorage.setItem(pinnedKey, JSON.stringify(pinned));
                 menu.remove();
                 renderKlineChart();
@@ -1149,7 +1151,7 @@
             lowBtn.onclick = () => {
                 const pinnedKey = `kline_pins_btc_${tf}`;
                 const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
-                pinned[idx] = { type: 'low', price: low };
+                pinned[ts] = { type: 'low', price: low };
                 localStorage.setItem(pinnedKey, JSON.stringify(pinned));
                 menu.remove();
                 renderKlineChart();
@@ -1237,7 +1239,7 @@
                         const bodyH = Math.max(1, bodyBot - bodyTop);
                         svg += `<rect x="${x - candleW/2}" y="${bodyTop}" width="${candleW}" height="${bodyH}" fill="${isUp ? '#0f172a' : color}" stroke="${color}" stroke-width="1"/>`;
                         // Click target
-                        svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="fib-kline-click" data-tf="${tfCfg.key}" data-idx="${i}" data-high="${h}" data-low="${l}" style="cursor:crosshair;"/>`;
+                        svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="fib-kline-click" data-tf="${tfCfg.key}" data-ts="${tfData[i].ts}" data-high="${h}" data-low="${l}" style="cursor:crosshair;"/>`;
                     }
                     
                     // Draw saved fibonacci levels
@@ -1250,12 +1252,18 @@
                         const low = Math.min(priceA, priceB);
                         const isUptrend = savedFib.pointA.price < savedFib.pointB.price;
                         
-                        // Mark point A and B
-                        const xA = toX(savedFib.pointA.idx);
-                        const xB = toX(savedFib.pointB.idx);
-                        svg += `<circle cx="${xA}" cy="${toY(priceA)}" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1"/>`;
-                        svg += `<circle cx="${xB}" cy="${toY(priceB)}" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1"/>`;
-                        svg += `<line x1="${xA}" y1="${toY(priceA)}" x2="${xB}" y2="${toY(priceB)}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>`;
+                        // Mark point A and B (按时间戳定位，回退到idx)
+                        const idxA = savedFib.pointA.ts != null ? tfData.findIndex(d => d.ts === savedFib.pointA.ts) : savedFib.pointA.idx;
+                        const idxB = savedFib.pointB.ts != null ? tfData.findIndex(d => d.ts === savedFib.pointB.ts) : savedFib.pointB.idx;
+                        if (idxA >= 0) {
+                            const xA = toX(idxA);
+                            svg += `<circle cx="${xA}" cy="${toY(priceA)}" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1"/>`;
+                            if (idxB >= 0) {
+                                const xB = toX(idxB);
+                                svg += `<circle cx="${xB}" cy="${toY(priceB)}" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1"/>`;
+                                svg += `<line x1="${xA}" y1="${toY(priceA)}" x2="${xB}" y2="${toY(priceB)}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>`;
+                            }
+                        }
                         
                         // Fibonacci levels
                         const fibLevels = [
@@ -1292,9 +1300,12 @@
                     // Show selection state
                     const state = fibKlineState[tfCfg.key];
                     if (state && state.pointA && !state.pointB) {
-                        const xA = toX(state.pointA.idx);
-                        svg += `<circle cx="${xA}" cy="${toY(state.pointA.price)}" r="5" fill="none" stroke="#f59e0b" stroke-width="2"/>`;
-                        svg += `<text x="${xA+8}" y="${toY(state.pointA.price)+4}" fill="#f59e0b" font-size="9">A: ${state.pointA.price.toFixed(0)}</text>`;
+                        const idxA2 = state.pointA.ts != null ? tfData.findIndex(d => d.ts === state.pointA.ts) : state.pointA.idx;
+                        if (idxA2 >= 0) {
+                            const xA = toX(idxA2);
+                            svg += `<circle cx="${xA}" cy="${toY(state.pointA.price)}" r="5" fill="none" stroke="#f59e0b" stroke-width="2"/>`;
+                            svg += `<text x="${xA+8}" y="${toY(state.pointA.price)+4}" fill="#f59e0b" font-size="9">A: ${state.pointA.price.toFixed(0)}</text>`;
+                        }
                     }
                     
                     svg += '</svg>';
@@ -1307,7 +1318,7 @@
                 container.querySelectorAll('.fib-kline-click').forEach(el => {
                     el.addEventListener('click', (e) => {
                         const tf = e.target.dataset.tf;
-                        const idx = parseInt(e.target.dataset.idx);
+                        const ts = parseInt(e.target.dataset.ts);
                         const high = parseFloat(e.target.dataset.high);
                         const low = parseFloat(e.target.dataset.low);
                         
@@ -1323,7 +1334,7 @@
                             return;
                         }
                         
-                        showFibPointMenu(e, tf, idx, high, low);
+                        showFibPointMenu(e, tf, ts, high, low);
                     });
                 });
                 
@@ -1333,7 +1344,7 @@
             }
         }
         
-        function showFibPointMenu(event, tf, idx, high, low) {
+        function showFibPointMenu(event, tf, ts, high, low) {
             document.querySelectorAll('.fib-point-menu').forEach(m => m.remove());
             
             const state = fibKlineState[tf] || {};
@@ -1349,14 +1360,14 @@
             highBtn.style.cssText = 'padding:6px 14px;cursor:pointer;color:#fbbf24;';
             highBtn.onmouseenter = () => highBtn.style.background = '#334155';
             highBtn.onmouseleave = () => highBtn.style.background = '';
-            highBtn.onclick = () => { selectFibPoint(tf, idx, high, 'high'); menu.remove(); };
+            highBtn.onclick = () => { selectFibPoint(tf, ts, high, 'high'); menu.remove(); };
             
             const lowBtn = document.createElement('div');
             lowBtn.textContent = `📍 ${label} 最低价: ${low.toLocaleString()}`;
             lowBtn.style.cssText = 'padding:6px 14px;cursor:pointer;color:#60a5fa;';
             lowBtn.onmouseenter = () => lowBtn.style.background = '#334155';
             lowBtn.onmouseleave = () => lowBtn.style.background = '';
-            lowBtn.onclick = () => { selectFibPoint(tf, idx, low, 'low'); menu.remove(); };
+            lowBtn.onclick = () => { selectFibPoint(tf, ts, low, 'low'); menu.remove(); };
             
             menu.appendChild(highBtn);
             menu.appendChild(lowBtn);
@@ -1373,19 +1384,19 @@
             }, 100);
         }
         
-        function selectFibPoint(tf, idx, price, type) {
+        function selectFibPoint(tf, ts, price, type) {
             if (!fibKlineState[tf]) fibKlineState[tf] = {};
             const state = fibKlineState[tf];
             
             if (!state.pointA) {
                 // Selecting point A
-                state.pointA = { idx, price, type };
+                state.pointA = { ts, price, type };
                 state.pointB = null;
                 updateFibStatus(`${tf} A点已选: ${price.toFixed(0)}，请点击第二根K线选择B点`);
                 renderFibKlineChart();
             } else if (!state.pointB) {
                 // Selecting point B
-                state.pointB = { idx, price, type };
+                state.pointB = { ts, price, type };
                 
                 // Save to localStorage
                 const fibSaveKey = `fib_kline_btc_${tf}`;
