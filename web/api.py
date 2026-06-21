@@ -5,11 +5,13 @@ FastAPI backend serving kline indicator data for the dashboard.
 """
 
 import mysql.connector
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 import logging
+import json
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -336,6 +338,194 @@ def get_trend_state(symbol: str = 'BTCUSDT', timeframe: str = '1w'):
         "boll": boll_state,
         "volume": vol_state
     }
+
+
+# ============================================================
+# 交易日志 API
+# ============================================================
+
+class OrderCreate(BaseModel):
+    symbol: str = "SOLUSDT"
+    direction: str
+    entry_price: float
+    position_value: float
+    leverage: float = 1.0
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    reason: str
+    discipline_check: Optional[dict] = None
+
+class OrderClose(BaseModel):
+    exit_price: float
+    review: Optional[str] = None
+
+class FrameworkUpdate(BaseModel):
+    symbol: str = "SOLUSDT"
+    framework: Optional[str] = None
+    discipline: Optional[str] = None
+
+
+def _calc_pnl(direction, entry_price, exit_price, position_value, leverage):
+    """计算盈亏：position_value是仓位价值(含杠杆)，本金=position_value/leverage"""
+    qty = position_value / entry_price  # 币数量
+    if direction == "long":
+        pnl = (exit_price - entry_price) * qty
+    else:
+        pnl = (entry_price - exit_price) * qty
+    margin = position_value / leverage  # 本金
+    pnl_pct = (pnl / margin) * 100 if margin else 0
+    return pnl, pnl_pct
+
+
+@app.post("/api/journal/order")
+def create_order(order: OrderCreate):
+    """创建新订单（默认挂单中状态）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    now = datetime.now()
+    cursor.execute("""
+        INSERT INTO trade_journal
+        (symbol, direction, entry_price, position_value, leverage, stop_loss, take_profit,
+         reason, discipline_check, status, entry_time, create_time, update_time)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s)
+    """, (
+        order.symbol, order.direction, order.entry_price, order.position_value, order.leverage,
+        order.stop_loss, order.take_profit, order.reason,
+        json.dumps(order.discipline_check, ensure_ascii=False) if order.discipline_check else None,
+        now, now, now
+    ))
+    conn.commit()
+    order_id = cursor.lastrowid
+    cursor.close()
+    conn.close()
+    return {"success": True, "id": order_id}
+
+
+class OrderFill(BaseModel):
+    entry_price: Optional[float] = None  # 实际成交价（可选，不填用挂单价）
+
+@app.post("/api/journal/order/{order_id}/fill")
+def fill_order(order_id: int, data: OrderFill = Body(default=OrderFill())):
+    """确认成交：挂单中 -> 持仓中"""
+    conn = get_db()
+    cursor = conn.cursor()
+    now = datetime.now()
+    if data.entry_price is not None:
+        cursor.execute("""
+            UPDATE trade_journal SET status='open', entry_price=%s, entry_time=%s, update_time=%s
+            WHERE id=%s AND status='pending'
+        """, (data.entry_price, now, now, order_id))
+    else:
+        cursor.execute("""
+            UPDATE trade_journal SET status='open', entry_time=%s, update_time=%s
+            WHERE id=%s AND status='pending'
+        """, (now, now, order_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return {"success": True}
+
+
+@app.post("/api/journal/order/{order_id}/close")
+def close_order(order_id: int, data: OrderClose):
+    """平仓订单"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM trade_journal WHERE id=%s", (order_id,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.close(); conn.close()
+        return {"success": False, "error": "订单不存在"}
+    
+    pnl, pnl_pct = _calc_pnl(
+        row["direction"], float(row["entry_price"]), data.exit_price,
+        float(row["position_value"]), float(row["leverage"])
+    )
+    now = datetime.now()
+    cursor2 = conn.cursor()
+    cursor2.execute("""
+        UPDATE trade_journal SET status='closed', exit_price=%s, review=%s,
+        pnl=%s, pnl_pct=%s, exit_time=%s, update_time=%s WHERE id=%s
+    """, (data.exit_price, data.review, pnl, pnl_pct, now, now, order_id))
+    conn.commit()
+    cursor.close(); cursor2.close(); conn.close()
+    return {"success": True, "pnl": round(pnl, 2), "pnl_pct": round(pnl_pct, 2)}
+
+
+@app.delete("/api/journal/order/{order_id}")
+def delete_order(order_id: int):
+    """删除订单"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM trade_journal WHERE id=%s", (order_id,))
+    conn.commit()
+    cursor.close(); conn.close()
+    return {"success": True}
+
+
+@app.get("/api/journal/orders")
+def list_orders(symbol: str = "SOLUSDT", status: Optional[str] = None):
+    """获取订单列表"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    if status:
+        cursor.execute("SELECT * FROM trade_journal WHERE symbol=%s AND status=%s ORDER BY entry_time DESC", (symbol, status))
+    else:
+        cursor.execute("SELECT * FROM trade_journal WHERE symbol=%s ORDER BY entry_time DESC", (symbol,))
+    rows = cursor.fetchall()
+    cursor.close(); conn.close()
+    
+    result = []
+    for r in rows:
+        result.append({
+            "id": r["id"],
+            "symbol": r["symbol"],
+            "direction": r["direction"],
+            "entry_price": float(r["entry_price"]),
+            "position_value": float(r["position_value"]),
+            "leverage": float(r["leverage"]),
+            "stop_loss": float(r["stop_loss"]) if r["stop_loss"] else None,
+            "take_profit": float(r["take_profit"]) if r["take_profit"] else None,
+            "reason": r["reason"],
+            "discipline_check": json.loads(r["discipline_check"]) if r["discipline_check"] else None,
+            "status": r["status"],
+            "exit_price": float(r["exit_price"]) if r["exit_price"] else None,
+            "review": r["review"],
+            "pnl": float(r["pnl"]) if r["pnl"] is not None else None,
+            "pnl_pct": float(r["pnl_pct"]) if r["pnl_pct"] is not None else None,
+            "entry_time": r["entry_time"].isoformat() if r["entry_time"] else None,
+            "exit_time": r["exit_time"].isoformat() if r["exit_time"] else None,
+        })
+    return result
+
+
+@app.get("/api/journal/framework")
+def get_framework(symbol: str = "SOLUSDT"):
+    """获取投资框架与纪律"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM investment_framework WHERE symbol=%s", (symbol,))
+    row = cursor.fetchone()
+    cursor.close(); conn.close()
+    if not row:
+        return {"symbol": symbol, "framework": "", "discipline": ""}
+    return {"symbol": row["symbol"], "framework": row["framework"] or "", "discipline": row["discipline"] or ""}
+
+
+@app.post("/api/journal/framework")
+def save_framework(data: FrameworkUpdate):
+    """保存投资框架与纪律"""
+    conn = get_db()
+    cursor = conn.cursor()
+    now = datetime.now()
+    cursor.execute("""
+        INSERT INTO investment_framework (symbol, framework, discipline, update_time)
+        VALUES (%s,%s,%s,%s)
+        ON DUPLICATE KEY UPDATE framework=VALUES(framework), discipline=VALUES(discipline), update_time=VALUES(update_time)
+    """, (data.symbol, data.framework, data.discipline, now))
+    conn.commit()
+    cursor.close(); conn.close()
+    return {"success": True}
 
 
 if __name__ == "__main__":

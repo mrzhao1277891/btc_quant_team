@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOL 交易日志</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:#0f172a; color:#e2e8f0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; padding:20px; }
+        .header { text-align:center; margin-bottom:20px; }
+        .header h1 { font-size:22px; }
+        .header .price { font-size:18px; color:#22c55e; margin-top:6px; }
+        .container { max-width:1100px; margin:0 auto; }
+        .card { background:#1e293b; border-radius:8px; padding:16px; margin-bottom:16px; border:1px solid #334155; }
+        .card h2 { font-size:15px; margin-bottom:12px; color:#f1f5f9; border-bottom:1px solid #334155; padding-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+        label { display:block; font-size:12px; color:#94a3b8; margin:8px 0 3px; }
+        input, textarea, select { width:100%; background:#0f172a; border:1px solid #475569; color:#e2e8f0; border-radius:5px; padding:8px; font-size:13px; }
+        textarea { resize:vertical; min-height:50px; font-family:inherit; }
+        .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+        .btn { background:#3b82f6; color:#fff; border:none; padding:8px 16px; border-radius:5px; cursor:pointer; font-size:13px; }
+        .btn:hover { background:#2563eb; }
+        .btn-green { background:#22c55e; } .btn-green:hover { background:#16a34a; }
+        .btn-red { background:#ef4444; } .btn-red:hover { background:#dc2626; }
+        .btn-sm { padding:4px 10px; font-size:12px; }
+        .btn-gray { background:#475569; } .btn-gray:hover { background:#334155; }
+        .dir-btn { padding:8px 20px; border:1px solid #475569; background:#0f172a; color:#94a3b8; border-radius:5px; cursor:pointer; }
+        .dir-btn.active-long { background:rgba(34,197,94,0.2); color:#22c55e; border-color:#22c55e; }
+        .dir-btn.active-short { background:rgba(239,68,68,0.2); color:#ef4444; border-color:#ef4444; }
+        .check-item { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:14px; color:#cbd5e1; cursor:pointer; padding:4px 0; }
+        .check-item input { width:auto; transform:scale(1.4); cursor:pointer; }
+        .check-item span { cursor:pointer; }
+        .order-card { background:#0f172a; border:1px solid #334155; border-radius:6px; padding:12px; margin-bottom:10px; }
+        .order-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+        .badge { padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; }
+        .badge-long { background:rgba(34,197,94,0.2); color:#22c55e; }
+        .badge-short { background:rgba(239,68,68,0.2); color:#ef4444; }
+        .pnl-pos { color:#22c55e; font-weight:600; }
+        .pnl-neg { color:#ef4444; font-weight:600; }
+        .meta { font-size:12px; color:#64748b; }
+        .reason-box { background:#1e293b; border-radius:4px; padding:8px; margin-top:6px; font-size:13px; line-height:1.5; }
+        .reason-box .tag { color:#94a3b8; font-size:11px; }
+        .hint { font-size:11px; color:#64748b; margin-top:4px; }
+        .tab-row { display:flex; gap:8px; margin-bottom:12px; }
+        .tab { padding:6px 14px; background:#1e293b; border:1px solid #334155; border-radius:5px; cursor:pointer; font-size:13px; color:#94a3b8; }
+        .tab.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📓 SOL 交易日志</h1>
+        <div class="price">实时价格: <span id="realtimePrice">—</span></div>
+    </div>
+
+    <div class="container">
+        <!-- 投资框架与纪律 -->
+        <div class="card">
+            <h2>🎯 投资框架与纪律
+                <button class="btn btn-sm" id="fwEditBtn" onclick="toggleFwEdit()">编辑</button>
+            </h2>
+            <!-- 展示态 -->
+            <div id="fwDisplay">
+                <label>投资框架</label>
+                <div class="reason-box" id="fwFrameworkView" style="white-space:pre-wrap; line-height:2; font-weight:600;">—</div>
+                <label style="margin-top:10px;">投资纪律</label>
+                <div class="reason-box" id="fwDisciplineView" style="white-space:pre-wrap; line-height:2; font-weight:600;">—</div>
+            </div>
+            <!-- 编辑态 -->
+            <div id="fwEdit" style="display:none;">
+                <label>投资框架（你的交易逻辑）</label>
+                <textarea id="framework" oninput="autoResize(this)" placeholder="例如：只在周线MACD零轴上方做多；4h回踩EMA25企稳进场..."></textarea>
+                <label>投资纪律（硬性规则）</label>
+                <textarea id="discipline" oninput="autoResize(this)" placeholder="例如：单笔止损不超过本金2%；不追高；情绪波动时不下单；日内最多2单..."></textarea>
+                <div style="margin-top:10px;">
+                    <button class="btn btn-green btn-sm" onclick="saveFramework()">保存</button>
+                    <button class="btn btn-gray btn-sm" onclick="cancelFwEdit()">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 当前本金 -->
+        <div class="card">
+            <h2>💰 当前本金</h2>
+            <div class="row">
+                <div><label>本金(USDT)</label><input type="number" id="margin" step="1" oninput="onMarginChange()"></div>
+                <div></div>
+            </div>
+        </div>
+
+        <!-- 新建订单 -->
+        <div class="card">
+            <h2 style="justify-content:flex-start; gap:12px;">➕ 新建订单（下单前确认）
+                <span style="font-weight:normal; font-size:14px; color:#94a3b8;">现价: <span id="newOrderPrice" style="color:#22c55e; font-size:16px; font-weight:600;">—</span></span>
+            </h2>
+            <label>方向</label>
+            <div style="display:flex; gap:10px; margin-bottom:6px;">
+                <div class="dir-btn" id="dirLong" onclick="setDir('long')">做多</div>
+                <div class="dir-btn" id="dirShort" onclick="setDir('short')">做空</div>
+            </div>
+            <div class="row3">
+                <div><label>开仓价</label><input type="number" id="entryPrice" step="0.01"></div>
+                <div><label>仓位价值(USDT)</label><input type="number" id="positionValue" step="1" value="10000" oninput="updateLeverageHint()"></div>
+                <div><label>&nbsp;</label><div class="hint" id="leverageHint" style="padding-top:8px;"></div></div>
+            </div>
+            <div class="row">
+                <div><label>止损价（可选）</label><input type="number" id="stopLoss" step="0.01"></div>
+                <div><label>止盈价（可选）</label><input type="number" id="takeProfit" step="0.01"></div>
+            </div>
+            <label>下单理由（必填）</label>
+            <textarea id="reason" oninput="autoResize(this)" placeholder="为什么现在下这一单？基于什么信号/逻辑？"></textarea>
+            <label>纪律检查</label>
+            <label class="check-item"><input type="checkbox" id="chk1"><span>符合我的投资框架</span></label>
+            <label class="check-item"><input type="checkbox" id="chk2"><span>已设置止损</span></label>
+            <label class="check-item"><input type="checkbox" id="chk3"><span>非情绪化/非追高下单</span></label>
+            <label class="check-item"><input type="checkbox" id="chk4"><span>仓位大小符合纪律</span></label>
+            <div style="margin-top:12px;">
+                <button class="btn btn-green" onclick="submitOrder()">确认下单</button>
+            </div>
+            <div class="hint" id="submitHint"></div>
+        </div>
+
+        <!-- 挂单中 -->
+        <div class="card">
+            <h2 style="justify-content:flex-start; gap:12px;">⏳ 挂单中
+                <span style="font-weight:normal; font-size:14px; color:#94a3b8;">现价: <span id="pendingPrice" style="color:#22c55e; font-size:16px; font-weight:600;">—</span></span>
+            </h2>
+            <div id="pendingOrders"><div class="meta">加载中...</div></div>
+        </div>
+
+        <!-- 持仓中 -->
+        <div class="card">
+            <h2 style="justify-content:flex-start; gap:12px;">📈 持仓中
+                <span style="font-weight:normal; font-size:14px; color:#94a3b8;">现价: <span id="openPrice" style="color:#22c55e; font-size:16px; font-weight:600;">—</span></span>
+            </h2>
+            <div id="openOrders"><div class="meta">加载中...</div></div>
+        </div>
+
+        <!-- 历史订单 -->
+        <div class="card">
+            <h2>📋 历史订单</h2>
+            <div id="closedOrders"><div class="meta">加载中...</div></div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://127.0.0.1:8000';
+        const SYMBOL = 'SOLUSDT';
+        let selectedDir = null;
+        let realtimePrice = null;
+
+        function setDir(dir) {
+            selectedDir = dir;
+            document.getElementById('dirLong').className = 'dir-btn' + (dir==='long'?' active-long':'');
+            document.getElementById('dirShort').className = 'dir-btn' + (dir==='short'?' active-short':'');
+        }
+        
+        function onMarginChange() {
+            localStorage.setItem('journal_margin_sol', document.getElementById('margin').value);
+            updateLeverageHint();
+        }
+        
+        function updateLeverageHint() {
+            const pv = parseFloat(document.getElementById('positionValue').value);
+            const margin = parseFloat(document.getElementById('margin').value);
+            const hint = document.getElementById('leverageHint');
+            if (pv && margin) {
+                hint.textContent = `杠杆: ${(pv/margin).toFixed(2)}x`;
+            } else {
+                hint.textContent = '';
+            }
+        }
+
+        // ===== 投资框架 =====
+        let fwData = { framework:'', discipline:'' };
+        async function loadFramework() {
+            const r = await fetch(`${API}/api/journal/framework?symbol=${SYMBOL}`);
+            const d = await r.json();
+            fwData = { framework:d.framework, discipline:d.discipline };
+            renderFwDisplay();
+        }
+        function renderFwDisplay() {
+            document.getElementById('fwFrameworkView').textContent = fwData.framework || '（未填写）';
+            document.getElementById('fwDisciplineView').textContent = fwData.discipline || '（未填写）';
+        }
+        function toggleFwEdit() {
+            const editing = document.getElementById('fwEdit').style.display !== 'none';
+            if (editing) { cancelFwEdit(); return; }
+            // 进入编辑态
+            const fwEl = document.getElementById('framework');
+            const dcEl = document.getElementById('discipline');
+            fwEl.value = fwData.framework;
+            dcEl.value = fwData.discipline;
+            document.getElementById('fwDisplay').style.display = 'none';
+            document.getElementById('fwEdit').style.display = 'block';
+            document.getElementById('fwEditBtn').textContent = '取消';
+            // 自动撑高
+            autoResize(fwEl);
+            autoResize(dcEl);
+        }
+        
+        function autoResize(el) {
+            el.style.height = 'auto';
+            el.style.height = (el.scrollHeight + 4) + 'px';
+        }
+        function cancelFwEdit() {
+            document.getElementById('fwDisplay').style.display = 'block';
+            document.getElementById('fwEdit').style.display = 'none';
+            document.getElementById('fwEditBtn').textContent = '编辑';
+        }
+        async function saveFramework() {
+            fwData = {
+                framework: document.getElementById('framework').value,
+                discipline: document.getElementById('discipline').value
+            };
+            await fetch(`${API}/api/journal/framework`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ symbol:SYMBOL, framework:fwData.framework, discipline:fwData.discipline })
+            });
+            renderFwDisplay();
+            cancelFwEdit();
+        }
+
+        // ===== 实时价格 =====
+        async function loadPrice() {
+            try {
+                const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${SYMBOL}`);
+                const d = await r.json();
+                realtimePrice = parseFloat(d.price);
+                const pStr = '$' + realtimePrice.toFixed(2);
+                document.getElementById('realtimePrice').textContent = pStr;
+                const np = document.getElementById('newOrderPrice'); if (np) np.textContent = pStr;
+                const pp = document.getElementById('pendingPrice'); if (pp) pp.textContent = pStr;
+                const op = document.getElementById('openPrice'); if (op) op.textContent = pStr;
+                // 开仓价/止损价默认填当前价（仅当为空时）
+                const entryEl = document.getElementById('entryPrice');
+                const slEl = document.getElementById('stopLoss');
+                if (entryEl && !entryEl.value) entryEl.value = realtimePrice.toFixed(2);
+                if (slEl && !slEl.value) slEl.value = realtimePrice.toFixed(2);
+                renderOpenOrders();
+            } catch(e) { console.error(e); }
+        }
+
+        // ===== 下单 =====
+        async function submitOrder() {
+            const hint = document.getElementById('submitHint');
+            const reason = document.getElementById('reason').value.trim();
+            const entryPrice = parseFloat(document.getElementById('entryPrice').value);
+            const positionValue = parseFloat(document.getElementById('positionValue').value);
+            const margin = parseFloat(document.getElementById('margin').value);
+
+            if (!selectedDir) { hint.textContent='❌ 请选择方向'; hint.style.color='#ef4444'; return; }
+            if (!entryPrice || !positionValue) { hint.textContent='❌ 请填写开仓价和仓位'; hint.style.color='#ef4444'; return; }
+            if (!margin) { hint.textContent='❌ 请填写本金'; hint.style.color='#ef4444'; return; }
+            if (!reason) { hint.textContent='❌ 下单理由必填'; hint.style.color='#ef4444'; return; }
+            const leverage = positionValue / margin;  // 杠杆动态计算
+            const checks = {
+                符合投资框架: document.getElementById('chk1').checked,
+                已设置止损: document.getElementById('chk2').checked,
+                非情绪化: document.getElementById('chk3').checked,
+                仓位符合纪律: document.getElementById('chk4').checked
+            };
+            if (!Object.values(checks).every(v=>v)) { hint.textContent='❌ 请完成所有纪律检查项再下单'; hint.style.color='#ef4444'; return; }
+
+            await fetch(`${API}/api/journal/order`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    symbol:SYMBOL, direction:selectedDir, entry_price:entryPrice, position_value:positionValue,
+                    leverage:leverage, stop_loss:parseFloat(document.getElementById('stopLoss').value)||null,
+                    take_profit:parseFloat(document.getElementById('takeProfit').value)||null,
+                    reason:reason, discipline_check:checks
+                })
+            });
+            hint.textContent='✅ 已下单'; hint.style.color='#22c55e';
+            // 清空（恢复默认值）
+            document.getElementById('reason').value='';
+            document.getElementById('takeProfit').value='';
+            document.getElementById('positionValue').value='10000';
+            updateLeverageHint();
+            // 开仓价和止损价重置为当前价
+            if (realtimePrice) {
+                document.getElementById('entryPrice').value = realtimePrice.toFixed(2);
+                document.getElementById('stopLoss').value = realtimePrice.toFixed(2);
+            } else {
+                document.getElementById('entryPrice').value='';
+                document.getElementById('stopLoss').value='';
+            }
+            ['chk1','chk2','chk3','chk4'].forEach(id=>document.getElementById(id).checked=false);
+            setDir(null);
+            loadOrders();
+        }
+
+        // ===== 浮动盈亏计算 =====
+        function calcFloatPnl(o) {
+            if (!realtimePrice) return null;
+            const qty = o.position_value / o.entry_price;
+            let pnl = o.direction==='long' ? (realtimePrice - o.entry_price)*qty : (o.entry_price - realtimePrice)*qty;
+            const margin = o.position_value / o.leverage;
+            const pct = margin ? (pnl/margin)*100 : 0;
+            return { pnl, pct };
+        }
+
+        // ===== 订单列表 =====
+        let allOrders = [];
+        async function loadOrders() {
+            const r = await fetch(`${API}/api/journal/orders?symbol=${SYMBOL}`);
+            allOrders = await r.json();
+            renderPendingOrders();
+            renderOpenOrders();
+            renderClosedOrders();
+        }
+
+        function renderPendingOrders() {
+            const pending = allOrders.filter(o=>o.status==='pending');
+            const el = document.getElementById('pendingOrders');
+            if (pending.length===0) { el.innerHTML='<div class="meta">暂无挂单</div>'; return; }
+            el.innerHTML = pending.map(o => {
+                const dirBadge = o.direction==='long'?'<span class="badge badge-long">做多</span>':'<span class="badge badge-short">做空</span>';
+                return `<div class="order-card">
+                    <div class="order-head">
+                        <div>${dirBadge} <span style="font-weight:600;">#${o.id}</span> <span class="meta">${o.leverage.toFixed(2)}x杠杆</span></div>
+                        <div class="meta">挂单价 ${o.entry_price}</div>
+                    </div>
+                    <div class="meta">仓位 ${o.position_value} USDT | 止损 ${o.stop_loss||'-'} | 止盈 ${o.take_profit||'-'}</div>
+                    <div class="reason-box"><span class="tag">下单理由:</span> ${o.reason}</div>
+                    <div style="margin-top:8px;">
+                        <button class="btn btn-green btn-sm" onclick="showFillForm(${o.id})">确认成交</button>
+                        <button class="btn btn-gray btn-sm" onclick="deleteOrder(${o.id})">删除</button>
+                    </div>
+                    <div id="fillForm${o.id}" style="display:none; margin-top:8px;">
+                        <div class="row">
+                            <div><label>实际成交价（默认挂单价）</label><input type="number" id="fillPrice${o.id}" step="0.01" value="${o.entry_price}"></div>
+                            <div></div>
+                        </div>
+                        <button class="btn btn-green btn-sm" style="margin-top:6px;" onclick="fillOrder(${o.id})">确认</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function showFillForm(id) {
+            const f = document.getElementById('fillForm'+id);
+            f.style.display = f.style.display==='none'?'block':'none';
+        }
+
+        async function fillOrder(id) {
+            const fillPrice = parseFloat(document.getElementById('fillPrice'+id).value);
+            await fetch(`${API}/api/journal/order/${id}/fill`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ entry_price: fillPrice || null })
+            });
+            loadOrders();
+        }
+
+        function renderOpenOrders() {
+            const open = allOrders.filter(o=>o.status==='open');
+            const el = document.getElementById('openOrders');
+            if (open.length===0) { el.innerHTML='<div class="meta">暂无持仓</div>'; return; }
+            el.innerHTML = open.map(o => {
+                const fp = calcFloatPnl(o);
+                const pnlStr = fp ? `<span class="${fp.pnl>=0?'pnl-pos':'pnl-neg'}">${fp.pnl>=0?'+':''}${fp.pnl.toFixed(2)} USDT (${fp.pct>=0?'+':''}${fp.pct.toFixed(2)}%)</span>` : '计算中...';
+                const dirBadge = o.direction==='long'?'<span class="badge badge-long">做多</span>':'<span class="badge badge-short">做空</span>';
+                return `<div class="order-card">
+                    <div class="order-head">
+                        <div>${dirBadge} <span style="font-weight:600;">#${o.id}</span> <span class="meta">${o.leverage.toFixed(2)}x杠杆</span></div>
+                        <div>浮动盈亏: ${pnlStr}</div>
+                    </div>
+                    <div class="meta">开仓价 ${o.entry_price} | 仓位 ${o.position_value} USDT | 止损 ${o.stop_loss||'-'} | 止盈 ${o.take_profit||'-'} | ${o.entry_time? o.entry_time.replace('T',' ').slice(0,16):''}</div>
+                    <div class="reason-box"><span class="tag">下单理由:</span> ${o.reason}</div>
+                    <div style="margin-top:8px;">
+                        <button class="btn btn-red btn-sm" onclick="showCloseForm(${o.id})">平仓</button>
+                        <button class="btn btn-gray btn-sm" onclick="deleteOrder(${o.id})">删除</button>
+                    </div>
+                    <div id="closeForm${o.id}" style="display:none; margin-top:8px;">
+                        <div class="row">
+                            <div><label>平仓价</label><input type="number" id="exitPrice${o.id}" step="0.01" value="${realtimePrice?realtimePrice.toFixed(2):''}"></div>
+                            <div></div>
+                        </div>
+                        <label>复盘</label>
+                        <textarea id="review${o.id}" placeholder="这笔做得如何？下次注意什么？"></textarea>
+                        <button class="btn btn-green btn-sm" style="margin-top:6px;" onclick="closeOrder(${o.id})">确认平仓</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderClosedOrders() {
+            const closed = allOrders.filter(o=>o.status==='closed');
+            const el = document.getElementById('closedOrders');
+            if (closed.length===0) { el.innerHTML='<div class="meta">暂无历史订单</div>'; return; }
+            el.innerHTML = closed.map(o => {
+                const dirBadge = o.direction==='long'?'<span class="badge badge-long">做多</span>':'<span class="badge badge-short">做空</span>';
+                const pnlClass = o.pnl>=0?'pnl-pos':'pnl-neg';
+                const checks = o.discipline_check ? Object.entries(o.discipline_check).map(([k,v])=>`${v?'✅':'❌'}${k}`).join(' ') : '';
+                return `<div class="order-card">
+                    <div class="order-head">
+                        <div>${dirBadge} <span style="font-weight:600;">#${o.id}</span> <span class="meta">${o.leverage}x</span></div>
+                        <div class="${pnlClass}">${o.pnl>=0?'+':''}${o.pnl.toFixed(2)} USDT (${o.pnl_pct>=0?'+':''}${o.pnl_pct.toFixed(2)}%)</div>
+                    </div>
+                    <div class="meta">开仓 ${o.entry_price} → 平仓 ${o.exit_price} | 仓位 ${o.position_value} USDT | ${o.entry_time?o.entry_time.replace('T',' ').slice(0,16):''} ~ ${o.exit_time?o.exit_time.replace('T',' ').slice(0,16):''}</div>
+                    <div class="reason-box"><span class="tag">下单理由:</span> ${o.reason}</div>
+                    ${o.review?`<div class="reason-box"><span class="tag">复盘:</span> ${o.review}</div>`:''}
+                    ${checks?`<div class="meta" style="margin-top:6px;">纪律检查: ${checks}</div>`:''}
+                    <button class="btn btn-gray btn-sm" style="margin-top:8px;" onclick="deleteOrder(${o.id})">删除</button>
+                </div>`;
+            }).join('');
+        }
+
+        function showCloseForm(id) {
+            const f = document.getElementById('closeForm'+id);
+            f.style.display = f.style.display==='none'?'block':'none';
+        }
+
+        async function closeOrder(id) {
+            const exitPrice = parseFloat(document.getElementById('exitPrice'+id).value);
+            if (!exitPrice) { alert('请填写平仓价'); return; }
+            const review = document.getElementById('review'+id).value.trim();
+            await fetch(`${API}/api/journal/order/${id}/close`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ exit_price:exitPrice, review:review })
+            });
+            loadOrders();
+        }
+
+        async function deleteOrder(id) {
+            if (!confirm('确认删除订单 #'+id+'?')) return;
+            await fetch(`${API}/api/journal/order/${id}`, { method:'DELETE' });
+            loadOrders();
+        }
+
+        // 初始化
+        const savedMargin = localStorage.getItem('journal_margin_sol');
+        if (savedMargin) document.getElementById('margin').value = savedMargin;
+        loadFramework();
+        loadOrders();
+        loadPrice();
+        updateLeverageHint();
+        setInterval(loadPrice, 10000);  // 每10秒更新价格和浮动盈亏
+    </script>
+</body>
+</html>
