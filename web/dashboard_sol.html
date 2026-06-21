@@ -196,7 +196,10 @@
         <div class="card" id="klineMacdCard" style="grid-column: 1 / -1; order: -2;">
             <div class="card-header">
                 <h2 class="card-title">K线 + MACD 融合图</h2>
-                <button id="emaToggleBtn" class="edit-btn" style="font-size:12px;">EMA: 显示</button>
+                <div style="display:flex; gap:8px;">
+                    <button id="bollToggleBtn" class="edit-btn" style="font-size:12px;">BOLL: 显示</button>
+                    <button id="emaToggleBtn" class="edit-btn" style="font-size:12px;">EMA: 显示</button>
+                </div>
             </div>
             <div class="card-body" style="padding: 12px;">
                 <div id="klineMacdContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -996,6 +999,17 @@
                     }
                 });
             }
+            const bollBtn = document.getElementById('bollToggleBtn');
+            if (bollBtn) {
+                bollBtn.addEventListener('click', () => {
+                    showBoll = !showBoll;
+                    bollBtn.textContent = showBoll ? 'BOLL: 显示' : 'BOLL: 隐藏';
+                    const container = document.getElementById('klineMacdContent');
+                    if (container && Object.keys(klineMacdCache).length) {
+                        drawKlineMacdCharts(container);
+                    }
+                });
+            }
         });
 
         // ===========================
@@ -1004,6 +1018,7 @@
         let klineMacdCache = {};
         let klineMacdHighlightTs = null;
         let showEma = true;
+        let showBoll = true;
         const klineMacdTfConfigs = [
             { key: '1m', label: '月线', limit: 60 },
             { key: '1w', label: '周线', limit: 60 },
@@ -1083,9 +1098,11 @@
                     return `<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${width}" opacity="0.75" ${dash?`stroke-dasharray="${dash}"`:''}/>`;
                 };
                 // 布林带
-                svg+=drawLine(tfData.map(d=>d.boll_up),'#f87171',0.8);
-                svg+=drawLine(tfData.map(d=>d.boll_md),'#fb923c',0.8,'3,2');
-                svg+=drawLine(tfData.map(d=>d.boll_dn),'#fbbf24',0.8);
+                if(showBoll){
+                    svg+=drawLine(tfData.map(d=>d.boll_up),'#f87171',0.8);
+                    svg+=drawLine(tfData.map(d=>d.boll_md),'#fb923c',0.8,'3,2');
+                    svg+=drawLine(tfData.map(d=>d.boll_dn),'#fbbf24',0.8);
+                }
                 // EMA
                 if(showEma){
                     svg+=drawLine(tfData.map(d=>d.ema7),'#3b82f6',1);

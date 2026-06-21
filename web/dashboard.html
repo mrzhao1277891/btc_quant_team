@@ -196,7 +196,10 @@
         <div class="card" id="klineMacdCard" style="grid-column: 1 / -1; order: -2;">
             <div class="card-header">
                 <h2 class="card-title">K线 + MACD 融合图</h2>
-                <button id="emaToggleBtn" class="edit-btn" style="font-size:12px;">EMA: 显示</button>
+                <div style="display:flex; gap:8px;">
+                    <button id="bollToggleBtn" class="edit-btn" style="font-size:12px;">BOLL: 显示</button>
+                    <button id="emaToggleBtn" class="edit-btn" style="font-size:12px;">EMA: 显示</button>
+                </div>
             </div>
             <div class="card-body" style="padding: 12px;">
                 <div id="klineMacdContent" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -791,6 +794,22 @@
                     }
                 });
             }
+            const bollBtn = document.getElementById('bollToggleBtn');
+            if (bollBtn) {
+                bollBtn.addEventListener('click', () => {
+                    showBoll = !showBoll;
+                    bollBtn.textContent = showBoll ? 'BOLL: 显示' : 'BOLL: 隐藏';
+                    const container = document.getElementById('klineMacdContent');
+                    if (container && Object.keys(klineMacdCache).length) {
+                        drawKlineMacdCharts([
+                            { key: '1m', label: '月线' },
+                            { key: '1w', label: '周线' },
+                            { key: '1d', label: '日线' },
+                            { key: '4h', label: '4小时' }
+                        ], container);
+                    }
+                });
+            }
         });
 
         // ===========================
@@ -800,6 +819,7 @@
         let klineMacdCache = {};  // { tfKey: tfData }
         let klineMacdHighlightTs = null;  // 当前高亮的时间戳
         let showEma = true;  // EMA显示开关
+        let showBoll = true;  // BOLL显示开关
         
         async function renderKlineMacdChart() {
             const container = document.getElementById('klineMacdContent');
@@ -920,9 +940,11 @@
                 const bup = tfData.map(d => d.boll_up);
                 const bmd = tfData.map(d => d.boll_md);
                 const bdn = tfData.map(d => d.boll_dn);
-                svg += drawLine(bup, '#f87171', 0.8);
-                svg += drawLine(bmd, '#fb923c', 0.8, '3,2');
-                svg += drawLine(bdn, '#fbbf24', 0.8);
+                if (showBoll) {
+                    svg += drawLine(bup, '#f87171', 0.8);
+                    svg += drawLine(bmd, '#fb923c', 0.8, '3,2');
+                    svg += drawLine(bdn, '#fbbf24', 0.8);
+                }
                 
                 // ===== EMA（叠加在K线区）=====
                 const e7 = tfData.map(d => d.ema7);
