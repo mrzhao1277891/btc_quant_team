@@ -78,6 +78,25 @@
             </div>
         </div>
 
+        <!-- 行情判断 -->
+        <div class="card">
+            <h2>📊 行情判断
+                <button class="btn btn-sm" id="mvEditBtn" onclick="toggleMvEdit()">编辑</button>
+            </h2>
+            <!-- 展示态 -->
+            <div id="mvDisplay">
+                <div class="reason-box" id="mvView" style="white-space:pre-wrap; line-height:2; font-weight:600;">—</div>
+            </div>
+            <!-- 编辑态 -->
+            <div id="mvEdit" style="display:none;">
+                <textarea id="marketView" oninput="autoResize(this)" placeholder="当前对行情的判断：趋势方向、关键支撑阻力、操作计划..."></textarea>
+                <div style="margin-top:10px;">
+                    <button class="btn btn-green btn-sm" onclick="saveMarketView()">保存</button>
+                    <button class="btn btn-gray btn-sm" onclick="cancelMvEdit()">取消</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 当前本金 -->
         <div class="card">
             <h2>💰 当前本金</h2>
@@ -171,16 +190,44 @@
         }
 
         // ===== 投资框架 =====
-        let fwData = { framework:'', discipline:'' };
+        let fwData = { framework:'', discipline:'', market_view:'' };
         async function loadFramework() {
             const r = await fetch(`${API}/api/journal/framework?symbol=${SYMBOL}`);
             const d = await r.json();
-            fwData = { framework:d.framework, discipline:d.discipline };
+            fwData = { framework:d.framework, discipline:d.discipline, market_view:d.market_view||'' };
             renderFwDisplay();
+            renderMvDisplay();
         }
         function renderFwDisplay() {
             document.getElementById('fwFrameworkView').textContent = fwData.framework || '（未填写）';
             document.getElementById('fwDisciplineView').textContent = fwData.discipline || '（未填写）';
+        }
+        function renderMvDisplay() {
+            document.getElementById('mvView').textContent = fwData.market_view || '（未填写）';
+        }
+        function toggleMvEdit() {
+            const editing = document.getElementById('mvEdit').style.display !== 'none';
+            if (editing) { cancelMvEdit(); return; }
+            const el = document.getElementById('marketView');
+            el.value = fwData.market_view;
+            document.getElementById('mvDisplay').style.display = 'none';
+            document.getElementById('mvEdit').style.display = 'block';
+            document.getElementById('mvEditBtn').textContent = '取消';
+            autoResize(el);
+        }
+        function cancelMvEdit() {
+            document.getElementById('mvDisplay').style.display = 'block';
+            document.getElementById('mvEdit').style.display = 'none';
+            document.getElementById('mvEditBtn').textContent = '编辑';
+        }
+        async function saveMarketView() {
+            fwData.market_view = document.getElementById('marketView').value;
+            await fetch(`${API}/api/journal/framework`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ symbol:SYMBOL, framework:fwData.framework, discipline:fwData.discipline, market_view:fwData.market_view })
+            });
+            renderMvDisplay();
+            cancelMvEdit();
         }
         function toggleFwEdit() {
             const editing = document.getElementById('fwEdit').style.display !== 'none';
@@ -208,13 +255,11 @@
             document.getElementById('fwEditBtn').textContent = '编辑';
         }
         async function saveFramework() {
-            fwData = {
-                framework: document.getElementById('framework').value,
-                discipline: document.getElementById('discipline').value
-            };
+            fwData.framework = document.getElementById('framework').value;
+            fwData.discipline = document.getElementById('discipline').value;
             await fetch(`${API}/api/journal/framework`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ symbol:SYMBOL, framework:fwData.framework, discipline:fwData.discipline })
+                body: JSON.stringify({ symbol:SYMBOL, framework:fwData.framework, discipline:fwData.discipline, market_view:fwData.market_view })
             });
             renderFwDisplay();
             cancelFwEdit();

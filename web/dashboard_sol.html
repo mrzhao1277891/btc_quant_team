@@ -1054,7 +1054,7 @@
                     for (let i=0;i<tfData.length;i++){ if(tfData[i].ts<=klineMacdHighlightTs)highlightIdx=i; else break; }
                 }
                 
-                const W=500,H=280,PL=55,PR=10,klineTop=25,klineH=150,macdTop=190,macdH=70;
+                const W=500,H=340,PL=55,PR=10,klineTop=25,klineH=150,macdTop=190,macdH=130;
                 const chartW=W-PL-PR,gap=chartW/tfData.length,candleW=Math.max(1,gap*0.7);
                 const toX=(i)=>PL+i*gap+gap/2;
                 const priceVals=[...highs,...lows,...tfData.map(d=>d.boll_up).filter(v=>v!=null),...tfData.map(d=>d.boll_dn).filter(v=>v!=null),...tfData.map(d=>d.ema50).filter(v=>v!=null),...tfData.map(d=>d.ema7).filter(v=>v!=null)];

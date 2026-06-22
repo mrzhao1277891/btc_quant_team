@@ -363,6 +363,7 @@ class FrameworkUpdate(BaseModel):
     symbol: str = "SOLUSDT"
     framework: Optional[str] = None
     discipline: Optional[str] = None
+    market_view: Optional[str] = None
 
 
 def _calc_pnl(direction, entry_price, exit_price, position_value, leverage):
@@ -508,8 +509,8 @@ def get_framework(symbol: str = "SOLUSDT"):
     row = cursor.fetchone()
     cursor.close(); conn.close()
     if not row:
-        return {"symbol": symbol, "framework": "", "discipline": ""}
-    return {"symbol": row["symbol"], "framework": row["framework"] or "", "discipline": row["discipline"] or ""}
+        return {"symbol": symbol, "framework": "", "discipline": "", "market_view": ""}
+    return {"symbol": row["symbol"], "framework": row["framework"] or "", "discipline": row["discipline"] or "", "market_view": row.get("market_view") or ""}
 
 
 @app.post("/api/journal/framework")
@@ -519,10 +520,10 @@ def save_framework(data: FrameworkUpdate):
     cursor = conn.cursor()
     now = datetime.now()
     cursor.execute("""
-        INSERT INTO investment_framework (symbol, framework, discipline, update_time)
-        VALUES (%s,%s,%s,%s)
-        ON DUPLICATE KEY UPDATE framework=VALUES(framework), discipline=VALUES(discipline), update_time=VALUES(update_time)
-    """, (data.symbol, data.framework, data.discipline, now))
+        INSERT INTO investment_framework (symbol, framework, discipline, market_view, update_time)
+        VALUES (%s,%s,%s,%s,%s)
+        ON DUPLICATE KEY UPDATE framework=VALUES(framework), discipline=VALUES(discipline), market_view=VALUES(market_view), update_time=VALUES(update_time)
+    """, (data.symbol, data.framework, data.discipline, data.market_view, now))
     conn.commit()
     cursor.close(); conn.close()
     return {"success": True}
