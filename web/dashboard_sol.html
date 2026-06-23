@@ -5,6 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SOL 多周期指标仪表盘</title>
     <link rel="stylesheet" href="dashboard.css">
+    <style>
+        body.light {
+            --bg-primary: #f1f5f9;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f8fafc;
+            --border-primary: #e2e8f0;
+            --border-hover: #cbd5e1;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-dim: #94a3b8;
+        }
+        .theme-btn {
+            background: var(--bg-card); color: var(--text-primary);
+            border: 1px solid var(--border-primary); border-radius: 6px;
+            padding: 4px 12px; cursor: pointer; font-size: 13px; margin-left: 8px;
+        }
+    </style>
 </head>
 <body>
     <!-- Header -->
@@ -22,6 +39,7 @@
                 <span class="refresh-indicator"></span>
                 <span class="refresh-text">自动刷新 30s</span>
                 <button id="manualRefreshBtn" class="refresh-btn" aria-label="手动刷新">⟳</button>
+                <button id="themeToggleBtn" class="theme-btn">🌞 浅色</button>
             </div>
         </div>
     </header>
@@ -329,6 +347,36 @@
     <script type="module">
         import { DashboardController } from './components/DashboardController.js?v=2';
         
+        // ===== 主题切换 =====
+        let CT = getChartTheme();
+        function getChartTheme() {
+            const light = document.body.classList.contains('light');
+            return {
+                bg: light ? '#ffffff' : '#0f172a',
+                title: light ? '#1e293b' : '#e2e8f0',
+                grid: light ? '#e2e8f0' : '#334155'
+            };
+        }
+        function applyTheme(light) {
+            document.body.classList.toggle('light', light);
+            CT = getChartTheme();
+            localStorage.setItem('dashboard_theme', light ? 'light' : 'dark');
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.textContent = light ? '🌙 深色' : '🌞 浅色';
+            try {
+                if (window.dashboardController) renderZoneDensity(window.dashboardController);
+                renderKlineChart(); renderMacdChart(); renderBollChart();
+                renderVolumeChart(); renderEmaChart(); renderEmaDeviation();
+                renderFibKlineChart(); renderKlineMacdChart();
+            } catch(e) { console.error(e); }
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('dashboard_theme') === 'light';
+            if (saved) applyTheme(true);
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.addEventListener('click', () => applyTheme(!document.body.classList.contains('light')));
+        });
+        
         // Card 1: Price & Moving Averages (EMA)
         const priceCardConfig = {
             containerId: 'priceCardContent',
@@ -631,8 +679,8 @@
                     const candleW = Math.max(1, gap * 0.7);
                     const toX = (i) => PL + i * gap + gap / 2;
                     const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
-                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
-                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfCfg.label} (${tfData.length}根)</text>`;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${CT.bg}; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="${CT.title}" font-size="12" font-weight="bold">${tfCfg.label} (${tfData.length}根)</text>`;
                     svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(1)}</text>`;
                     svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(1)}</text>`;
                     for (let i = 0; i < tfData.length; i++) {
@@ -641,7 +689,7 @@
                         const color = isUp ? '#22c55e' : '#ef4444';
                         svg += `<line x1="${x}" y1="${toY(h)}" x2="${x}" y2="${toY(l)}" stroke="${color}" stroke-width="1"/>`;
                         const bodyTop = toY(Math.max(o, c)), bodyBot = toY(Math.min(o, c));
-                        svg += `<rect x="${x - candleW/2}" y="${bodyTop}" width="${candleW}" height="${Math.max(1, bodyBot - bodyTop)}" fill="${isUp ? '#0f172a' : color}" stroke="${color}" stroke-width="1"/>`;
+                        svg += `<rect x="${x - candleW/2}" y="${bodyTop}" width="${candleW}" height="${Math.max(1, bodyBot - bodyTop)}" fill="${isUp ? CT.bg : color}" stroke="${color}" stroke-width="1"/>`;
                         svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="kline-click" data-tf="${tfCfg.key}" data-ts="${tfData[i].ts}" data-high="${h}" data-low="${l}" style="cursor:pointer;"/>`;
                     }
                     // Pinned prices
@@ -710,15 +758,15 @@
                     const W=500,H=220,PL=50,PR=60,PT=25,PB=20;
                     const chartW=W-PL-PR,chartH=H-PT-PB,gap=chartW/tfData.length,candleW=Math.max(1,gap*0.7);
                     const toX=(i)=>PL+i*gap+gap/2, toY=(v)=>PT+(1-(v-min)/(max-min))*chartH;
-                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a;border-radius:6px;">`;
-                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfCfg.label}</text>`;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${CT.bg};border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="${CT.title}" font-size="12" font-weight="bold">${tfCfg.label}</text>`;
                     svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(1)}</text>`;
                     svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(1)}</text>`;
                     for (let i=0;i<tfData.length;i++) {
                         const o=opens[i],h=highs[i],l=lows[i],c=closes[i],x=toX(i),isUp=c>=o,color=isUp?'#22c55e':'#ef4444';
                         svg += `<line x1="${x}" y1="${toY(h)}" x2="${x}" y2="${toY(l)}" stroke="${color}" stroke-width="1"/>`;
                         const bT=toY(Math.max(o,c)),bB=toY(Math.min(o,c));
-                        svg += `<rect x="${x-candleW/2}" y="${bT}" width="${candleW}" height="${Math.max(1,bB-bT)}" fill="${isUp?'#0f172a':color}" stroke="${color}" stroke-width="1"/>`;
+                        svg += `<rect x="${x-candleW/2}" y="${bT}" width="${candleW}" height="${Math.max(1,bB-bT)}" fill="${isUp?CT.bg:color}" stroke="${color}" stroke-width="1"/>`;
                         svg += `<rect x="${x-gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="fib-kline-click" data-tf="${tfCfg.key}" data-ts="${tfData[i].ts}" data-high="${h}" data-low="${l}" style="cursor:crosshair;"/>`;
                     }
                     // Draw saved fib levels
@@ -850,8 +898,8 @@
                     const toX = (i, len) => PL + (i / (len - 1)) * chartW;
                     const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
                     
-                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
-                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${CT.bg}; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="${CT.title}" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
                     
                     const zeroY = toY(0);
                     svg += `<line x1="${PL}" y1="${zeroY}" x2="${W-PR}" y2="${zeroY}" stroke="#475569" stroke-width="1" stroke-dasharray="4,2"/>`;
@@ -937,8 +985,8 @@
                     const toX = (i, len) => PL + (i / (len - 1)) * chartW;
                     const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
                     
-                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
-                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${CT.bg}; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="${CT.title}" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
                     svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(1)}</text>`;
                     svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(1)}</text>`;
                     
@@ -1066,8 +1114,8 @@
                 const macdMin=mMin-mPad,macdMax=mMax+mPad;
                 const toMacdY=(v)=>macdTop+(1-(v-macdMin)/(macdMax-macdMin))*macdH;
                 
-                let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a;border-radius:6px;">`;
-                svg+=`<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfCfg.label}</text>`;
+                let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${CT.bg};border-radius:6px;">`;
+                svg+=`<text x="${W/2}" y="16" text-anchor="middle" fill="${CT.title}" font-size="12" font-weight="bold">${tfCfg.label}</text>`;
                 
                 if (highlightIdx>=0) {
                     const hx=toX(highlightIdx);
@@ -1084,7 +1132,7 @@
                     const dim=(highlightIdx>=0&&i!==highlightIdx)?'0.35':'1';
                     svg+=`<line x1="${x}" y1="${toPriceY(h)}" x2="${x}" y2="${toPriceY(l)}" stroke="${color}" stroke-width="1" opacity="${dim}"/>`;
                     const bT=toPriceY(Math.max(o,c)),bB=toPriceY(Math.min(o,c));
-                    svg+=`<rect x="${x-candleW/2}" y="${bT}" width="${candleW}" height="${Math.max(1,bB-bT)}" fill="${isUp?'#0f172a':color}" stroke="${color}" stroke-width="1" opacity="${dim}"/>`;
+                    svg+=`<rect x="${x-candleW/2}" y="${bT}" width="${candleW}" height="${Math.max(1,bB-bT)}" fill="${isUp?CT.bg:color}" stroke="${color}" stroke-width="1" opacity="${dim}"/>`;
                 }
                 svg+=`<line x1="${PL}" y1="${klineTop+klineH+7}" x2="${W-PR}" y2="${klineTop+klineH+7}" stroke="#334155" stroke-width="0.5"/>`;
                 // 通用画线函数：跳过null
@@ -1172,8 +1220,8 @@
                     const toX = (i, len) => PL + (i / (len - 1)) * chartW;
                     const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
                     
-                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
-                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${CT.bg}; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="${CT.title}" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
                     
                     const zeroY = toY(0);
                     svg += `<line x1="${PL}" y1="${zeroY}" x2="${W-PR}" y2="${zeroY}" stroke="#475569" stroke-width="1" stroke-dasharray="4,2"/>`;
@@ -1269,8 +1317,8 @@
                     const toX = (i, len) => PL + (i / (len - 1)) * chartW;
                     const toY = (v) => PT + (1 - (v - min) / (max - min)) * chartH;
                     
-                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
-                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${CT.bg}; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="${CT.title}" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
                     svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${max.toFixed(1)}</text>`;
                     svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">${min.toFixed(1)}</text>`;
                     
@@ -1336,8 +1384,8 @@
                     const chartW = W - PL - PR, chartH = H - PT - PB;
                     const toX = (i) => PL + (i / (tfData.length - 1)) * chartW;
                     
-                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0f172a; border-radius:6px;">`;
-                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
+                    let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${CT.bg}; border-radius:6px;">`;
+                    svg += `<text x="${W/2}" y="16" text-anchor="middle" fill="${CT.title}" font-size="12" font-weight="bold">${tfLabels[tf]}</text>`;
                     svg += `<text x="${PL-4}" y="${PT+6}" text-anchor="end" fill="#64748b" font-size="9">${(max/1000).toFixed(0)}k</text>`;
                     svg += `<text x="${PL-4}" y="${H-PB+4}" text-anchor="end" fill="#64748b" font-size="9">0</text>`;
                     
