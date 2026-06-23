@@ -1170,9 +1170,11 @@
                 if(tfData.length>1){let p=`M ${toX(0)} ${toMacdY(difs[0])}`;for(let i=1;i<tfData.length;i++)p+=` L ${toX(i)} ${toMacdY(difs[i])}`;svg+=`<path d="${p}" fill="none" stroke="#3b82f6" stroke-width="1.2"/>`;}
                 if(tfData.length>1){let p=`M ${toX(0)} ${toMacdY(deas[0])}`;for(let i=1;i<tfData.length;i++)p+=` L ${toX(i)} ${toMacdY(deas[i])}`;svg+=`<path d="${p}" fill="none" stroke="#f59e0b" stroke-width="1.2"/>`;}
                 for(let i=0;i<tfData.length;i++){const x=toX(i);svg+=`<rect x="${x-gap/2}" y="${klineTop}" width="${gap}" height="${macdTop+macdH-klineTop}" fill="transparent" class="klinemacd-click" data-ts="${tfData[i].ts}" style="cursor:pointer;"/>`;}
-                svg+=`<text x="${PL+2}" y="${H-4}" fill="#22c55e" font-size="9">价:${closes[closes.length-1].toFixed(2)}</text>`;
-                svg+=`<text x="${PL+150}" y="${H-4}" fill="#3b82f6" font-size="9">DIF:${difs[difs.length-1].toFixed(2)}</text>`;
-                svg+=`<text x="${PL+260}" y="${H-4}" fill="#f59e0b" font-size="9">DEA:${deas[deas.length-1].toFixed(2)}</text>`;
+                const li = highlightIdx >= 0 ? highlightIdx : tfData.length - 1;
+                svg+=`<text x="${PL+2}" y="${H-4}" fill="#22c55e" font-size="9">价:${closes[li].toFixed(2)}</text>`;
+                svg+=`<text x="${PL+110}" y="${H-4}" fill="#3b82f6" font-size="9">DIF:${difs[li].toFixed(2)}</text>`;
+                svg+=`<text x="${PL+200}" y="${H-4}" fill="#f59e0b" font-size="9">DEA:${deas[li].toFixed(2)}</text>`;
+                svg+=`<text x="${PL+290}" y="${H-4}" fill="${macds[li]>=0?'#22c55e':'#ef4444'}" font-size="9">MACD:${macds[li].toFixed(2)}</text>`;
                 svg+='</svg>'; html+=`<div>${svg}</div>`;
             }
             container.innerHTML=html||'<div class="loading">暂无数据</div>';
