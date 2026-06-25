@@ -632,7 +632,7 @@
                 for (const point of zone.points) {
                     const color = typeColors[point.type] || '#8a8fa8';
                     const diff = point.price - currentPrice;
-                    const diffColor = diff >= 0 ? '#ef4444' : '#22c55e';
+                    const diffColor = diff >= 0 ? '#ef4444' : '#22c55e';  // 红色表示比现价高，绿色表示比现价低
                     const diffStr = `(${diff>=0?'+':''}${diff.toFixed(1)})`;
                     html += `<span style="color:${color}; font-size:13px; font-weight:600;">${point.label}:${point.price.toFixed(1)}<span style="color:${diffColor}; font-weight:bold;">${diffStr}</span></span>`;
                 }
