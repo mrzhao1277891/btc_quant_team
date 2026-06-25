@@ -141,7 +141,7 @@
         <!-- Card 6: Price Zone Density -->
         <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1; order: -1;">
             <div class="card-header">
-                <h2 class="card-title">关键价位分布（每2U区间）</h2>
+                <h2 class="card-title">关键价位分布（每2U区间） <span style="font-weight:normal; font-size:14px; color:var(--text-secondary);">现价: <span id="zonePrice" style="color:#22c55e; font-weight:600;">—</span></span></h2>
             </div>
             <div class="card-body">
                 <div id="zoneDensityContent" class="card-content">
@@ -567,6 +567,8 @@
             if (pricePoints.length === 0) { container.innerHTML = '<div class="loading">暂无数据</div>'; return; }
             
             const currentPrice = realtimePrice ? realtimePrice.price : (latestData['4h'] ? latestData['4h'].close : 0);
+            const zpEl = document.getElementById('zonePrice');
+            if (zpEl && currentPrice) zpEl.textContent = '$' + currentPrice.toFixed(2);
             const allPrices = pricePoints.map(p => p.price).concat(currentPrice ? [currentPrice] : []);
             const minPrice = Math.floor(Math.min(...allPrices) / 2) * 2;
             const maxPrice = Math.ceil(Math.max(...allPrices) / 2) * 2;
@@ -701,7 +703,8 @@
                         const pinColor = pin.type === 'high' ? '#fbbf24' : '#60a5fa';
                         svg += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${pinColor}" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.6"/>`;
                         svg += `<circle cx="${x}" cy="${y}" r="3" fill="${pinColor}"/>`;
-                        svg += `<text x="${x+5}" y="${y-4}" fill="${pinColor}" font-size="9" font-weight="bold">${pin.price.toLocaleString()}</text>`;
+                        svg += `<rect x="0" y="${y-7}" width="${PL-2}" height="14" fill="${pinColor}" opacity="0.9" rx="2"/>`;
+                        svg += `<text x="${PL-4}" y="${y+3}" text-anchor="end" fill="#0f172a" font-size="9" font-weight="bold">${pin.price.toLocaleString()}</text>`;
                     }
                     svg += `<text x="${PL+5}" y="${H-4}" fill="#22c55e" font-size="9">最新: ${closes[closes.length-1].toFixed(2)}</text>`;
                     svg += '</svg>';

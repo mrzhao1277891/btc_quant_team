@@ -142,7 +142,7 @@
         <!-- Card 6: Price Zone Density -->
         <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1; order: -3;">
             <div class="card-header">
-                <h2 class="card-title">关键价位分布（每1000U区间）</h2>
+                <h2 class="card-title">关键价位分布（每1000U区间） <span style="font-weight:normal; font-size:14px; color:var(--text-secondary);">现价: <span id="zonePrice" style="color:#22c55e; font-weight:600;">—</span></span></h2>
             </div>
             <div class="card-body">
                 <div id="zoneDensityContent" class="card-content">
@@ -589,6 +589,8 @@
             
             // Determine price range (centered on current price)
             const currentPrice = realtimePrice ? realtimePrice.price : (latestData['4h'] ? latestData['4h'].close : 0);
+            const zpEl = document.getElementById('zonePrice');
+            if (zpEl && currentPrice) zpEl.textContent = '$' + currentPrice.toLocaleString();
             const allPrices = pricePoints.map(p => p.price).concat(currentPrice ? [currentPrice] : []);
             const minPrice = Math.floor(Math.min(...allPrices) / 1000) * 1000;
             const maxPrice = Math.ceil(Math.max(...allPrices) / 1000) * 1000;
@@ -1147,9 +1149,12 @@
                         const price = pin.price;
                         const y = toY(price);
                         const pinColor = pin.type === 'high' ? '#fbbf24' : '#60a5fa';
+                        // 横线 + K线上的小圆点
                         svg += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${pinColor}" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.6"/>`;
                         svg += `<circle cx="${x}" cy="${y}" r="3" fill="${pinColor}"/>`;
-                        svg += `<text x="${x+5}" y="${y-4}" fill="${pinColor}" font-size="9" font-weight="bold">${price.toLocaleString()}</text>`;
+                        // 左侧纵轴上的价格标签
+                        svg += `<rect x="0" y="${y-7}" width="${PL-2}" height="14" fill="${pinColor}" opacity="0.9" rx="2"/>`;
+                        svg += `<text x="${PL-4}" y="${y+3}" text-anchor="end" fill="#0f172a" font-size="9" font-weight="bold">${price.toLocaleString()}</text>`;
                     }
                     
                     // Latest price label
