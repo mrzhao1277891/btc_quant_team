@@ -141,7 +141,8 @@
         <!-- Card 6: Price Zone Density -->
         <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1; order: -1;">
             <div class="card-header">
-                <h2 class="card-title">关键价位分布（每2U区间） <span style="font-weight:normal; font-size:14px; color:var(--text-secondary);">现价: <span id="zonePrice" style="color:#22c55e; font-weight:600;">—</span></span></h2>
+                <h2 class="card-title">关键价位分布（每2U区间） <span style="font-weight:normal; font-size:14px; color:var(--text-secondary);">现价: <span id="zonePrice" style="color:#22c55e; font-weight:600;">—</span></span>
+                <button id="zoneToggleBtn" class="edit-btn" style="font-size:12px;">展开全部</button></h2>
             </div>
             <div class="card-body">
                 <div id="zoneDensityContent" class="card-content">
@@ -375,6 +376,12 @@
             if (saved) applyTheme(true);
             const btn = document.getElementById('themeToggleBtn');
             if (btn) btn.addEventListener('click', () => applyTheme(!document.body.classList.contains('light')));
+            const zoneBtn = document.getElementById('zoneToggleBtn');
+            if (zoneBtn) zoneBtn.addEventListener('click', () => {
+                zoneShowAll = !zoneShowAll;
+                zoneBtn.textContent = zoneShowAll ? '收起' : '展开全部';
+                if (window.dashboardController) renderZoneDensity(window.dashboardController);
+            });
         });
         
         // Card 1: Price & Moving Averages (EMA)
@@ -514,6 +521,7 @@
         // Zone Density Panel
         // ===========================
         
+        let zoneShowAll = false;
         function renderZoneDensity(dashboard) {
             const container = document.getElementById('zoneDensityContent');
             if (!container) return;
@@ -586,11 +594,26 @@
             html += `<span><span style="color:#22c55e">▸</span> 当前价格</span>`;
             html += '</div>';
             
+            // 收集要显示的区间（从高到低）
+            const visibleZones = [];
             for (let i = zones.length - 1; i >= 0; i--) {
                 const zone = zones[i];
                 const isCurrentZone = currentPrice >= zone.start && currentPrice < zone.end;
                 if (zone.points.length === 0 && !isCurrentZone) continue;
-                
+                visibleZones.push({ zone, isCurrentZone });
+            }
+            // 默认只展示当前区间上下各3个
+            let zonesToRender = visibleZones;
+            if (!zoneShowAll) {
+                const curIdx = visibleZones.findIndex(z => z.isCurrentZone);
+                if (curIdx >= 0) {
+                    zonesToRender = visibleZones.slice(Math.max(0, curIdx-3), Math.min(visibleZones.length, curIdx+4));
+                } else {
+                    zonesToRender = visibleZones.slice(0, 7);
+                }
+            }
+            
+            for (const { zone, isCurrentZone } of zonesToRender) {
                 const bgColor = isCurrentZone ? 'rgba(34,197,94,0.1)' : 'transparent';
                 const borderLeft = isCurrentZone ? '3px solid #22c55e' : '3px solid transparent';
                 
