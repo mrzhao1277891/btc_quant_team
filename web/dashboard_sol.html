@@ -631,7 +631,10 @@
                 html += '<span style="margin-left:8px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">';
                 for (const point of zone.points) {
                     const color = typeColors[point.type] || '#8a8fa8';
-                    html += `<span style="color:${color}; font-size:11px;">${point.label}:${point.price.toFixed(1)}</span>`;
+                    const diff = point.price - currentPrice;
+                    const diffColor = diff >= 0 ? '#ef4444' : '#22c55e';
+                    const diffStr = `(${diff>=0?'+':''}${diff.toFixed(1)})`;
+                    html += `<span style="color:${color}; font-size:11px;">${point.label}:${point.price.toFixed(1)}<span style="color:${diffColor};">${diffStr}</span></span>`;
                 }
                 if (isCurrentZone) {
                     html += `<span style="color:#22c55e; font-size:12px; font-weight:bold; margin-left:6px;">▸ 现价 ${currentPrice.toFixed(2)}</span>`;
