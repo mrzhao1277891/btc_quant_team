@@ -618,7 +618,7 @@
                 const borderLeft = isCurrentZone ? '3px solid #22c55e' : '3px solid transparent';
                 
                 html += `<div style="display:flex; align-items:center; padding:3px 6px; background:${bgColor}; border-left:${borderLeft}; border-radius:2px;">`;
-                html += `<span style="width:80px; color:#8a8fa8; flex-shrink:0;">${zone.start.toLocaleString()}-${zone.end.toLocaleString()}</span>`;
+                html += `<span style="width:80px; color:#8a8fa8; flex-shrink:0; font-size:13px;">${zone.start.toLocaleString()}-${zone.end.toLocaleString()}</span>`;
                 html += '<span style="display:flex; flex-wrap:wrap; gap:3px; align-items:center;">';
                 
                 if (isCurrentZone) {
@@ -626,7 +626,7 @@
                 }
                 for (const point of zone.points) {
                     const color = typeColors[point.type] || '#8a8fa8';
-                    html += `<span style="color:${color}; cursor:pointer; font-size:14px;" class="zone-dot" data-tooltip="${point.label}: ${point.price.toFixed(1)}">●</span>`;
+                    html += `<span style="color:${color}; cursor:pointer; font-size:18px;" class="zone-dot" data-tooltip="${point.label}: ${point.price.toFixed(1)}">●</span>`;
                 }
                 html += '<span style="margin-left:8px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">';
                 for (const point of zone.points) {
@@ -634,10 +634,10 @@
                     const diff = point.price - currentPrice;
                     const diffColor = diff >= 0 ? '#ef4444' : '#22c55e';
                     const diffStr = `(${diff>=0?'+':''}${diff.toFixed(1)})`;
-                    html += `<span style="color:${color}; font-size:11px;">${point.label}:${point.price.toFixed(1)}<span style="color:${diffColor}; font-weight:bold;">${diffStr}</span></span>`;
+                    html += `<span style="color:${color}; font-size:14px; font-weight:600;">${point.label}:${point.price.toFixed(1)}<span style="color:${diffColor}; font-weight:bold;">${diffStr}</span></span>`;
                 }
                 if (isCurrentZone) {
-                    html += `<span style="color:#22c55e; font-size:12px; font-weight:bold; margin-left:6px;">▸ 现价 ${currentPrice.toFixed(2)}</span>`;
+                    html += `<span style="color:#22c55e; font-size:15px; font-weight:bold; margin-left:6px;">▸ 现价 ${currentPrice.toFixed(2)}</span>`;
                 }
                 html += '</span>';
                 html += '</span></div>';
@@ -654,7 +654,7 @@
                     const tooltip = document.createElement('div');
                     tooltip.className = 'zone-tooltip';
                     tooltip.textContent = e.target.dataset.tooltip;
-                    tooltip.style.cssText = 'position:fixed;background:#1e293b;color:#f1f5f9;padding:6px 10px;border-radius:4px;font-size:14px;font-weight:500;white-space:nowrap;z-index:9999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:1px solid #334155;';
+                    tooltip.style.cssText = 'position:fixed;background:#1e293b;color:#f1f5f9;padding:6px 10px;border-radius:4px;font-size:16px;font-weight:600;white-space:nowrap;z-index:9999;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:1px solid #334155;';
                     document.body.appendChild(tooltip);
                     const rect = e.target.getBoundingClientRect();
                     tooltip.style.left = (rect.left + rect.width/2 - tooltip.offsetWidth/2) + 'px';
