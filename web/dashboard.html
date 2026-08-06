@@ -954,14 +954,23 @@
                     }
                 }
                 
-                const W = 500, H = 340;
+                const li = highlightIdx >= 0 ? highlightIdx : tfData.length - 1;
+                
+                const W = 500, H = 400;
                 const PL = 55, PR = 10;
                 const klineTop = 25, klineH = 150;
-                const macdTop = klineTop + klineH + 15, macdH = 130;
+                const volTop = klineTop + klineH + 10, volH = 48;
+                const macdTop = volTop + volH + 14, macdH = 110;
                 const chartW = W - PL - PR;
                 const gap = chartW / tfData.length;
                 const candleW = Math.max(1, gap * 0.7);
                 const toX = (i) => PL + i * gap + gap / 2;
+                
+                // 成交量刻度
+                const volumes = tfData.map(d => d.volume || 0);
+                const volMax = Math.max(...volumes, 1);
+                const toVolY = (v) => volTop + (1 - v / volMax) * volH;
+                const fmtVol = (v) => v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0);
                 
                 const priceVals = [...highs, ...lows, ...tfData.map(d=>d.boll_up).filter(v=>v!=null), ...tfData.map(d=>d.boll_dn).filter(v=>v!=null), ...tfData.map(d=>d.ema50).filter(v=>v!=null), ...tfData.map(d=>d.ema7).filter(v=>v!=null)];
                 const pMin = Math.min(...priceVals), pMax = Math.max(...priceVals);
@@ -983,6 +992,7 @@
                 if (highlightIdx >= 0) {
                     const hx = toX(highlightIdx);
                     svg += `<rect x="${hx - gap/2}" y="${klineTop}" width="${gap}" height="${klineH}" fill="#fbbf24" opacity="0.15"/>`;
+                    svg += `<rect x="${hx - gap/2}" y="${volTop}" width="${gap}" height="${volH}" fill="#fbbf24" opacity="0.15"/>`;
                     svg += `<rect x="${hx - gap/2}" y="${macdTop}" width="${gap}" height="${macdH}" fill="#fbbf24" opacity="0.15"/>`;
                     svg += `<line x1="${hx}" y1="${klineTop}" x2="${hx}" y2="${macdTop+macdH}" stroke="#fbbf24" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.5"/>`;
                 }
@@ -1036,6 +1046,18 @@
                     svg += drawLine(e25, '#8b5cf6', 1);
                     svg += drawLine(e50, '#06b6d4', 1);
                 }
+                
+                // ===== 成交量区 =====
+                svg += `<text x="${PL-4}" y="${volTop+6}" text-anchor="end" fill="#64748b" font-size="8">${fmtVol(volMax)}</text>`;
+                svg += `<text x="${PL}" y="${volTop-2}" fill="#64748b" font-size="8">VOL: ${fmtVol(volumes[li])}</text>`;
+                for (let i = 0; i < tfData.length; i++) {
+                    const barColor = closes[i] >= opens[i] ? '#22c55e' : '#ef4444';
+                    const vy = toVolY(volumes[i]);
+                    const dim = (highlightIdx >= 0 && i !== highlightIdx) ? '0.25' : '0.55';
+                    svg += `<rect x="${toX(i) - candleW/2}" y="${vy}" width="${candleW}" height="${Math.max(0.5, volTop + volH - vy)}" fill="${barColor}" opacity="${dim}"/>`;
+                }
+                svg += `<line x1="${PL}" y1="${volTop+volH}" x2="${W-PR}" y2="${volTop+volH}" stroke="#334155" stroke-width="0.5"/>`;
+                
                 svg += `<text x="${PL-4}" y="${macdTop+6}" text-anchor="end" fill="#64748b" font-size="8">${macdMax.toFixed(0)}</text>`;
                 svg += `<text x="${PL-4}" y="${macdTop+macdH}" text-anchor="end" fill="#64748b" font-size="8">${macdMin.toFixed(0)}</text>`;
                 svg += `<text x="${PL}" y="${macdTop-2}" fill="#64748b" font-size="8">MACD</text>`;
@@ -1070,7 +1092,6 @@
                 }
                 
                 // 底部值：选中K线则显示该根，否则显示最新
-                const li = highlightIdx >= 0 ? highlightIdx : tfData.length - 1;
                 svg += `<text x="${PL+2}" y="${H-4}" fill="#22c55e" font-size="9">价:${closes[li].toLocaleString()}</text>`;
                 svg += `<text x="${PL+110}" y="${H-4}" fill="#3b82f6" font-size="9">DIF:${difs[li].toFixed(0)}</text>`;
                 svg += `<text x="${PL+200}" y="${H-4}" fill="#f59e0b" font-size="9">DEA:${deas[li].toFixed(0)}</text>`;
