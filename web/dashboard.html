@@ -755,8 +755,8 @@
                     let tfData = data[tf];
                     if (!tfData || tfData.length === 0) continue;
                     
-                    // Filter to only records with valid MACD indicators, take last 50
-                    tfData = tfData.filter(d => d.dif !== null && d.dea !== null && d.macd !== null).slice(-50);
+                    // Filter to only records with valid MACD indicators, take last 100
+                    tfData = tfData.filter(d => d.dif !== null && d.dea !== null && d.macd !== null).slice(-100);
                     
                     const difs = tfData.map(d => d.dif);
                     const deas = tfData.map(d => d.dea);
@@ -908,10 +908,10 @@
             
             try {
                 const tfConfigs = [
-                    { key: '1m', label: '月线', limit: 60 },
-                    { key: '1w', label: '周线', limit: 60 },
-                    { key: '1d', label: '日线', limit: 60 },
-                    { key: '4h', label: '4小时', limit: 60 }
+                    { key: '1m', label: '月线', limit: 100 },
+                    { key: '1w', label: '周线', limit: 100 },
+                    { key: '1d', label: '日线', limit: 100 },
+                    { key: '4h', label: '4小时', limit: 100 }
                 ];
                 
                 // 拉取所有周期数据并缓存
@@ -1570,7 +1570,7 @@
                 for (const tf of timeframes) {
                     let tfData = data[tf];
                     if (!tfData || tfData.length === 0) continue;
-                    tfData = tfData.filter(d => d.ema7 !== null && d.close > 0).slice(-50);
+                    tfData = tfData.filter(d => d.ema7 !== null && d.close > 0).slice(-100);
                     if (tfData.length === 0) continue;
                     
                     // Calculate Close - EMA7 for each point
@@ -1683,7 +1683,7 @@
                 for (const tf of timeframes) {
                     let tfData = data[tf];
                     if (!tfData || tfData.length === 0) continue;
-                    tfData = tfData.filter(d => d.ema7 !== null && d.ema25 !== null && d.ema50 !== null).slice(-50);
+                    tfData = tfData.filter(d => d.ema7 !== null && d.ema25 !== null && d.ema50 !== null).slice(-100);
                     if (tfData.length === 0) continue;
                     
                     const ema7s = tfData.map(d => d.ema7);
@@ -1748,7 +1748,7 @@
             if (!container) return;
             
             try {
-                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=50&symbol=BTCUSDT');
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=BTCUSDT');
                 const data = await resp.json();
                 
                 const timeframes = ['1m', '1w', '1d', '4h'];
@@ -1759,7 +1759,7 @@
                 for (const tf of timeframes) {
                     let tfData = data[tf];
                     if (!tfData || tfData.length === 0) continue;
-                    tfData = tfData.filter(d => d.volume > 0).slice(-50);
+                    tfData = tfData.filter(d => d.volume > 0).slice(-100);
                     if (tfData.length === 0) continue;
                     
                     const volumes = tfData.map(d => d.volume);
@@ -1832,7 +1832,7 @@
                     if (!tfData || tfData.length === 0) continue;
                     
                     // Filter to records with valid BOLL indicators, take last 50
-                    tfData = tfData.filter(d => d.boll_up !== null && d.boll_md !== null && d.boll_dn !== null).slice(-50);
+                    tfData = tfData.filter(d => d.boll_up !== null && d.boll_md !== null && d.boll_dn !== null).slice(-100);
                     if (tfData.length === 0) continue;
                     
                     const bollUps = tfData.map(d => d.boll_up);
