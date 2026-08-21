@@ -341,6 +341,75 @@ def get_trend_state(symbol: str = 'BTCUSDT', timeframe: str = '1w'):
 
 
 # ============================================================
+# BTC 现货 ETF 净流入 API
+# ============================================================
+
+@app.get("/api/etf-flow")
+def get_etf_flow(
+    limit: int = Query(180, ge=5, le=1000),
+    symbol: str = Query("BTCUSDT"),
+):
+    """返回每日 ETF 净流入 + 5/14/30 日均线, 并融合对应日期的 BTC 日线收盘价。
+
+    - net_flow / ma5 / ma14 / ma30 单位: 百万美元 (负=净流出)
+    - price: 同日 BTC 日线收盘价 (来自 klines 表, 按 UTC 日期对齐)
+    """
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        # 取最近 limit 个交易日, 时间正序
+        cur.execute(
+            """
+            SELECT trade_date, net_flow, ma5, ma14, ma30
+            FROM btc_etf_flow
+            ORDER BY trade_date DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        flow_rows = cur.fetchall()
+        flow_rows.reverse()
+
+        if not flow_rows:
+            cur.close()
+            return {"count": 0, "data": []}
+
+        # 用最早日期做下界, 拉取该区间的 BTC 日线收盘价
+        min_date = flow_rows[0]["trade_date"]
+        start_dt = datetime(min_date.year, min_date.month, min_date.day, tzinfo=timezone.utc)
+        start_ts = int((start_dt - timedelta(days=2)).timestamp() * 1000)
+
+        cur.execute(
+            """
+            SELECT timestamp, close FROM klines
+            WHERE symbol = %s AND timeframe = '1d' AND timestamp >= %s
+            ORDER BY timestamp ASC
+            """,
+            (symbol, start_ts),
+        )
+        price_map = {}
+        for r in cur.fetchall():
+            d = datetime.fromtimestamp(r["timestamp"] / 1000, tz=timezone.utc).date()
+            price_map[d.isoformat()] = float(r["close"]) if r["close"] else None
+        cur.close()
+
+        data = []
+        for r in flow_rows:
+            diso = r["trade_date"].isoformat()
+            data.append({
+                "date": diso,
+                "net_flow": float(r["net_flow"]) if r["net_flow"] is not None else None,
+                "ma5": float(r["ma5"]) if r["ma5"] is not None else None,
+                "ma14": float(r["ma14"]) if r["ma14"] is not None else None,
+                "ma30": float(r["ma30"]) if r["ma30"] is not None else None,
+                "price": price_map.get(diso),
+            })
+        return {"count": len(data), "data": data}
+    finally:
+        conn.close()
+
+
+# ============================================================
 # 交易日志 API
 # ============================================================
 

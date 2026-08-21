@@ -1,5 +1,6 @@
 # 核心依赖
 requests>=2.28.0
+curl_cffi>=0.7.0  # 模拟浏览器TLS指纹, 抓取受Cloudflare保护的数据源(Farside ETF)
 pandas>=1.5.0
 numpy>=1.24.0
 sqlite3>=3.0.0
