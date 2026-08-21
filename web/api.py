@@ -391,17 +391,97 @@ def get_etf_flow(
         for r in cur.fetchall():
             d = datetime.fromtimestamp(r["timestamp"] / 1000, tz=timezone.utc).date()
             price_map[d.isoformat()] = float(r["close"]) if r["close"] else None
+
+        # 恐慌贪婪指数 (按日期对齐)
+        cur.execute(
+            """
+            SELECT stat_date, fng_value, classification FROM btc_fng
+            WHERE stat_date >= %s
+            """,
+            (min_date,),
+        )
+        fng_map = {}
+        for r in cur.fetchall():
+            fng_map[r["stat_date"].isoformat()] = {
+                "value": int(r["fng_value"]),
+                "class": r["classification"],
+            }
         cur.close()
 
         data = []
         for r in flow_rows:
             diso = r["trade_date"].isoformat()
+            fng = fng_map.get(diso)
             data.append({
                 "date": diso,
                 "net_flow": float(r["net_flow"]) if r["net_flow"] is not None else None,
                 "ma5": float(r["ma5"]) if r["ma5"] is not None else None,
                 "ma14": float(r["ma14"]) if r["ma14"] is not None else None,
                 "ma30": float(r["ma30"]) if r["ma30"] is not None else None,
+                "price": price_map.get(diso),
+                "fng": fng["value"] if fng else None,
+                "fng_class": fng["class"] if fng else None,
+            })
+        return {"count": len(data), "data": data}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# 恐慌贪婪指数 API
+# ============================================================
+
+@app.get("/api/fng")
+def get_fng(
+    limit: int = Query(365, ge=5, le=4000),
+    symbol: str = Query("BTCUSDT"),
+):
+    """返回每日恐慌贪婪指数 + 对应日期的 BTC 日线收盘价 (按 UTC 日期对齐)。
+
+    - fng: 0-100, fng_class: Fear/Greed 等
+    - price: 同日 BTC 日线收盘价 (来自 klines 表)
+    """
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            """
+            SELECT stat_date, fng_value, classification FROM btc_fng
+            ORDER BY stat_date DESC LIMIT %s
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall()
+        rows.reverse()
+        if not rows:
+            cur.close()
+            return {"count": 0, "data": []}
+
+        min_date = rows[0]["stat_date"]
+        start_dt = datetime(min_date.year, min_date.month, min_date.day, tzinfo=timezone.utc)
+        start_ts = int((start_dt - timedelta(days=2)).timestamp() * 1000)
+
+        cur.execute(
+            """
+            SELECT timestamp, close FROM klines
+            WHERE symbol = %s AND timeframe = '1d' AND timestamp >= %s
+            ORDER BY timestamp ASC
+            """,
+            (symbol, start_ts),
+        )
+        price_map = {}
+        for r in cur.fetchall():
+            d = datetime.fromtimestamp(r["timestamp"] / 1000, tz=timezone.utc).date()
+            price_map[d.isoformat()] = float(r["close"]) if r["close"] else None
+        cur.close()
+
+        data = []
+        for r in rows:
+            diso = r["stat_date"].isoformat()
+            data.append({
+                "date": diso,
+                "fng": int(r["fng_value"]),
+                "fng_class": r["classification"],
                 "price": price_map.get(diso),
             })
         return {"count": len(data), "data": data}

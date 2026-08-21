@@ -68,6 +68,7 @@
                     <span class="etf-chip active" data-series="ma14"><span class="dot" style="background:#f59e0b"></span>MA14</span>
                     <span class="etf-chip active" data-series="ma30"><span class="dot" style="background:#a855f7"></span>MA30</span>
                     <span class="etf-chip active" data-series="price"><span class="dot" style="background:#e2e8f0"></span>BTC价格</span>
+                    <span class="etf-chip active" data-series="fng"><span class="dot" style="background:linear-gradient(90deg,#dc2626,#eab308,#16a34a)"></span>恐慌贪婪</span>
                 </div>
                 <div id="etfChart"><div class="loading">加载中...</div></div>
             </div>
@@ -87,7 +88,16 @@
 
         let allData = [];
         let rangeDays = 90;
-        const show = { daily:true, ma5:true, ma14:true, ma30:true, price:true };
+        const show = { daily:true, ma5:true, ma14:true, ma30:true, price:true, fng:true };
+
+        // 恐慌贪婪指数按数值着色
+        function fngColor(v) {
+            if (v < 25) return '#dc2626';   // 极度恐慌
+            if (v < 45) return '#f97316';   // 恐慌
+            if (v < 55) return '#eab308';   // 中性
+            if (v < 75) return '#84cc16';   // 贪婪
+            return '#16a34a';               // 极度贪婪
+        }
 
         function getTheme() {
             const light = document.body.classList.contains('light');
@@ -144,8 +154,17 @@
             const container = document.getElementById('etfChart');
             if (!data.length) { container.innerHTML = '<div class="loading">暂无数据</div>'; return; }
 
-            const W = 1000, H = 400, PL = 72, PR = 78, PT = 20, PB = 56;
-            const plotW = W - PL - PR, plotH = H - PT - PB;
+            const W = 1000, PL = 72, PR = 78, PT = 20;
+            const xLabelH = 40;                    // 底部日期标签区
+            const fngH = show.fng ? 54 : 0;        // 恐慌贪婪子图高度
+            const fngGap = show.fng ? 16 : 0;      // 主图与子图间距
+            const H = 320 + fngH + fngGap + xLabelH;
+            const mainBottom = H - xLabelH - fngH - fngGap;
+            const fngTop = mainBottom + fngGap;
+            const fngBottom = fngTop + fngH;
+            const plotW = W - PL - PR;
+            const plotH = mainBottom - PT;
+            const axisBottom = fngBottom;          // X轴刻度线/日期标签基准
             const n = data.length;
 
             // ----- 左轴: 净流入 (含每日柱 + 可见均线) -----
@@ -199,8 +218,8 @@
                 const i = Math.round(k / (labelCount - 1 || 1) * (n - 1));
                 const x = xAt(i);
                 const dstr = data[i].date.slice(5); // MM-DD
-                svg += `<text x="${x}" y="${H-PB+18}" text-anchor="middle" fill="${T.axis}" font-size="10">${dstr}</text>`;
-                svg += `<line x1="${x}" y1="${PT}" x2="${x}" y2="${H-PB}" stroke="${T.grid}" stroke-width="0.4"/>`;
+                svg += `<text x="${x}" y="${axisBottom+18}" text-anchor="middle" fill="${T.axis}" font-size="10">${dstr}</text>`;
+                svg += `<line x1="${x}" y1="${PT}" x2="${x}" y2="${axisBottom}" stroke="${T.grid}" stroke-width="0.4"/>`;
             }
 
             // ----- 每日净流入柱 -----
@@ -241,13 +260,42 @@
                 if (path) svg += `<path d="${path}" fill="none" stroke="${T.priceLine}" stroke-width="2"/>`;
             }
 
+            // ===== 恐慌贪婪指数子图 (0-100) =====
+            if (show.fng) {
+                const yFng = (v) => fngTop + (1 - v / 100) * fngH;
+                // 分隔线
+                svg += `<line x1="${PL}" y1="${fngTop}" x2="${W-PR}" y2="${fngTop}" stroke="${T.grid}" stroke-width="0.6"/>`;
+                // 参考线 25/50/75 + 标签
+                [[25,'恐慌'],[50,''],[75,'贪婪']].forEach(([lv,lb]) => {
+                    const y = yFng(lv);
+                    svg += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${T.grid}" stroke-width="0.5" stroke-dasharray="2,3"/>`;
+                    svg += `<text x="${PL-6}" y="${y+3}" text-anchor="end" fill="${T.axis}" font-size="9">${lv}</text>`;
+                    if (lb) svg += `<text x="${W-PR+4}" y="${y+3}" text-anchor="start" fill="${T.axis}" font-size="9">${lb}</text>`;
+                });
+                svg += `<text x="${PL}" y="${fngTop-4}" fill="${T.axis}" font-size="10">恐慌贪婪指数</text>`;
+                // 折线
+                let fpath = '', started = false;
+                data.forEach((d, i) => {
+                    if (d.fng == null) { started = false; return; }
+                    fpath += `${started ? 'L' : 'M'} ${xAt(i).toFixed(1)} ${yFng(d.fng).toFixed(1)} `;
+                    started = true;
+                });
+                if (fpath) svg += `<path d="${fpath}" fill="none" stroke="${T.axis}" stroke-width="1.1" opacity="0.5"/>`;
+                // 按情绪着色的点
+                const dotStep = n > 120 ? 2 : 1;  // 点太多时抽稀
+                data.forEach((d, i) => {
+                    if (d.fng == null || i % dotStep !== 0) return;
+                    svg += `<circle cx="${xAt(i).toFixed(1)}" cy="${yFng(d.fng).toFixed(1)}" r="2.2" fill="${fngColor(d.fng)}"/>`;
+                });
+            }
+
             // 交互层: 十字光标 + 悬浮
-            svg += `<line id="etfCrosshair" x1="0" y1="${PT}" x2="0" y2="${H-PB}" stroke="${T.axis}" stroke-width="0.8" stroke-dasharray="3,3" style="display:none"/>`;
-            svg += `<rect id="etfHover" x="${PL}" y="${PT}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair"/>`;
+            svg += `<line id="etfCrosshair" x1="0" y1="${PT}" x2="0" y2="${axisBottom}" stroke="${T.axis}" stroke-width="0.8" stroke-dasharray="3,3" style="display:none"/>`;
+            svg += `<rect id="etfHover" x="${PL}" y="${PT}" width="${plotW}" height="${axisBottom - PT}" fill="transparent" style="cursor:crosshair"/>`;
             svg += `</svg>`;
 
             container.innerHTML = svg;
-            wireHover(data, { PL, PR, PT, PB, W, H, plotW, plotH, xAt });
+            wireHover(data, { PL, PR, PT, W, H, plotW, plotH, xAt });
         }
 
         function wireHover(data, geo) {
@@ -280,6 +328,7 @@
                 if (d.ma14 != null) html += row('MA14', sign(d.ma14) + 'M', COLORS.ma14);
                 if (d.ma30 != null) html += row('MA30', sign(d.ma30) + 'M', COLORS.ma30);
                 if (d.price != null) html += row('BTC价格', '$' + d.price.toLocaleString(), getTheme().priceLine);
+                if (d.fng != null) html += row('恐慌贪婪', d.fng + ' ' + (d.fng_class || ''), fngColor(d.fng));
                 tip.innerHTML = html;
                 tip.style.display = 'block';
                 tip.style.left = (e.clientX + 16) + 'px';
