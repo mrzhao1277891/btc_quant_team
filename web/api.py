@@ -446,7 +446,7 @@ def get_fng(
         cur = conn.cursor(dictionary=True)
         cur.execute(
             """
-            SELECT stat_date, fng_value, classification FROM btc_fng
+            SELECT stat_date, fng_value, ma5, ma14, ma30, classification FROM btc_fng
             ORDER BY stat_date DESC LIMIT %s
             """,
             (limit,),
@@ -481,6 +481,9 @@ def get_fng(
             data.append({
                 "date": diso,
                 "fng": int(r["fng_value"]),
+                "ma5": float(r["ma5"]) if r["ma5"] is not None else None,
+                "ma14": float(r["ma14"]) if r["ma14"] is not None else None,
+                "ma30": float(r["ma30"]) if r["ma30"] is not None else None,
                 "fng_class": r["classification"],
                 "price": price_map.get(diso),
             })

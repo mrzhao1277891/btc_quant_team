@@ -90,12 +90,12 @@
         let rangeDays = 90;
         const show = { daily:true, ma5:true, ma14:true, ma30:true, price:true, fng:true };
 
-        // 恐慌贪婪指数按数值着色
+        // 恐慌贪婪指数按数值着色 (分档 20-40-60-80)
         function fngColor(v) {
-            if (v < 25) return '#dc2626';   // 极度恐慌
-            if (v < 45) return '#f97316';   // 恐慌
-            if (v < 55) return '#eab308';   // 中性
-            if (v < 75) return '#84cc16';   // 贪婪
+            if (v < 20) return '#dc2626';   // 极度恐慌
+            if (v < 40) return '#f97316';   // 恐慌
+            if (v < 60) return '#eab308';   // 中性
+            if (v < 80) return '#84cc16';   // 贪婪
             return '#16a34a';               // 极度贪婪
         }
 
@@ -265,8 +265,8 @@
                 const yFng = (v) => fngTop + (1 - v / 100) * fngH;
                 // 分隔线
                 svg += `<line x1="${PL}" y1="${fngTop}" x2="${W-PR}" y2="${fngTop}" stroke="${T.grid}" stroke-width="0.6"/>`;
-                // 参考线 25/50/75 + 标签
-                [[25,'恐慌'],[50,''],[75,'贪婪']].forEach(([lv,lb]) => {
+                // 参考线 20/50/80 + 标签 (极端阈值)
+                [[20,'极恐'],[50,''],[80,'极贪']].forEach(([lv,lb]) => {
                     const y = yFng(lv);
                     svg += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${T.grid}" stroke-width="0.5" stroke-dasharray="2,3"/>`;
                     svg += `<text x="${PL-6}" y="${y+3}" text-anchor="end" fill="${T.axis}" font-size="9">${lv}</text>`;
