@@ -66,7 +66,7 @@
                     <span class="etf-sep"></span>
                     <span class="etf-chip active" data-series="fng"><span class="dot" style="background:linear-gradient(90deg,#dc2626,#eab308,#16a34a)"></span>恐慌贪婪</span>
                     <span class="etf-chip active" data-series="price"><span class="dot" style="background:#e2e8f0"></span>BTC价格</span>
-                    <span class="etf-chip" data-series="zones"><span class="dot" style="background:#64748b"></span>情绪色带</span>
+                    <span class="etf-chip active" data-series="zones"><span class="dot" style="background:linear-gradient(90deg,#fecaca,#fef08a,#bbf7d0)"></span>情绪色带</span>
                 </div>
                 <div id="etfChart"><div class="loading">加载中...</div></div>
             </div>
@@ -85,15 +85,15 @@
 
         let allData = [];
         let rangeDays = 180;
-        const show = { fng:true, price:true, zones:false };
+        const show = { fng:true, price:true, zones:true };
 
-        // 情绪分区: [下限, 颜色, 名称]
+        // 情绪分区: [下限, 上限, 点色(鲜艳), 名称, 色带(浅色)]
         const ZONES = [
-            { lo:0,  hi:25,  color:'#dc2626', name:'极度恐慌' },
-            { lo:25, hi:45,  color:'#f97316', name:'恐慌' },
-            { lo:45, hi:55,  color:'#eab308', name:'中性' },
-            { lo:55, hi:75,  color:'#84cc16', name:'贪婪' },
-            { lo:75, hi:100, color:'#16a34a', name:'极度贪婪' },
+            { lo:0,  hi:25,  color:'#dc2626', name:'极度恐慌', band:'#fecaca' },
+            { lo:25, hi:45,  color:'#f97316', name:'恐慌',     band:'#fed7aa' },
+            { lo:45, hi:55,  color:'#eab308', name:'中性',     band:'#fef08a' },
+            { lo:55, hi:75,  color:'#84cc16', name:'贪婪',     band:'#d9f99d' },
+            { lo:75, hi:100, color:'#16a34a', name:'极度贪婪', band:'#bbf7d0' },
         ];
         function fngColor(v) {
             for (const z of ZONES) if (v < z.hi) return z.color;
@@ -171,11 +171,12 @@
 
             let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" style="background:${T.bg}; border-radius:8px;" id="etfSvg">`;
 
-            // 情绪色带背景 (可选)
+            // 情绪色带背景 (浅色分档)
             if (show.zones) {
+                const bandOpacity = document.body.classList.contains('light') ? 0.5 : 0.16;
                 for (const z of ZONES) {
                     const y1 = yFng(z.hi), y2 = yFng(z.lo);
-                    svg += `<rect x="${PL}" y="${y1}" width="${plotW}" height="${y2 - y1}" fill="${z.color}" opacity="0.08"/>`;
+                    svg += `<rect x="${PL}" y="${y1}" width="${plotW}" height="${y2 - y1}" fill="${z.band}" opacity="${bandOpacity}"/>`;
                 }
             }
 
