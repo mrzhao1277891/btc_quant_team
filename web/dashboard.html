@@ -1359,8 +1359,8 @@
                 
                 // 选中K线时额外显示该根的最高/最低价
                 if (highlightIdx >= 0) {
-                    svg += `<text x="${PL+2}" y="${H-16}" fill="#ef4444" font-size="9">高:${highs[li].toLocaleString()}</text>`;
-                    svg += `<text x="${PL+110}" y="${H-16}" fill="#22c55e" font-size="9">低:${lows[li].toLocaleString()}</text>`;
+                    svg += `<text x="${PL+2}" y="${H-16}" fill="#ef4444" font-size="10" font-weight="bold">高:${highs[li].toLocaleString()}</text>`;
+                    svg += `<text x="${PL+110}" y="${H-16}" fill="#22c55e" font-size="10" font-weight="bold">低:${lows[li].toLocaleString()}</text>`;
                 }
                 // 底部值：选中K线则显示该根，否则显示最新
                 svg += `<text x="${PL+2}" y="${H-4}" fill="#22c55e" font-size="9">价:${closes[li].toLocaleString()}</text>`;
