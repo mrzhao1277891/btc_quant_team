@@ -113,7 +113,7 @@
         async function loadData() {
             const meta = document.getElementById('etfMeta');
             try {
-                const resp = await fetch(`${API}/api/etf-flow?limit=1000`);
+                const resp = await fetch(`${API}/api/etf-flow?limit=1000`, { cache: 'no-store' });
                 const json = await resp.json();
                 allData = json.data || [];
                 if (allData.length) {
@@ -375,6 +375,7 @@
                 tbtn.addEventListener('click', () => applyTheme(!document.body.classList.contains('light'))); }
             document.getElementById('manualRefreshBtn').addEventListener('click', loadData);
             loadData();
+            setInterval(loadData, 300000);  // 每5分钟自动刷新 (ETF为日频数据)
         });
     </script>
 </body>
