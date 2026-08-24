@@ -867,17 +867,20 @@
             if (zpEl && currentPrice) zpEl.textContent = '$' + currentPrice.toLocaleString();
             const allPrices = pricePoints.map(p => p.price).concat(currentPrice ? [currentPrice] : []);
             
-            // Build zones: 每格 = 现价的 1%, 以现价为网格锚点 (相距1%以内的关键位聚为一区)
-            const bw = currentPrice > 0 ? currentPrice * 0.01 : 1000;
-            const anchor = currentPrice || Math.min(...allPrices);
-            const startK = Math.floor((Math.min(...allPrices) - anchor) / bw);
-            const endK = Math.ceil((Math.max(...allPrices) - anchor) / bw);
+            // 邻近聚类: 相距 <= 现价1% 的关键位聚为一组 (以组内最低价为基准, 每组≤1%带宽)
+            const thr = currentPrice > 0 ? currentPrice * 0.01 : (Math.max(...allPrices) * 0.01 || 1000);
+            const sortedPts = pricePoints.slice();
+            if (currentPrice) sortedPts.push({ price: currentPrice, __cur: true });
+            sortedPts.sort((a, b) => a.price - b.price);
             const zones = [];
-            for (let k = startK; k < endK; k++) {
-                const start = anchor + k * bw;
-                const end = start + bw;
-                const pointsInZone = pricePoints.filter(p => p.price >= start && p.price < end);
-                zones.push({ start, end, points: pointsInZone });
+            for (const p of sortedPts) {
+                const last = zones[zones.length - 1];
+                if (last && p.price - last.start <= thr) {
+                    if (p.__cur) last.isCur = true; else last.points.push(p);
+                    last.end = p.price;
+                } else {
+                    zones.push({ start: p.price, end: p.price, points: p.__cur ? [] : [p], isCur: !!p.__cur });
+                }
             }
             
             // Render
@@ -896,9 +899,8 @@
             const visibleZones = [];
             for (let i = zones.length - 1; i >= 0; i--) {
                 const zone = zones[i];
-                const isCurrentZone = currentPrice >= zone.start && currentPrice < zone.end;
-                if (zone.points.length === 0 && !isCurrentZone) continue;
-                visibleZones.push({ zone, isCurrentZone });
+                if (zone.points.length === 0 && !zone.isCur) continue;
+                visibleZones.push({ zone, isCurrentZone: zone.isCur });
             }
             
             // 默认只展示当前区间上下各3个
@@ -918,10 +920,14 @@
                 const bgColor = isCurrentZone ? 'rgba(34,197,94,0.1)' : 'transparent';
                 const borderLeft = isCurrentZone ? '3px solid #22c55e' : '3px solid transparent';
                 
-                const midPct = currentPrice ? ((zone.start + zone.end) / 2 / currentPrice - 1) * 100 : 0;
+                const mid = (zone.start + zone.end) / 2;
+                const midPct = currentPrice ? (mid / currentPrice - 1) * 100 : 0;
                 const pctStr = currentPrice ? ` <span style="color:#64748b;">(${midPct >= 0 ? '+' : ''}${midPct.toFixed(1)}%)</span>` : '';
+                const lo = Math.round(zone.start), hi = Math.round(zone.end);
+                const rangeLabel = (isCurrentZone && zone.points.length === 0) ? '—'
+                    : ((lo === hi ? lo.toLocaleString() : lo.toLocaleString() + '-' + hi.toLocaleString()) + pctStr);
                 html += `<div style="display:flex; align-items:center; padding:3px 6px; background:${bgColor}; border-left:${borderLeft}; border-radius:2px;">`;
-                html += `<span style="width:140px; color:#8a8fa8; flex-shrink:0; font-size:12px;">${Math.round(zone.start).toLocaleString()}-${Math.round(zone.end).toLocaleString()}${pctStr}</span>`;
+                html += `<span style="width:140px; color:#8a8fa8; flex-shrink:0; font-size:12px;">${rangeLabel}</span>`;
                 html += '<span style="display:flex; flex-wrap:wrap; gap:3px; align-items:center;">';
                 
                 if (isCurrentZone) {
