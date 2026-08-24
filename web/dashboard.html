@@ -1357,6 +1357,11 @@
                     svg += `<rect x="${x - gap/2}" y="${klineTop}" width="${gap}" height="${macdTop+macdH-klineTop}" fill="transparent" class="klinemacd-click" data-ts="${tfData[i].ts}" style="cursor:pointer;"/>`;
                 }
                 
+                // 选中K线时额外显示该根的最高/最低价
+                if (highlightIdx >= 0) {
+                    svg += `<text x="${PL+2}" y="${H-16}" fill="#ef4444" font-size="9">高:${highs[li].toLocaleString()}</text>`;
+                    svg += `<text x="${PL+110}" y="${H-16}" fill="#22c55e" font-size="9">低:${lows[li].toLocaleString()}</text>`;
+                }
                 // 底部值：选中K线则显示该根，否则显示最新
                 svg += `<text x="${PL+2}" y="${H-4}" fill="#22c55e" font-size="9">价:${closes[li].toLocaleString()}</text>`;
                 svg += `<text x="${PL+110}" y="${H-4}" fill="#3b82f6" font-size="9">DIF:${difs[li].toFixed(0)}</text>`;
