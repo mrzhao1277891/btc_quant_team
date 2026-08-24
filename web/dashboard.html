@@ -1678,6 +1678,10 @@
                             }
                         }
                         
+                        // 方向标注 (上涨回调=从高点往下算; 下跌反弹=从低点往上算)
+                        const dirText = isUptrend ? '↑ 上涨回调' : '↓ 下跌反弹';
+                        const dirColor = isUptrend ? '#22c55e' : '#ef4444';
+                        svg += `<text x="${PL+2}" y="${PT+9}" fill="${dirColor}" font-size="9" font-weight="bold">${dirText}</text>`;
                         // Fibonacci levels
                         const fibLevels = [
                             { ratio: 0, label: '0%' },

@@ -837,6 +837,7 @@
                                 svg += `<line x1="${xA}" y1="${toY(pA)}" x2="${xB}" y2="${toY(pB)}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>`;
                             }
                         }
+                        svg += `<text x="${PL+2}" y="${PT+9}" fill="${isUptrend?'#22c55e':'#ef4444'}" font-size="9" font-weight="bold">${isUptrend?'↑ 上涨回调':'↓ 下跌反弹'}</text>`;
                         const fibLevels=[{r:0,l:'0%'},{r:0.236,l:'23.6%'},{r:0.382,l:'38.2%'},{r:0.5,l:'50%'},{r:0.618,l:'61.8%'},{r:0.786,l:'78.6%'},{r:1,l:'100%'}];
                         const fibColors=['#64748b','#22c55e','#3b82f6','#f59e0b','#ef4444','#a855f7','#64748b'];
                         for (let fi=0;fi<fibLevels.length;fi++) {
