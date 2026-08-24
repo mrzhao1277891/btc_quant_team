@@ -30,6 +30,11 @@
         <div class="header-left">
             <h1>🐶 旺财看盘</h1>
             <p class="subtitle">BTC 多周期指标仪表盘</p>
+            <div style="display:flex;gap:14px;margin-top:6px;font-size:13px;">
+                <a href="dashboard.html" style="color:var(--text-primary);font-weight:600;text-decoration:none;">₿ BTC</a>
+                <a href="dashboard_eth.html" style="color:var(--text-secondary);text-decoration:none;">💎 ETH</a>
+                <a href="dashboard_sol.html" style="color:var(--text-secondary);text-decoration:none;">◎ SOL</a>
+            </div>
         </div>
         <div class="header-right">
             <div class="realtime-price-container">
@@ -340,6 +345,267 @@
         </div>
     </div>
 
+    <!-- ===== 交易理由: 悬浮按钮 + 弹框 (自包含, 迁移时改 SYMBOL 即可) ===== -->
+    <div id="trFab" title="交易理由 (可拖动)" aria-label="交易理由">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+    </div>
+    <div id="trMask" class="tr-hidden">
+        <div class="tr-panel" role="dialog" aria-label="交易理由">
+            <div class="tr-head">
+                <span id="trTitle">交易理由</span>
+                <button id="trClose" aria-label="关闭">✕</button>
+            </div>
+            <div class="tr-top">
+                <button id="trAddBtn" class="tr-btn tr-primary">＋ 新增理由</button>
+                <div id="trAddBox" class="tr-editbox tr-hidden">
+                    <textarea id="trAddText" rows="3" placeholder="写下这次交易的理由…"></textarea>
+                    <div class="tr-editops">
+                        <button id="trAddCancel" class="tr-btn">取消</button>
+                        <button id="trAddSave" class="tr-btn tr-primary">保存</button>
+                    </div>
+                </div>
+            </div>
+            <div id="trList" class="tr-list"><div class="tr-empty">加载中…</div></div>
+        </div>
+    </div>
+    <style>
+        #trFab {
+            position: fixed; right: 28px; bottom: 28px; width: 48px; height: 48px;
+            border-radius: 16px; background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: #fff; display: flex; align-items: center; justify-content: center;
+            cursor: grab; z-index: 9998; user-select: none;
+            box-shadow: 0 6px 20px rgba(59,130,246,0.45), 0 2px 6px rgba(0,0,0,0.3);
+            transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s, filter .18s;
+        }
+        #trFab:hover { transform: translateY(-2px) scale(1.06); box-shadow: 0 10px 28px rgba(59,130,246,0.55); filter: brightness(1.08); }
+        #trFab:active { cursor: grabbing; transform: scale(0.95); }
+        #trFab svg { pointer-events: none; }
+        #trMask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        #trMask.tr-hidden { display: none; }
+        .tr-hidden { display: none !important; }
+        .tr-panel {
+            width: 520px; max-width: 92vw; max-height: 84vh; display: flex; flex-direction: column;
+            background: var(--bg-card, #1a1d28); color: var(--text-primary, #e4e6f0);
+            border: 1px solid var(--border-primary, #2a2d3a); border-radius: 14px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5); overflow: hidden;
+        }
+        .tr-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-primary, #2a2d3a); font-weight: 600; cursor: move; user-select: none; }
+        .tr-head button { background: none; border: none; color: var(--text-secondary, #8a8fa8); font-size: 18px; cursor: pointer; }
+        .tr-top { padding: 14px 18px; border-bottom: 1px solid var(--border-primary, #2a2d3a); }
+        .tr-editbox { margin-top: 10px; }
+        .tr-editbox textarea, .tr-item textarea {
+            width: 100%; resize: vertical; font-family: inherit; font-size: 13px; line-height: 1.5;
+            background: var(--bg-primary, #0f1117); color: var(--text-primary, #e4e6f0);
+            border: 1px solid var(--border-primary, #2a2d3a); border-radius: 8px; padding: 9px 11px; box-sizing: border-box;
+        }
+        .tr-editops { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+        .tr-btn { padding: 7px 16px; border-radius: 8px; border: 1px solid var(--border-primary, #2a2d3a); background: var(--bg-primary, #0f1117); color: var(--text-primary, #e4e6f0); cursor: pointer; font-size: 13px; transition: filter .15s; }
+        .tr-btn:hover { filter: brightness(1.15); }
+        .tr-btn.tr-primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+        .tr-list { padding: 8px 18px 16px; overflow-y: auto; }
+        .tr-empty { color: var(--text-secondary, #8a8fa8); text-align: center; padding: 24px; font-size: 13px; }
+        .tr-item { border: 1px solid var(--border-primary, #2a2d3a); border-radius: 10px; padding: 11px 13px; margin-top: 8px; background: var(--bg-card, #1a1d28); }
+        .tr-item.tr-dragging { opacity: 0.4; border-style: dashed; }
+        .tr-grip { cursor: grab; color: var(--text-secondary, #8a8fa8); font-size: 13px; margin-right: 8px; letter-spacing: -1px; }
+        .tr-grip:active { cursor: grabbing; }
+        .tr-detail { font-size: 13.5px; color: var(--text-primary, #e4e6f0); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+        .tr-meta { display: flex; align-items: center; margin-top: 8px; }
+        .tr-time { font-size: 11px; color: var(--text-secondary, #8a8fa8); }
+        .tr-ops { display: flex; gap: 14px; margin-left: auto; }
+        .tr-ops button { background: none; border: none; color: var(--text-secondary, #8a8fa8); cursor: pointer; font-size: 12px; padding: 0; }
+        .tr-ops button:hover { color: var(--text-primary, #e4e6f0); }
+    </style>
+    <script>
+    (function () {
+        const SYMBOL = 'BTCUSDT';          // 迁移到其他页面只改这一行
+        const SYMBOL_LABEL = 'BTC';
+        const API = 'http://127.0.0.1:8000';
+        const fab = document.getElementById('trFab');
+        const mask = document.getElementById('trMask');
+        const listEl = document.getElementById('trList');
+        const addBtn = document.getElementById('trAddBtn');
+        const addBox = document.getElementById('trAddBox');
+        const addText = document.getElementById('trAddText');
+        let dragEl = null;
+
+        document.getElementById('trTitle').textContent = '交易理由 · ' + SYMBOL_LABEL;
+
+        // ---- 列表拖拽排序 ----
+        listEl.addEventListener('dragover', (e) => {
+            if (!dragEl) return;
+            e.preventDefault();
+            const after = getDragAfterElement(listEl, e.clientY);
+            if (after == null) listEl.appendChild(dragEl);
+            else listEl.insertBefore(dragEl, after);
+        });
+        function getDragAfterElement(container, y) {
+            const els = [...container.querySelectorAll('.tr-item:not(.tr-dragging)')];
+            return els.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) return { offset, element: child };
+                return closest;
+            }, { offset: -Infinity }).element || null;
+        }
+        async function persistOrder() {
+            const ids = [...listEl.querySelectorAll('.tr-item')].map(el => parseInt(el.dataset.id));
+            if (!ids.length) return;
+            try {
+                await fetch(`${API}/api/reasons/reorder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol: SYMBOL, ids }) });
+            } catch (e) { /* 忽略排序保存失败 */ }
+        }
+
+        // ---- 悬浮按钮拖动 + 点击 ----
+        let dragging = false, moved = false, offX = 0, offY = 0;
+        const savedPos = JSON.parse(localStorage.getItem('trFabPos') || 'null');
+        if (savedPos) { fab.style.left = savedPos.left; fab.style.top = savedPos.top; fab.style.right = 'auto'; fab.style.bottom = 'auto'; }
+        fab.addEventListener('mousedown', (e) => {
+            dragging = true; moved = false;
+            offX = e.clientX - fab.getBoundingClientRect().left;
+            offY = e.clientY - fab.getBoundingClientRect().top;
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            if (Math.abs(e.movementX) + Math.abs(e.movementY) > 0) moved = true;
+            let x = e.clientX - offX, y = e.clientY - offY;
+            x = Math.max(0, Math.min(window.innerWidth - fab.offsetWidth, x));
+            y = Math.max(0, Math.min(window.innerHeight - fab.offsetHeight, y));
+            fab.style.left = x + 'px'; fab.style.top = y + 'px';
+            fab.style.right = 'auto'; fab.style.bottom = 'auto';
+        });
+        document.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            if (moved) localStorage.setItem('trFabPos', JSON.stringify({ left: fab.style.left, top: fab.style.top }));
+            else openModal();
+        });
+
+        // ---- 弹框开关 ----
+        const panel = mask.querySelector('.tr-panel');
+        const head = mask.querySelector('.tr-head');
+        function applyPanelPos() {
+            const pos = JSON.parse(localStorage.getItem('trPanelPos') || 'null');
+            if (pos) { panel.style.position = 'fixed'; panel.style.margin = '0'; panel.style.left = pos.left; panel.style.top = pos.top; }
+            else { panel.style.position = ''; panel.style.left = ''; panel.style.top = ''; panel.style.margin = ''; }
+        }
+        function openModal() { mask.classList.remove('tr-hidden'); hideAdd(); applyPanelPos(); loadReasons(); }
+        function closeModal() { mask.classList.add('tr-hidden'); hideAdd(); }
+        document.getElementById('trClose').addEventListener('click', closeModal);
+        mask.addEventListener('click', (e) => { if (e.target === mask) closeModal(); });
+
+        // ---- 弹框拖动 (按标题栏) ----
+        let pDrag = false, pOffX = 0, pOffY = 0;
+        head.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#trClose')) return;
+            const rect = panel.getBoundingClientRect();
+            panel.style.position = 'fixed'; panel.style.margin = '0';
+            panel.style.left = rect.left + 'px'; panel.style.top = rect.top + 'px';
+            pDrag = true; pOffX = e.clientX - rect.left; pOffY = e.clientY - rect.top;
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!pDrag) return;
+            let x = e.clientX - pOffX, y = e.clientY - pOffY;
+            x = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, x));
+            y = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, y));
+            panel.style.left = x + 'px'; panel.style.top = y + 'px';
+        });
+        document.addEventListener('mouseup', () => {
+            if (!pDrag) return;
+            pDrag = false;
+            localStorage.setItem('trPanelPos', JSON.stringify({ left: panel.style.left, top: panel.style.top }));
+        });
+
+        // ---- 新增 ----
+        function showAdd() { addBox.classList.remove('tr-hidden'); addBtn.classList.add('tr-hidden'); addText.value = ''; addText.focus(); }
+        function hideAdd() { addBox.classList.add('tr-hidden'); addBtn.classList.remove('tr-hidden'); }
+        addBtn.addEventListener('click', showAdd);
+        document.getElementById('trAddCancel').addEventListener('click', hideAdd);
+        document.getElementById('trAddSave').addEventListener('click', async () => {
+            const detail = addText.value.trim();
+            if (!detail) { alert('请填写理由说明'); return; }
+            try {
+                await fetch(`${API}/api/reasons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol: SYMBOL, detail }) });
+                hideAdd(); loadReasons();
+            } catch (e) { alert('保存失败: ' + e.message); }
+        });
+
+        // ---- 列表 (默认查看态) ----
+        async function loadReasons() {
+            listEl.innerHTML = '<div class="tr-empty">加载中…</div>';
+            try {
+                const resp = await fetch(`${API}/api/reasons?symbol=${SYMBOL}`);
+                const rows = (await resp.json()).data || [];
+                if (!rows.length) { listEl.innerHTML = '<div class="tr-empty">还没有记录，点上方「＋ 新增理由」写下第一条</div>'; return; }
+                listEl.innerHTML = '';
+                rows.forEach(r => listEl.appendChild(renderItem(r)));
+            } catch (e) { listEl.innerHTML = '<div class="tr-empty">加载失败: ' + e.message + '</div>'; }
+        }
+        function renderItem(r) {
+            const t = (r.created_at || '').replace('T', ' ').slice(0, 16);
+            const item = document.createElement('div');
+            item.className = 'tr-item';
+            item.dataset.id = r.id;
+            item.addEventListener('dragstart', (e) => {
+                dragEl = item; e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', ''); } catch (_) {}
+                setTimeout(() => item.classList.add('tr-dragging'), 0);
+            });
+            item.addEventListener('dragend', () => {
+                item.classList.remove('tr-dragging'); item.draggable = false; dragEl = null;
+                persistOrder();
+            });
+            renderView(item, r, t);
+            return item;
+        }
+        function renderView(item, r, t) {
+            item.innerHTML = '';
+            const d = document.createElement('div'); d.className = 'tr-detail'; d.textContent = r.detail || '(空)';
+            const meta = document.createElement('div'); meta.className = 'tr-meta';
+            const grip = document.createElement('span'); grip.className = 'tr-grip'; grip.textContent = '⠿'; grip.title = '拖动排序';
+            grip.addEventListener('mousedown', () => { item.draggable = true; });
+            grip.addEventListener('mouseup', () => { item.draggable = false; });
+            const edited = (r.updated_at && r.updated_at !== r.created_at) ? ' · 已编辑' : '';
+            const time = document.createElement('span'); time.className = 'tr-time'; time.textContent = t + edited;
+            const ops = document.createElement('div'); ops.className = 'tr-ops';
+            const eb = document.createElement('button'); eb.textContent = '✏️ 编辑';
+            const db = document.createElement('button'); db.textContent = '🗑️ 删除';
+            eb.addEventListener('click', () => renderEdit(item, r, t));
+            db.addEventListener('click', () => delReason(r.id));
+            ops.appendChild(eb); ops.appendChild(db);
+            meta.appendChild(grip); meta.appendChild(time); meta.appendChild(ops);
+            item.appendChild(d); item.appendChild(meta);
+        }
+        function renderEdit(item, r, t) {
+            item.innerHTML = '';
+            const ta = document.createElement('textarea'); ta.rows = 3; ta.value = r.detail || '';
+            const ops = document.createElement('div'); ops.className = 'tr-editops';
+            const cancel = document.createElement('button'); cancel.className = 'tr-btn'; cancel.textContent = '取消';
+            const save = document.createElement('button'); save.className = 'tr-btn tr-primary'; save.textContent = '保存';
+            cancel.addEventListener('click', () => renderView(item, r, t));
+            save.addEventListener('click', async () => {
+                const detail = ta.value.trim();
+                if (!detail) { alert('理由不能为空'); return; }
+                try {
+                    await fetch(`${API}/api/reasons/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ detail }) });
+                    r.detail = detail; r.updated_at = new Date().toISOString();
+                    renderView(item, r, t);
+                } catch (e) { alert('更新失败: ' + e.message); }
+            });
+            ops.appendChild(cancel); ops.appendChild(save);
+            item.appendChild(ta); item.appendChild(ops); ta.focus();
+        }
+        async function delReason(id) {
+            if (!confirm('确定删除这条理由？')) return;
+            try { await fetch(`${API}/api/reasons/${id}`, { method: 'DELETE' }); loadReasons(); }
+            catch (e) { alert('删除失败: ' + e.message); }
+        }
+    })();
+    </script>
+
     <!-- JavaScript modules -->
     <script type="module" src="components/ValueFormatter.js?v=2"></script>
     <script type="module" src="components/DataFetcher.js?v=2"></script>
@@ -533,7 +799,7 @@
             
             // Collect all key price levels
             const pricePoints = [];
-            const timeframes = ['1m', '1w', '1d', '4h'];
+            const timeframes = ['1m', '1w', '1d'];  // 暂不含 4h
             const tfLabels = { '1m': '月', '1w': '周', '1d': '日', '4h': '4H' };
             
             // Colors for different indicator types

@@ -493,6 +493,138 @@ def get_fng(
 
 
 # ============================================================
+# 交易理由 API (trade_reason)
+# ============================================================
+
+class ReasonCreate(BaseModel):
+    symbol: str = "BTCUSDT"
+    category: str = "技术面"
+    signal_tag: Optional[str] = None
+    detail: Optional[str] = None
+    weight: Optional[int] = None
+    trade_id: Optional[int] = None
+
+class ReasonUpdate(BaseModel):
+    category: Optional[str] = None
+    signal_tag: Optional[str] = None
+    detail: Optional[str] = None
+    weight: Optional[int] = None
+
+
+def _reason_row(r: dict) -> dict:
+    return {
+        "id": r["id"],
+        "trade_id": r["trade_id"],
+        "symbol": r["symbol"],
+        "category": r["category"],
+        "signal_tag": r["signal_tag"],
+        "detail": r["detail"],
+        "weight": int(r["weight"]) if r["weight"] is not None else None,
+        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+    }
+
+
+@app.get("/api/reasons")
+def list_reasons(symbol: str = Query("BTCUSDT"), limit: int = Query(100, ge=1, le=500)):
+    """获取某标的的交易理由列表 (按时间倒序)。"""
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT * FROM trade_reason WHERE symbol=%s ORDER BY sort_order ASC, created_at DESC LIMIT %s",
+            (symbol, limit),
+        )
+        rows = [_reason_row(r) for r in cur.fetchall()]
+        cur.close()
+        return {"count": len(rows), "data": rows}
+    finally:
+        conn.close()
+
+
+@app.post("/api/reasons")
+def create_reason(r: ReasonCreate):
+    """新增一条交易理由。"""
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        # 新理由放到列表最顶部 (sort_order 取当前最小值 - 1)
+        cur.execute("SELECT COALESCE(MIN(sort_order), 0) - 1 FROM trade_reason WHERE symbol=%s", (r.symbol,))
+        new_sort = cur.fetchone()[0]
+        cur.execute(
+            """INSERT INTO trade_reason (trade_id, symbol, category, signal_tag, detail, weight, sort_order)
+               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (r.trade_id, r.symbol, r.category, r.signal_tag, r.detail, r.weight, new_sort),
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+        cur.close()
+        return {"success": True, "id": new_id}
+    finally:
+        conn.close()
+
+
+class ReasonReorder(BaseModel):
+    symbol: str = "BTCUSDT"
+    ids: List[int]
+
+@app.post("/api/reasons/reorder")
+def reorder_reasons(body: ReasonReorder):
+    """按给定的 id 顺序重排 (ids[0] 在最上, sort_order=0,1,2...)。"""
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        for idx, rid in enumerate(body.ids):
+            cur.execute(
+                "UPDATE trade_reason SET sort_order=%s WHERE id=%s AND symbol=%s",
+                (idx, rid, body.symbol),
+            )
+        conn.commit()
+        cur.close()
+        return {"success": True, "count": len(body.ids)}
+    finally:
+        conn.close()
+
+
+@app.put("/api/reasons/{reason_id}")
+def update_reason(reason_id: int, r: ReasonUpdate):
+    """编辑一条交易理由 (只更新提供的字段)。"""
+    fields, vals = [], []
+    for col in ("category", "signal_tag", "detail", "weight"):
+        v = getattr(r, col)
+        if v is not None:
+            fields.append(f"{col}=%s")
+            vals.append(v)
+    if not fields:
+        return {"success": False, "error": "没有要更新的字段"}
+    vals.append(reason_id)
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"UPDATE trade_reason SET {', '.join(fields)} WHERE id=%s", tuple(vals))
+        conn.commit()
+        ok = cur.rowcount >= 0
+        cur.close()
+        return {"success": ok}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/reasons/{reason_id}")
+def delete_reason(reason_id: int):
+    """删除一条交易理由。"""
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM trade_reason WHERE id=%s", (reason_id,))
+        conn.commit()
+        cur.close()
+        return {"success": True}
+    finally:
+        conn.close()
+
+
+# ============================================================
 # 交易日志 API
 # ============================================================
 

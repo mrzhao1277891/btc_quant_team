@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOL 多周期指标仪表盘</title>
+    <title>ETH 多周期指标仪表盘</title>
     <link rel="stylesheet" href="dashboard.css">
     <style>
         body.light {
@@ -27,12 +27,12 @@
     <!-- Header -->
     <header class="dashboard-header">
         <div class="header-left">
-            <h1>🌞 SOL看盘</h1>
-            <p class="subtitle">SOL 多周期指标仪表盘</p>
+            <h1>💎 ETH看盘</h1>
+            <p class="subtitle">ETH 多周期指标仪表盘</p>
             <div style="display:flex;gap:14px;margin-top:6px;font-size:13px;">
                 <a href="dashboard.html" style="color:var(--text-secondary);text-decoration:none;">₿ BTC</a>
-                <a href="dashboard_eth.html" style="color:var(--text-secondary);text-decoration:none;">💎 ETH</a>
-                <a href="dashboard_sol.html" style="color:var(--text-primary);font-weight:600;text-decoration:none;">◎ SOL</a>
+                <a href="dashboard_eth.html" style="color:var(--text-primary);font-weight:600;text-decoration:none;">💎 ETH</a>
+                <a href="dashboard_sol.html" style="color:var(--text-secondary);text-decoration:none;">◎ SOL</a>
             </div>
         </div>
         <div class="header-right">
@@ -146,7 +146,7 @@
         <!-- Card 6: Price Zone Density -->
         <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1; order: -1;">
             <div class="card-header">
-                <h2 class="card-title">关键价位分布（每2U区间） <span style="font-weight:normal; font-size:14px; color:var(--text-secondary);">现价: <span id="zonePrice" style="color:#22c55e; font-weight:600;">—</span></span></h2>
+                <h2 class="card-title">关键价位分布（每50U区间） <span style="font-weight:normal; font-size:14px; color:var(--text-secondary);">现价: <span id="zonePrice" style="color:#22c55e; font-weight:600;">—</span></span></h2>
                 <button id="zoneToggleBtn" class="edit-btn" style="font-size:12px;">展开全部</button>
             </div>
             <div class="card-body">
@@ -474,14 +474,14 @@
             },
             referenceLines: [],
             isFibonacci: true,  // Special flag to identify Fibonacci card
-            fibStoragePrefix: 'sol'  // localStorage key prefix for this symbol
+            fibStoragePrefix: 'eth'  // localStorage key prefix for this symbol
         };
         
         // Initialize dashboard when DOM is ready
         document.addEventListener('DOMContentLoaded', async () => {
             const config = {
                 apiBaseUrl: 'http://127.0.0.1:8000',
-                symbol: 'SOLUSDT',
+                symbol: 'ETHUSDT',
                 refreshInterval: 30000, // 30 seconds
                 timeframes: ['1m', '1w', '1d', '4h'],
                 cards: [priceCardConfig, bollCardConfig, rsiCardConfig, macdCardConfig, fibonacciCardConfig]
@@ -553,7 +553,7 @@
                 if (d.boll_dn) pricePoints.push({ price: d.boll_dn, label: `${label} BOLL下`, type: 'BOLL' });
                 
                 // Fibonacci levels - 使用斐波那契标记工具的数据
-                const fibKlineKey = `fib_kline_sol_${tf}`;
+                const fibKlineKey = `fib_kline_eth_${tf}`;
                 const fibKlineData = JSON.parse(localStorage.getItem(fibKlineKey) || 'null');
                 
                 if (fibKlineData && fibKlineData.pointA && fibKlineData.pointB) {
@@ -568,7 +568,7 @@
                 }
                 
                 // K线标记价格（只显示按时间戳存储的有效标记）
-                const pinnedKey = `kline_pins_sol_${tf}`;
+                const pinnedKey = `kline_pins_eth_${tf}`;
                 const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
                 for (const [ts, pin] of Object.entries(pinned)) {
                     if (parseInt(ts) < 1e10) continue;  // 跳过旧的索引标记
@@ -583,12 +583,12 @@
             const zpEl = document.getElementById('zonePrice');
             if (zpEl && currentPrice) zpEl.textContent = '$' + currentPrice.toFixed(2);
             const allPrices = pricePoints.map(p => p.price).concat(currentPrice ? [currentPrice] : []);
-            const minPrice = Math.floor(Math.min(...allPrices) / 2) * 2;
-            const maxPrice = Math.ceil(Math.max(...allPrices) / 2) * 2;
+            const minPrice = Math.floor(Math.min(...allPrices) / 50) * 50;
+            const maxPrice = Math.ceil(Math.max(...allPrices) / 50) * 50;
             
             const zones = [];
-            for (let start = minPrice; start < maxPrice; start += 2) {
-                zones.push({ start, end: start + 2, points: pricePoints.filter(p => p.price >= start && p.price < start + 2) });
+            for (let start = minPrice; start < maxPrice; start += 50) {
+                zones.push({ start, end: start + 50, points: pricePoints.filter(p => p.price >= start && p.price < start + 50) });
             }
             
             let html = '<div style="display:flex; flex-direction:column; gap:2px; font-size:12px; padding:8px;">';
@@ -700,7 +700,7 @@
                 ];
                 let html = '';
                 for (const tfCfg of tfConfigs) {
-                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=SOLUSDT`);
+                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=ETHUSDT`);
                     const result = await resp.json();
                     const tfData = result.data;
                     if (!tfData || tfData.length === 0) continue;
@@ -729,7 +729,7 @@
                         svg += `<rect x="${x - gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="kline-click" data-tf="${tfCfg.key}" data-ts="${tfData[i].ts}" data-high="${h}" data-low="${l}" style="cursor:pointer;"/>`;
                     }
                     // Pinned prices
-                    const pinnedKey = `kline_pins_sol_${tfCfg.key}`;
+                    const pinnedKey = `kline_pins_eth_${tfCfg.key}`;
                     const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
                     for (const [ts, pin] of Object.entries(pinned)) {
                         const i = tfData.findIndex(d => d.ts === parseInt(ts)); if (i < 0) continue;
@@ -749,7 +749,7 @@
                     el.addEventListener('click', (e) => {
                         const tf = e.target.dataset.tf, ts = e.target.dataset.ts;
                         const high = parseFloat(e.target.dataset.high), low = parseFloat(e.target.dataset.low);
-                        const pinnedKey = `kline_pins_sol_${tf}`;
+                        const pinnedKey = `kline_pins_eth_${tf}`;
                         const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
                         if (pinned[ts]) { delete pinned[ts]; localStorage.setItem(pinnedKey, JSON.stringify(pinned)); renderKlineChart(); }
                         else { showKlinePinMenu(e, tf, ts, high, low); }
@@ -764,11 +764,11 @@
             const highBtn = document.createElement('div');
             highBtn.textContent = `📌 最高价: ${high}`; highBtn.style.cssText = 'padding:6px 14px;cursor:pointer;color:#fbbf24;';
             highBtn.onmouseenter = () => highBtn.style.background = '#334155'; highBtn.onmouseleave = () => highBtn.style.background = '';
-            highBtn.onclick = () => { const k = `kline_pins_sol_${tf}`; const p = JSON.parse(localStorage.getItem(k)||'{}'); p[ts]={type:'high',price:high}; localStorage.setItem(k,JSON.stringify(p)); menu.remove(); renderKlineChart(); };
+            highBtn.onclick = () => { const k = `kline_pins_eth_${tf}`; const p = JSON.parse(localStorage.getItem(k)||'{}'); p[ts]={type:'high',price:high}; localStorage.setItem(k,JSON.stringify(p)); menu.remove(); renderKlineChart(); };
             const lowBtn = document.createElement('div');
             lowBtn.textContent = `📌 最低价: ${low}`; lowBtn.style.cssText = 'padding:6px 14px;cursor:pointer;color:#60a5fa;';
             lowBtn.onmouseenter = () => lowBtn.style.background = '#334155'; lowBtn.onmouseleave = () => lowBtn.style.background = '';
-            lowBtn.onclick = () => { const k = `kline_pins_sol_${tf}`; const p = JSON.parse(localStorage.getItem(k)||'{}'); p[ts]={type:'low',price:low}; localStorage.setItem(k,JSON.stringify(p)); menu.remove(); renderKlineChart(); };
+            lowBtn.onclick = () => { const k = `kline_pins_eth_${tf}`; const p = JSON.parse(localStorage.getItem(k)||'{}'); p[ts]={type:'low',price:low}; localStorage.setItem(k,JSON.stringify(p)); menu.remove(); renderKlineChart(); };
             menu.appendChild(highBtn); menu.appendChild(lowBtn); document.body.appendChild(menu);
             const rect = event.target.getBoundingClientRect();
             menu.style.left = (rect.left+rect.width/2)+'px'; menu.style.top = (rect.top-70)+'px';
@@ -786,7 +786,7 @@
                 const tfConfigs = [{key:'1m',label:'月线',limit:100},{key:'1w',label:'周线',limit:100},{key:'1d',label:'日线',limit:100},{key:'4h',label:'4小时',limit:100}];
                 let html = '';
                 for (const tfCfg of tfConfigs) {
-                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=SOLUSDT`);
+                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=ETHUSDT`);
                     const result = await resp.json(); const tfData = result.data;
                     if (!tfData || tfData.length === 0) continue;
                     const opens = tfData.map(d=>d.open), highs = tfData.map(d=>d.high), lows = tfData.map(d=>d.low), closes = tfData.map(d=>d.close);
@@ -807,7 +807,7 @@
                         svg += `<rect x="${x-gap/2}" y="${PT}" width="${gap}" height="${chartH}" fill="transparent" class="fib-kline-click" data-tf="${tfCfg.key}" data-ts="${tfData[i].ts}" data-high="${h}" data-low="${l}" style="cursor:crosshair;"/>`;
                     }
                     // Draw saved fib levels
-                    const fibSaveKey = `fib_kline_sol_${tfCfg.key}`;
+                    const fibSaveKey = `fib_kline_eth_${tfCfg.key}`;
                     const savedFib = JSON.parse(localStorage.getItem(fibSaveKey)||'null');
                     if (savedFib && savedFib.pointA && savedFib.pointB) {
                         const pA=savedFib.pointA.price,pB=savedFib.pointB.price;
@@ -850,7 +850,7 @@
                     el.addEventListener('click', (e) => {
                         const tf=e.target.dataset.tf,ts=parseInt(e.target.dataset.ts);
                         const high=parseFloat(e.target.dataset.high),low=parseFloat(e.target.dataset.low);
-                        const fibSaveKey=`fib_kline_sol_${tf}`;
+                        const fibSaveKey=`fib_kline_eth_${tf}`;
                         const savedFib=JSON.parse(localStorage.getItem(fibSaveKey)||'null');
                         if(savedFib&&savedFib.pointA&&savedFib.pointB){localStorage.removeItem(fibSaveKey);fibKlineState[tf]={};updateFibStatus('已清除标记');renderFibKlineChart();return;}
                         showFibPointMenu(e,tf,ts,high,low);
@@ -878,11 +878,11 @@
             if(!state.pointA){state.pointA={ts,price,type};state.pointB=null;updateFibStatus(`${tf} A点已选: ${price.toFixed(1)}，请点击B点`);renderFibKlineChart();}
             else if(!state.pointB){
                 state.pointB={ts,price,type};
-                const fibSaveKey=`fib_kline_sol_${tf}`;
+                const fibSaveKey=`fib_kline_eth_${tf}`;
                 localStorage.setItem(fibSaveKey,JSON.stringify({pointA:state.pointA,pointB:state.pointB}));
                 const high=Math.max(state.pointA.price,state.pointB.price),low=Math.min(state.pointA.price,state.pointB.price);
                 const direction=state.pointA.price<state.pointB.price?'up':'down';
-                localStorage.setItem(`fib_params_sol_${tf}`,JSON.stringify({high,low,direction}));
+                localStorage.setItem(`fib_params_eth_${tf}`,JSON.stringify({high,low,direction}));
                 updateFibStatus(`${tf} 斐波那契已标记（再次点击可清除）`);
                 fibKlineState[tf]={};renderFibKlineChart();
                 if(window.dashboardController)renderZoneDensity(window.dashboardController);
@@ -891,7 +891,7 @@
         function updateFibStatus(msg){const el=document.getElementById('fibKlineStatus');if(el)el.textContent=msg;}
         document.addEventListener('DOMContentLoaded',()=>{
             const clearBtn=document.getElementById('fibKlineClearBtn');
-            if(clearBtn)clearBtn.addEventListener('click',()=>{['1m','1w','1d','4h'].forEach(tf=>{localStorage.removeItem(`fib_kline_sol_${tf}`);fibKlineState[tf]={};});updateFibStatus('已清除所有标记');renderFibKlineChart();});
+            if(clearBtn)clearBtn.addEventListener('click',()=>{['1m','1w','1d','4h'].forEach(tf=>{localStorage.removeItem(`fib_kline_eth_${tf}`);fibKlineState[tf]={};});updateFibStatus('已清除所有标记');renderFibKlineChart();});
             setTimeout(renderKlineChart,1500);
             setTimeout(renderFibKlineChart,1800);
         });
@@ -905,7 +905,7 @@
             if (!container) return;
             
             try {
-                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=SOLUSDT');
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=ETHUSDT');
                 const data = await resp.json();
                 
                 const timeframes = ['1m', '1w', '1d', '4h'];
@@ -991,7 +991,7 @@
             if (!container) return;
             
             try {
-                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=SOLUSDT');
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=ETHUSDT');
                 const data = await resp.json();
                 
                 const timeframes = ['1m', '1w', '1d', '4h'];
@@ -1116,7 +1116,7 @@
             if (!container) return;
             try {
                 for (const tfCfg of klineMacdTfConfigs) {
-                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=SOLUSDT`);
+                    const resp = await fetch(`http://127.0.0.1:8000/api/klines?timeframe=${tfCfg.key}&limit=${tfCfg.limit}&symbol=ETHUSDT`);
                     const result = await resp.json();
                     let tfData = result.data;
                     if (tfData) tfData = tfData.filter(d => d.dif !== null && d.dea !== null && d.macd !== null);
@@ -1247,7 +1247,7 @@
             if (!container) return;
             
             try {
-                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=SOLUSDT');
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=ETHUSDT');
                 const data = await resp.json();
                 
                 const timeframes = ['1m', '1w', '1d', '4h'];
@@ -1339,7 +1339,7 @@
             if (!container) return;
             
             try {
-                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=SOLUSDT');
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=ETHUSDT');
                 const data = await resp.json();
                 
                 const timeframes = ['1m', '1w', '1d', '4h'];
@@ -1415,7 +1415,7 @@
             if (!container) return;
             
             try {
-                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=SOLUSDT');
+                const resp = await fetch('http://127.0.0.1:8000/api/all?limit=100&symbol=ETHUSDT');
                 const data = await resp.json();
                 
                 const timeframes = ['1m', '1w', '1d', '4h'];
@@ -1484,7 +1484,7 @@
             };
             
             timeframes.forEach(tf => {
-                const key = `fib_params_sol_${tf}`;
+                const key = `fib_params_eth_${tf}`;
                 const stored = localStorage.getItem(key);
                 const params = stored ? JSON.parse(stored) : defaultParams[tf];
                 
@@ -1504,7 +1504,7 @@
                 const direction = document.getElementById(`fib_${tf}_direction`).value;
                 
                 const params = { high, low, direction };
-                const key = `fib_params_sol_${tf}`;
+                const key = `fib_params_eth_${tf}`;
                 localStorage.setItem(key, JSON.stringify(params));
             });
         }
@@ -1627,8 +1627,8 @@
     </style>
     <script>
     (function () {
-        const SYMBOL = 'SOLUSDT';          // 迁移到其他页面只改这一行
-        const SYMBOL_LABEL = 'SOL';
+        const SYMBOL = 'ETHUSDT';          // 迁移到其他页面只改这一行
+        const SYMBOL_LABEL = 'ETH';
         const API = 'http://127.0.0.1:8000';
         const fab = document.getElementById('trFab');
         const mask = document.getElementById('trMask');

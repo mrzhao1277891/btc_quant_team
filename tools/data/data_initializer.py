@@ -27,7 +27,7 @@ class BTCDataInitializerTA:
     """BTC数据初始化器 - 使用TA-Lib"""
     
     # 默认支持的交易对列表
-    DEFAULT_SYMBOLS = ['BTCUSDT', 'SOLUSDT']
+    DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']
     
     def __init__(self, host='localhost', port=3306, user='root', password='', database='btc_assistant'):
         self.config = {

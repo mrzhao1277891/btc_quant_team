@@ -75,7 +75,7 @@ class DataRefresher:
     """
     
     # 默认支持的交易对列表
-    DEFAULT_SYMBOLS = ['BTCUSDT', 'SOLUSDT']
+    DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']
     
     def __init__(
         self,
