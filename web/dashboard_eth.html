@@ -146,7 +146,7 @@
         <!-- Card 6: Price Zone Density -->
         <div class="card" id="zoneDensityCard" style="grid-column: 1 / -1; order: -1;">
             <div class="card-header">
-                <h2 class="card-title">关键价位分布（每50U区间） <span style="font-weight:normal; font-size:14px; color:var(--text-secondary);">现价: <span id="zonePrice" style="color:#22c55e; font-weight:600;">—</span></span></h2>
+                <h2 class="card-title">关键价位分布（按现价1%聚合） <span style="font-weight:normal; font-size:14px; color:var(--text-secondary);">现价: <span id="zonePrice" style="color:#22c55e; font-weight:600;">—</span></span></h2>
                 <button id="zoneToggleBtn" class="edit-btn" style="font-size:12px;">展开全部</button>
             </div>
             <div class="card-body">
@@ -583,12 +583,15 @@
             const zpEl = document.getElementById('zonePrice');
             if (zpEl && currentPrice) zpEl.textContent = '$' + currentPrice.toFixed(2);
             const allPrices = pricePoints.map(p => p.price).concat(currentPrice ? [currentPrice] : []);
-            const minPrice = Math.floor(Math.min(...allPrices) / 50) * 50;
-            const maxPrice = Math.ceil(Math.max(...allPrices) / 50) * 50;
-            
+            // 每格 = 现价的 1%, 以现价为网格锚点
+            const bw = currentPrice > 0 ? currentPrice * 0.01 : 50;
+            const anchor = currentPrice || Math.min(...allPrices);
+            const startK = Math.floor((Math.min(...allPrices) - anchor) / bw);
+            const endK = Math.ceil((Math.max(...allPrices) - anchor) / bw);
             const zones = [];
-            for (let start = minPrice; start < maxPrice; start += 50) {
-                zones.push({ start, end: start + 50, points: pricePoints.filter(p => p.price >= start && p.price < start + 50) });
+            for (let k = startK; k < endK; k++) {
+                const start = anchor + k * bw, end = start + bw;
+                zones.push({ start, end, points: pricePoints.filter(p => p.price >= start && p.price < end) });
             }
             
             let html = '<div style="display:flex; flex-direction:column; gap:2px; font-size:12px; padding:8px;">';
@@ -623,7 +626,9 @@
                 const borderLeft = isCurrentZone ? '3px solid #22c55e' : '3px solid transparent';
                 
                 html += `<div style="display:flex; align-items:center; padding:3px 6px; background:${bgColor}; border-left:${borderLeft}; border-radius:2px;">`;
-                html += `<span style="width:80px; color:#8a8fa8; flex-shrink:0; font-size:12px;">${zone.start.toLocaleString()}-${zone.end.toLocaleString()}</span>`;
+                const midPct = currentPrice ? ((zone.start + zone.end) / 2 / currentPrice - 1) * 100 : 0;
+                const pctStr = currentPrice ? ` <span style="color:#64748b;">(${midPct >= 0 ? '+' : ''}${midPct.toFixed(1)}%)</span>` : '';
+                html += `<span style="width:130px; color:#8a8fa8; flex-shrink:0; font-size:12px;">${Math.round(zone.start).toLocaleString()}-${Math.round(zone.end).toLocaleString()}${pctStr}</span>`;
                 html += '<span style="display:flex; flex-wrap:wrap; gap:3px; align-items:center;">';
                 
                 if (isCurrentZone) {
