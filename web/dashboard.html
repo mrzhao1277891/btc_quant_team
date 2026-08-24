@@ -869,13 +869,14 @@
             
             // 邻近聚类: 相距 <= 现价1% 的关键位聚为一组 (以组内最低价为基准, 每组≤1%带宽)
             const thr = currentPrice > 0 ? currentPrice * 0.01 : (Math.max(...allPrices) * 0.01 || 1000);
+            const cap = thr * 2;  // 单组最大宽度 2% (防止链式膨胀)
             const sortedPts = pricePoints.slice();
             if (currentPrice) sortedPts.push({ price: currentPrice, __cur: true });
             sortedPts.sort((a, b) => a.price - b.price);
             const zones = [];
             for (const p of sortedPts) {
                 const last = zones[zones.length - 1];
-                if (last && p.price - last.start <= thr) {
+                if (last && (p.price - last.end) <= thr && (p.price - last.start) <= cap) {
                     if (p.__cur) last.isCur = true; else last.points.push(p);
                     last.end = p.price;
                 } else {
