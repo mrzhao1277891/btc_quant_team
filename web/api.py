@@ -816,3 +816,32 @@ def save_framework(data: FrameworkUpdate):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+
+# ============================================================
+# 美联储利率决策 API
+# ============================================================
+
+@app.get("/api/fed-rates")
+def list_fed_rates(limit: int = Query(100, ge=1, le=500)):
+    """返回美联储利率决策历史 (从旧到新)."""
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            """SELECT id, decision_date, rate, rate_change, decision_type
+               FROM fed_rate_decisions
+               ORDER BY decision_date ASC
+               LIMIT %s""",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        for r in rows:
+            r["decision_date"] = r["decision_date"].isoformat()
+            if r["rate_change"] is not None:
+                r["rate_change"] = float(r["rate_change"])
+            r["rate"] = float(r["rate"])
+        cur.close()
+        return {"count": len(rows), "data": rows}
+    finally:
+        conn.close()

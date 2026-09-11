@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC 月线 × 美联储利率</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <style>
+        body.light {
+            --bg-primary: #f1f5f9; --bg-card: #ffffff; --bg-card-hover: #f8fafc;
+            --border-primary: #e2e8f0; --border-hover: #cbd5e1;
+            --text-primary: #1e293b; --text-secondary: #64748b; --text-dim: #94a3b8;
+        }
+        .theme-btn { background: var(--bg-card); color: var(--text-primary);
+            border: 1px solid var(--border-primary); border-radius: 6px;
+            padding: 4px 12px; cursor: pointer; font-size: 13px; margin-left: 8px; }
+
+        /* 筛选行 —— 与 dashboard_fng / dashboard_etf 的 .etf-controls 同构 */
+        .fed-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 4px; }
+        .fed-range-btn { background: var(--bg-card); color: var(--text-secondary);
+            border: 1px solid var(--border-primary); border-radius: 6px;
+            padding: 4px 12px; cursor: pointer; font-size: 12px; }
+        .fed-range-btn.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+        .fed-chip { background: var(--bg-card); color: var(--text-secondary);
+            border: 1px solid var(--border-primary); border-radius: 14px;
+            padding: 4px 12px; cursor: pointer; font-size: 12px;
+            user-select:none; display:flex; align-items:center; gap:6px; }
+        .fed-chip.active { color: var(--text-primary); border-color: var(--border-hover); }
+        .fed-chip .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+        .fed-chip .half { width:10px; height:10px; border-radius:2px; display:inline-block; }
+        .fed-sep { width:1px; height:20px; background:var(--border-primary); margin:0 4px; }
+
+        /* KPI 磁贴 */
+        .fed-kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:10px;
+            padding:2px 4px 6px; }
+        .fed-kpi { background: var(--bg-primary); border:1px solid var(--border-primary);
+            border-radius:8px; padding:10px 14px; min-width:0; }
+        .fed-kpi .k { color: var(--text-dim); font-size:11px; margin-bottom:5px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .fed-kpi .v { color: var(--text-primary); font-size:21px; font-weight:600;
+            line-height:1.25; }
+        .fed-kpi .s { color: var(--text-secondary); font-size:11px; margin-top:4px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+        #fedTooltip { position: fixed; background:#1e293b; color:#f1f5f9; padding:8px 12px;
+            border-radius:6px; font-size:12px; line-height:1.6; white-space:nowrap; z-index:9999;
+            pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.4);
+            border:1px solid #334155; display:none; }
+        #fedTooltip .tt-row { display:flex; justify-content:space-between; gap:14px; }
+        #fedTooltip .tt-k { color:#94a3b8; }
+        #fedTooltip .tt-sep { height:1px; background:#334155; margin:6px 0; }
+
+        /* 表格视图 */
+        .fed-table-wrap { display:none; margin-top:14px; max-height:340px; overflow:auto;
+            border:1px solid var(--border-primary); border-radius:8px; }
+        .fed-table-wrap.show { display:block; }
+        .fed-table { width:100%; border-collapse:collapse; font-size:12px;
+            font-variant-numeric: tabular-nums; }
+        .fed-table th { position:sticky; top:0; background:var(--bg-card);
+            color:var(--text-secondary); font-weight:500; text-align:right;
+            padding:7px 10px; border-bottom:1px solid var(--border-primary);
+            white-space:nowrap; }
+        .fed-table th:first-child, .fed-table td:first-child { text-align:left; }
+        .fed-table td { padding:6px 10px; text-align:right;
+            border-bottom:1px solid var(--border-primary); color:var(--text-primary);
+            white-space:nowrap; }
+        .fed-table tr:last-child td { border-bottom:none; }
+        .fed-table td.dim { color: var(--text-secondary); }
+
+        @media (max-width: 768px) {
+            .fed-kpis { grid-template-columns:repeat(2,1fr); }
+        }
+    </style>
+</head>
+<body>
+    <header class="dashboard-header">
+        <div class="header-left">
+            <h1>🏦 BTC 月线 × 美联储利率</h1>
+            <p class="subtitle">Federal Funds Rate × BTC 月线</p>
+        </div>
+        <div class="header-right">
+            <div class="refresh-info">
+                <span class="refresh-text" id="fedMeta">加载中...</span>
+                <button id="manualRefreshBtn" class="refresh-btn" aria-label="手动刷新">⟳</button>
+                <button id="themeToggleBtn" class="theme-btn">🌞 浅色</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <div class="card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">BTC 月线 × 联邦基金利率</h2>
+            </div>
+            <div class="card-body" style="padding: 8px 12px 16px;">
+                <div class="fed-kpis" id="fedKpis"></div>
+
+                <div class="fed-controls" id="fedControls">
+                    <button class="fed-range-btn active" data-range="0">全部</button>
+                    <button class="fed-range-btn" data-range="60">5年</button>
+                    <button class="fed-range-btn" data-range="36">3年</button>
+                    <button class="fed-range-btn" data-range="12">1年</button>
+                    <span class="fed-sep"></span>
+                    <span class="fed-chip active" data-series="price">
+                        <span class="half" style="background:#15803d"></span>BTC 月线</span>
+                    <span class="fed-chip active" data-series="rate">
+                        <span class="dot" style="background:#3b82f6"></span>联邦基金利率</span>
+                    <span class="fed-chip active" data-series="markers">
+                        <span class="dot" style="background:#dc2626"></span>决议标记</span>
+                    <span class="fed-chip active" data-series="halving">
+                        <span class="dot" style="background:#d97706"></span>减半</span>
+                    <span class="fed-sep"></span>
+                    <span class="fed-chip" data-series="table">
+                        <span class="dot" style="background:transparent;border:1px solid var(--text-dim)"></span>表格</span>
+                </div>
+
+                <div id="fedChart"><div class="loading">加载中...</div></div>
+                <div class="fed-table-wrap" id="fedTableWrap"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="dashboard-footer">
+        <p>数据来源: klines 表 (BTC 月线) + fed_rate_decisions 表 (AKShare 美联储利率决策)</p>
+        <p>利率为联邦基金目标利率，阶梯线在两次决议之间保持持平。绿 = 上涨 / 降息，红 = 下跌 / 加息。蜡烛实体空心 = 上涨，实心 = 下跌。</p>
+        <p>减半线为区块高度 210,000 的整数倍事件（2012 / 2016 / 2020 / 2024，UTC 日期）。下一次减半日期为按 10 分钟平均出块时间的外推值，非确定时间。</p>
+    </footer>
+
+    <div id="fedTooltip"></div>
+
+    <script>
+        const API = 'http://127.0.0.1:8000';
+
+        // 配色: 经 dataviz validate_palette.js 校验，
+        // 浅色(#ffffff)与深色(#1a1d28)两种底色下六项检查全部 PASS，
+        // 红绿 CVD 分离度 ΔE 8.6 (deutan)，高于 8 的阈值。
+        const C = {
+            up:      '#15803d',   // 上涨 / 降息
+            down:    '#dc2626',   // 下跌 / 加息
+            rate:    '#3b82f6',   // 联邦基金利率
+            halving: '#d97706',   // BTC 减半
+            hold:    '#94a3b8',   // 维持不变
+        };
+
+        // BTC 减半：区块高度每 210,000 块一次，历史事实，固定不变。
+        // 日期用 UTC —— 第 4 次减半区块 840000 出块于 2024-04-20 00:09 UTC
+        // （美区时区算 4/19，本页 x 轴按 UTC 走，所以取 4/20）。
+        const HALVINGS = [
+            { date: '2012-11-28', block:  210000, reward: '50 → 25' },
+            { date: '2016-07-09', block:  420000, reward: '25 → 12.5' },
+            { date: '2020-05-11', block:  630000, reward: '12.5 → 6.25' },
+            { date: '2024-04-20', block:  840000, reward: '6.25 → 3.125' },
+        ].map(h => Object.assign(h, { ts: Date.parse(h.date + 'T00:00:00Z') }));
+
+        // 下一次减半是预估：按 10 分钟平均出块时间从第 4 次外推，
+        // 实际会随全网算力浮动，对外一律标注「预估」。
+        const NEXT_BLOCK = 1050000;
+        const nextHalving = {
+            block: NEXT_BLOCK,
+            reward: '3.125 → 1.5625',
+            ts: Date.parse('2024-04-20T00:09:00Z')
+                + (NEXT_BLOCK - 840000) * 10 * 60 * 1000,
+        };
+
+        let candles  = [];      // 月线, 升序
+        let fedRates = [];      // 利率决议, 升序
+        let rangeMonths = 0;    // 0 = 全部
+        const show = { price: true, rate: true, markers: true, halving: true, table: false };
+
+        // ---------- 主题 ----------
+        function getTheme() {
+            const light = document.body.classList.contains('light');
+            return {
+                bg:    light ? '#f8fafc' : '#0f1117',
+                grid:  light ? '#e2e8f0' : '#2a2d3a',
+                axis:  light ? '#cbd5e1' : '#3a3d5a',
+                text:  light ? '#1e293b' : '#e4e6f0',
+                muted: light ? '#64748b' : '#8a8fa8',
+                tipBg: light ? '#ffffff' : '#1e293b',
+            };
+        }
+
+        // ---------- 工具 ----------
+        function niceStep(range, ticks) {
+            const raw = range / ticks;
+            const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+            const norm = raw / mag;
+            let step;
+            if (norm <= 1) step = 1;
+            else if (norm <= 2) step = 2;
+            else if (norm <= 2.5) step = 2.5;
+            else if (norm <= 5) step = 5;
+            else step = 10;
+            return step * mag;
+        }
+
+        function ticksFor(lo, hi, count) {
+            const step = niceStep(hi - lo, count);
+            const start = Math.ceil(lo / step) * step;
+            const out = [];
+            for (let v = start; v <= hi + 1e-9; v += step) out.push(v);
+            return out;
+        }
+
+        // Math.round(-0) 会格式化成 "-0"，这里挡掉
+        const fmtPrice = v => {
+            const r = Math.round(v);
+            return '$' + (r === 0 ? 0 : r).toLocaleString('en-US');
+        };
+        const fmtPrice2 = v => '$' + v.toLocaleString('en-US',
+            { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtMonth = ts => {
+            const d = new Date(ts);
+            return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+        };
+        const fmtDate = ts => {
+            const d = new Date(ts);
+            return d.getUTCFullYear() + '-' +
+                String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getUTCDate()).padStart(2, '0');
+        };
+
+        function halvingCountdown() {
+            const days = Math.ceil((nextHalving.ts - Date.now()) / 86400e3);
+            if (days <= 0) return '已减半';
+            return days.toLocaleString('en-US') + ' 天';
+        }
+
+        // 某根月线所属月份内是否发生了减半
+        function halvingInMonth(ts) {
+            const cd = new Date(ts);
+            return HALVINGS.find(h => {
+                const hd = new Date(h.ts);
+                return hd.getUTCFullYear() === cd.getUTCFullYear()
+                    && hd.getUTCMonth() === cd.getUTCMonth();
+            }) || null;
+        }
+
+        // ---------- 数据加载 ----------
+        async function loadData() {
+            const meta = document.getElementById('fedMeta');
+            const box  = document.getElementById('fedChart');
+            try {
+                const [r1, r2] = await Promise.all([
+                    fetch(`${API}/api/fed-rates?limit=500`, { cache: 'no-store' }),
+                    fetch(`${API}/api/klines?timeframe=1m&limit=200&symbol=BTCUSDT`, { cache: 'no-store' }),
+                ]);
+                const fedJson = await r1.json();
+                const kJson   = await r2.json();
+
+                fedRates = (fedJson.data || []).map(r => ({
+                    date:   r.decision_date,
+                    ts:     Date.parse(r.decision_date + 'T00:00:00Z'),
+                    rate:   Number(r.rate),
+                    change: r.rate_change == null ? 0 : Number(r.rate_change),
+                    type:   r.decision_type,
+                }));
+
+                candles = (kJson.data || [])
+                    .map(r => ({
+                        time: fmtMonth(Number(r.ts) || Date.parse(r.time)),
+                        ts:   Number(r.ts) || Date.parse(r.time),
+                        open: Number(r.open), high: Number(r.high),
+                        low:  Number(r.low),  close: Number(r.close),
+                    }))
+                    .sort((a, b) => a.ts - b.ts);
+
+                if (!candles.length) {
+                    box.innerHTML = '<div class="loading">暂无 K 线数据</div>';
+                    return;
+                }
+                const last = candles[candles.length - 1];
+                meta.textContent = `${candles.length} 根月线 · 截至 ${last.time}`;
+                renderKpis();
+                render();
+            } catch (e) {
+                console.error('加载失败:', e);
+                meta.textContent = '加载失败';
+                box.innerHTML = '<div class="loading">加载失败: ' + e.message + '</div>';
+            }
+        }
+
+        // ---------- 派生数据 ----------
+        function visibleCandles() {
+            if (!rangeMonths || rangeMonths <= 0) return candles;
+            return candles.slice(-rangeMonths);
+        }
+
+        // 窗口内的决议；额外带上窗口前最近的一次，保证阶梯线从左边框画满
+        function fedInWindow(t0, t1) {
+            const inWin = fedRates.filter(r => r.ts >= t0 && r.ts <= t1);
+            let seed = null;
+            for (const r of fedRates) { if (r.ts < t0) seed = r; else break; }
+            return seed ? [seed].concat(inWin) : inWin;
+        }
+
+        // 某时刻生效的利率
+        function rateAsOf(ts) {
+            let lo = 0, hi = fedRates.length - 1, ans = null;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                if (fedRates[mid].ts <= ts) { ans = fedRates[mid]; lo = mid + 1; }
+                else hi = mid - 1;
+            }
+            return ans;
+        }
+
+        function decisionsInMonth(ts) {
+            const d = new Date(ts), y = d.getUTCFullYear(), m = d.getUTCMonth();
+            return fedRates.filter(r => {
+                const rd = new Date(r.ts);
+                return rd.getUTCFullYear() === y && rd.getUTCMonth() === m;
+            });
+        }
+
+        // 当前处于加息周期还是降息周期，累计幅度多少
+        function currentCycle() {
+            let i = fedRates.length - 1, dir = null;
+            while (i >= 0 && fedRates[i].type === 'hold') i--;
+            if (i < 0) return null;
+            dir = fedRates[i].type;
+            let total = 0, count = 0, since = null, startRate = null;
+            while (i >= 0) {
+                const r = fedRates[i];
+                if (r.type === 'hold') { i--; continue; }
+                if (r.type !== dir) break;
+                total += r.change;
+                count++;
+                since = r.date;
+                startRate = r.rate - r.change;
+                i--;
+            }
+            return { dir, total, count, since, startRate };
+        }
+
+        // ---------- KPI ----------
+        function renderKpis() {
+            const box = document.getElementById('fedKpis');
+            const lastC = candles[candles.length - 1];
+            const prevC = candles.length > 1 ? candles[candles.length - 2] : null;
+            const chg = prevC ? (lastC.close - prevC.close) / prevC.close * 100 : 0;
+            const chgColor = chg >= 0 ? C.up : C.down;
+            const curRate = fedRates.length ? fedRates[fedRates.length - 1].rate : null;
+
+            let rateSub = '—';
+            if (fedRates.length) {
+                const below = fedRates.filter(r => r.rate < curRate).length;
+                rateSub = `1982 年以来第 ${Math.round(below / fedRates.length * 100)} 分位`;
+            }
+
+            const cyc = currentCycle();
+            let cycVal = '—', cycSub = '无决议数据', cycColor = 'var(--text-primary)';
+            if (cyc) {
+                const isCut = cyc.dir === 'cut';
+                cycVal = (isCut ? '降息中' : '加息中');
+                cycColor = isCut ? C.up : C.down;
+                cycSub = `累计 ${cyc.total > 0 ? '+' : ''}${cyc.total.toFixed(2)}% · ${cyc.count} 次 · 自 ${cyc.since}`;
+            }
+
+            const cycIn = fedRates.filter(r => {
+                const t0 = visibleCandles()[0].ts;
+                return r.ts >= t0 && r.ts <= lastC.ts;
+            });
+            const nHike = cycIn.filter(r => r.type === 'hike').length;
+            const nCut  = cycIn.filter(r => r.type === 'cut').length;
+            const nHold = cycIn.filter(r => r.type === 'hold').length;
+
+            box.innerHTML = `
+                <div class="fed-kpi">
+                    <div class="k">BTC 最新月线收盘</div>
+                    <div class="v">${fmtPrice(lastC.close)}</div>
+                    <div class="s" style="color:${chgColor}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% · ${lastC.time}</div>
+                </div>
+                <div class="fed-kpi">
+                    <div class="k">联邦基金利率</div>
+                    <div class="v" style="color:${C.rate}">${curRate == null ? '—' : curRate.toFixed(2) + '%'}</div>
+                    <div class="s">${rateSub}</div>
+                </div>
+                <div class="fed-kpi">
+                    <div class="k">当前周期</div>
+                    <div class="v" style="color:${cycColor}">${cycVal}</div>
+                    <div class="s" title="${cycSub}">${cycSub}</div>
+                </div>
+                <div class="fed-kpi">
+                    <div class="k">区间内决议</div>
+                    <div class="v">${cycIn.length}</div>
+                    <div class="s">加息 ${nHike} · 降息 ${nCut} · 维持 ${nHold}</div>
+                </div>
+                <div class="fed-kpi">
+                    <div class="k">距下次减半</div>
+                    <div class="v" style="color:${C.halving}">${halvingCountdown()}</div>
+                    <div class="s" title="按 10 分钟平均出块时间外推，实际会随算力浮动">
+                        预估 ${fmtDate(nextHalving.ts)} · 区块 ${nextHalving.block.toLocaleString('en-US')}</div>
+                </div>`;
+        }
+
+        // ---------- 主图 ----------
+        function render() {
+            draw();
+            renderTable();
+        }
+
+        function draw() {
+            const T = getTheme();
+            const box = document.getElementById('fedChart');
+            const data = visibleCandles();
+            if (!data.length) { box.innerHTML = '<div class="loading">暂无数据</div>'; return; }
+
+            // ---- 几何 ----
+            const W = 1000, PL = 68, PR = 24, PT = 18;
+            const priceH = show.price ? 300 : 0;
+            const rateH  = show.rate  ? 128 : 0;
+            const GAP    = (show.price && show.rate) ? 30 : 0;
+            const xLabelH = 42;
+            const H = PT + priceH + GAP + rateH + xLabelH;
+            const plotW = W - PL - PR;
+            const xEnd = PL + plotW;
+
+            const t0 = data[0].ts, t1 = data[data.length - 1].ts;
+            const span = (t1 - t0) || 1;
+            const xAt = t => PL + (t - t0) / span * plotW;
+
+            const priceTop = PT, priceBot = PT + priceH;
+            const rateTop  = priceBot + GAP, rateBot = rateTop + rateH;
+
+            // ---- 价格刻度 ----
+            let pLo = Math.min.apply(null, data.map(d => d.low));
+            let pHi = Math.max.apply(null, data.map(d => d.high));
+            const pPad = (pHi - pLo) * 0.05 || 1;
+            // 价格轴不下探到 0 以下（否则最底部刻度会算成 -0）
+            pLo = Math.max(0, pLo - pPad); pHi += pPad;
+            const yPrice = v => priceBot - (v - pLo) / (pHi - pLo) * priceH;
+
+            // ---- 利率刻度：只按「可见区间」缩放 ----
+            // (旧版按全部 298 条 0.25~11.5% 缩放，而实际只画得出 0.25~5.5%，
+            //  柱子因此只用掉不到一半的面板高度)
+            const fedWin = fedInWindow(t0, t1);
+            const rVals = fedWin.map(r => r.rate);
+            let rLo = rVals.length ? Math.min.apply(null, rVals) : 0;
+            let rHi = rVals.length ? Math.max.apply(null, rVals) : 1;
+            rLo = Math.max(0, rLo - 0.5); rHi = rHi + 0.5;
+            const yRate = v => rateBot - (v - rLo) / (rHi - rLo) * rateH;
+
+            const T_ = T;
+            let svg = `<svg id="fedSvg" width="100%" viewBox="0 0 ${W} ${H}" role="img"
+                aria-label="BTC 月线蜡烛图与联邦基金利率阶梯线，共享时间轴"
+                style="background:${T.bg};border-radius:8px;display:block;">`;
+
+            // ================= 面板 A: BTC 月线 =================
+            if (show.price) {
+                const pTicks = ticksFor(pLo, pHi, 5);
+                for (const v of pTicks) {
+                    const y = yPrice(v);
+                    if (y < priceTop - 1 || y > priceBot + 1) continue;
+                    svg += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${xEnd}" y2="${y.toFixed(1)}"
+                        stroke="${T.grid}" stroke-width="1"/>`;
+                    svg += `<text x="${PL - 8}" y="${(y + 4).toFixed(1)}" fill="${T.muted}"
+                        font-size="11" text-anchor="end"
+                        style="font-variant-numeric:tabular-nums">${fmtPrice(v)}</text>`;
+                }
+
+                // 蜡烛：空心=涨，实心=跌（红绿之外的第二重编码，供色盲用户辨识）
+                const slot = plotW / Math.max(1, data.length - 1);
+                const bodyW = Math.max(2, Math.min(9, slot * 0.62));
+                for (let i = 0; i < data.length; i++) {
+                    const d = data[i];
+                    const x = xAt(d.ts);
+                    const up = d.close >= d.open;
+                    const col = up ? C.up : C.down;
+                    const yH = yPrice(d.high), yL = yPrice(d.low);
+                    const yO = yPrice(d.open), yC = yPrice(d.close);
+                    svg += `<line x1="${x.toFixed(1)}" y1="${yH.toFixed(1)}" x2="${x.toFixed(1)}"
+                        y2="${yL.toFixed(1)}" stroke="${col}" stroke-width="1"/>`;
+                    const bodyTop = Math.min(yO, yC);
+                    const bodyH = Math.max(1.5, Math.abs(yC - yO));
+                    svg += `<rect x="${(x - bodyW / 2).toFixed(1)}" y="${bodyTop.toFixed(1)}"
+                        width="${bodyW.toFixed(1)}" height="${bodyH.toFixed(1)}"
+                        fill="${up ? 'none' : col}" stroke="${col}" stroke-width="1.2"/>`;
+                }
+
+                // 端点直标（选择性直标，不是每根都标）
+                const lastD = data[data.length - 1];
+                const lastY = yPrice(lastD.close);
+                svg += `<circle cx="${xAt(lastD.ts).toFixed(1)}" cy="${lastY.toFixed(1)}" r="3"
+                    fill="${T.text}" stroke="${T.bg}" stroke-width="2"/>`;
+                svg += `<text x="${Math.min(xAt(lastD.ts) + 8, xEnd - 2).toFixed(1)}"
+                    y="${(lastY - 9).toFixed(1)}" fill="${T.text}" font-size="11" font-weight="600"
+                    text-anchor="end">${fmtPrice(lastD.close)}</text>`;
+
+                svg += `<text x="${PL - 8}" y="${priceTop - 4}" fill="${T.muted}" font-size="10"
+                    text-anchor="end">USD</text>`;
+            }
+
+            // ================= 面板 B: 联邦基金利率阶梯线 =================
+            if (show.rate) {
+                const rTicks = ticksFor(rLo, rHi, 4);
+                for (const v of rTicks) {
+                    const y = yRate(v);
+                    if (y < rateTop - 1 || y > rateBot + 1) continue;
+                    svg += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${xEnd}" y2="${y.toFixed(1)}"
+                        stroke="${T.grid}" stroke-width="1"/>`;
+                    svg += `<text x="${PL - 8}" y="${(y + 4).toFixed(1)}" fill="${T.muted}"
+                        font-size="11" text-anchor="end"
+                        style="font-variant-numeric:tabular-nums">${v.toFixed(2)}%</text>`;
+                }
+                svg += `<text x="${PL - 8}" y="${rateTop - 4}" fill="${T.muted}" font-size="10"
+                    text-anchor="end">利率</text>`;
+
+                // 阶梯线：利率在两次决议之间持平
+                if (fedWin.length) {
+                    let d = '', prevY = null;
+                    for (let i = 0; i < fedWin.length; i++) {
+                        const x = Math.max(PL, Math.min(xEnd, xAt(fedWin[i].ts)));
+                        const y = yRate(fedWin[i].rate);
+                        if (i === 0) d += `M ${x.toFixed(1)} ${y.toFixed(1)} `;
+                        else d += `L ${x.toFixed(1)} ${prevY.toFixed(1)} L ${x.toFixed(1)} ${y.toFixed(1)} `;
+                        prevY = y;
+                    }
+                    d += `L ${xEnd} ${prevY.toFixed(1)}`;
+                    svg += `<path d="${d}" fill="none" stroke="${C.rate}" stroke-width="2"
+                        stroke-linejoin="round"/>`;
+
+                    // 决议标记：只在真正变动的点上画（维持不变不画点）
+                    if (show.markers) {
+                        for (const r of fedWin) {
+                            if (r.type === 'hold') continue;
+                            const x = Math.max(PL, Math.min(xEnd, xAt(r.ts)));
+                            const y = yRate(r.rate);
+                            const col = r.type === 'cut' ? C.up : C.down;
+                            svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4"
+                                fill="${col}" stroke="${T.bg}" stroke-width="2"/>`;
+                            // 只直标大幅变动，避免每点都糊一个数字
+                            if (Math.abs(r.change) >= 0.75) {
+                                const lbl = (r.change > 0 ? '+' : '') + r.change.toFixed(2);
+                                const ly = r.type === 'cut' ? y + 17 : y - 10;
+                                if (ly > rateTop && ly < rateBot) {
+                                    svg += `<text x="${x.toFixed(1)}" y="${ly.toFixed(1)}"
+                                        fill="${col}" font-size="10" font-weight="600"
+                                        text-anchor="middle">${lbl}</text>`;
+                                }
+                            }
+                        }
+                    }
+
+                    const lastF = fedWin[fedWin.length - 1];
+                    const ly = yRate(lastF.rate);
+                    svg += `<text x="${xEnd - 2}" y="${(ly - 9).toFixed(1)}" fill="${T.text}"
+                        font-size="11" font-weight="600" text-anchor="end"
+                        style="font-variant-numeric:tabular-nums">${lastF.rate.toFixed(2)}%</text>`;
+                }
+            }
+
+            // ================= BTC 减半标记 =================
+            // rateBot 在本函数里恒等于 axisY（rate 关掉时 rateBot=priceBot），
+            // 所以竖线能正好贯穿两块面板。
+            if (show.halving) {
+                for (const h of HALVINGS) {
+                    if (h.ts < t0 || h.ts > t1) continue;
+                    const x = xAt(h.ts);
+                    const lx = Math.max(PL + 22, Math.min(xEnd - 22, x));
+                    svg += `<line x1="${x.toFixed(1)}" y1="${PT}" x2="${x.toFixed(1)}"
+                        y2="${rateBot}" stroke="${C.halving}" stroke-width="1.2" opacity="0.5"/>`;
+                    svg += `<text x="${lx.toFixed(1)}" y="${PT + 13}" fill="${C.halving}"
+                        font-size="10" font-weight="600" text-anchor="middle">减半</text>`;
+                    svg += `<text x="${lx.toFixed(1)}" y="${PT + 24}" fill="${C.halving}"
+                        font-size="9" text-anchor="middle" opacity="0.85">${h.reward}</text>`;
+                }
+            }
+
+            // ================= 共享时间轴 =================
+            const axisY = rateBot || priceBot;
+            const years = span / (365.25 * 86400e3);
+            let stepM = 12;
+            if (years <= 1.2) stepM = 1;
+            else if (years <= 2.6) stepM = 3;
+            else if (years <= 5.5) stepM = 6;
+
+            const tickStart = new Date(t0);
+            tickStart.setUTCDate(1);
+            tickStart.setUTCHours(0, 0, 0, 0);
+            tickStart.setUTCMonth(Math.ceil(tickStart.getUTCMonth() / stepM) * stepM);
+
+            for (let d = new Date(tickStart); d.getTime() <= t1; d.setUTCMonth(d.getUTCMonth() + stepM)) {
+                const ts = d.getTime();
+                if (ts < t0) continue;
+                const x = xAt(ts);
+                const lbl = stepM === 12
+                    ? String(d.getUTCFullYear())
+                    : d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+                svg += `<line x1="${x.toFixed(1)}" y1="${axisY}" x2="${x.toFixed(1)}"
+                    y2="${axisY + 5}" stroke="${T.axis}" stroke-width="1"/>`;
+                svg += `<text x="${x.toFixed(1)}" y="${axisY + 18}" fill="${T.muted}"
+                    font-size="10" text-anchor="middle">${lbl}</text>`;
+            }
+            svg += `<line x1="${PL}" y1="${axisY}" x2="${xEnd}" y2="${axisY}"
+                stroke="${T.axis}" stroke-width="1"/>`;
+
+            // ================= 交互层（最后画，盖在最上） =================
+            svg += `<line id="fedCrosshair" x1="0" y1="${PT}" x2="0" y2="${axisY}"
+                stroke="${T.muted}" stroke-width="0.8" stroke-dasharray="3,3" style="display:none"/>`;
+            svg += `<rect id="fedHover" x="${PL}" y="${PT}" width="${plotW}"
+                height="${Math.max(1, axisY - PT)}" fill="transparent" style="cursor:crosshair"/>`;
+            svg += '</svg>';
+
+            box.innerHTML = svg;
+            wireHover(data, { W, PL, plotW, xAt, t0, t1 });
+        }
+
+        // ---------- Hover ----------
+        function wireHover(data, geo) {
+            const svg   = document.getElementById('fedSvg');
+            const cross = document.getElementById('fedCrosshair');
+            const hover = document.getElementById('fedHover');
+            const tip   = document.getElementById('fedTooltip');
+            if (!svg || !hover) return;
+
+            const n = data.length;
+            const toSvgX = cx => {
+                const r = svg.getBoundingClientRect();
+                return (cx - r.left) / r.width * geo.W;
+            };
+
+            hover.addEventListener('mousemove', e => {
+                const sx = toSvgX(e.clientX);
+
+                // 找最近的一根月线（按真实 x 距离，不用索引近似）
+                let best = 0, bd = Infinity;
+                for (let i = 0; i < n; i++) {
+                    const dd = Math.abs(geo.xAt(data[i].ts) - sx);
+                    if (dd < bd) { bd = dd; best = i; }
+                }
+                const d = data[best];
+                const cx = geo.xAt(d.ts);
+                cross.setAttribute('x1', cx.toFixed(1));
+                cross.setAttribute('x2', cx.toFixed(1));
+                cross.style.display = '';
+
+                const T = getTheme();
+                const chg = d.open ? (d.close - d.open) / d.open * 100 : 0;
+                const chgCol = chg >= 0 ? C.up : C.down;
+                const row = (k, v, col) =>
+                    `<div class="tt-row"><span class="tt-k">${k}</span>` +
+                    `<span style="color:${col}">${v}</span></div>`;
+
+                let html = `<div style="font-weight:600;margin-bottom:6px">${d.time}</div>`;
+                html += row('开盘', fmtPrice2(d.open), T.text);
+                html += row('最高', fmtPrice2(d.high), T.text);
+                html += row('最低', fmtPrice2(d.low), T.text);
+                html += row('收盘', fmtPrice2(d.close), chgCol);
+                html += row('月涨跌', (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%', chgCol);
+
+                const ra = rateAsOf(d.ts);
+                const decs = decisionsInMonth(d.ts);
+                const hal = halvingInMonth(d.ts);
+                if (hal) html += row('BTC 减半', hal.reward, C.halving);
+                if (ra || decs.length) html += '<div class="tt-sep"></div>';
+                if (ra) html += row('当期利率', ra.rate.toFixed(2) + '%', C.rate);
+                if (decs.length) {
+                    // 用利率水平的变化表述，避免对重复行做 rate_change 求和而翻倍
+                    const before = rateAsOf(decs[0].ts - 86400e3);
+                    const after = decs[decs.length - 1];
+                    const delta = before ? after.rate - before.rate : null;
+                    const col = delta == null ? C.hold : (delta > 0 ? C.down : delta < 0 ? C.up : C.hold);
+                    const move = before
+                        ? `${before.rate.toFixed(2)}% → ${after.rate.toFixed(2)}%`
+                        : `${after.rate.toFixed(2)}%`;
+                    html += row(`本月决议 ${decs.length} 次`, move, col);
+                }
+
+                tip.innerHTML = html;
+                tip.style.display = 'block';
+                tip.style.left = Math.min(e.clientX + 16, window.innerWidth - tip.offsetWidth - 12) + 'px';
+                tip.style.top  = Math.min(e.clientY + 12, window.innerHeight - tip.offsetHeight - 12) + 'px';
+            });
+
+            hover.addEventListener('mouseleave', () => {
+                cross.style.display = 'none';
+                tip.style.display = 'none';
+            });
+        }
+
+        // ---------- 表格视图 ----------
+        function renderTable() {
+            const wrap = document.getElementById('fedTableWrap');
+            const data = visibleCandles();
+            let html = `<table class="fed-table"><thead><tr>
+                <th>月份</th><th>开盘</th><th>最高</th><th>最低</th><th>收盘</th>
+                <th>月涨跌</th><th>当期利率</th><th>该月决议</th>
+            </tr></thead><tbody>`;
+            for (let i = 0; i < data.length; i++) {
+                const d = data[i];
+                const chg = d.open ? (d.close - d.open) / d.open * 100 : 0;
+                const col = chg >= 0 ? C.up : C.down;
+                const ra = rateAsOf(d.ts);
+                const decs = decisionsInMonth(d.ts);
+                const decTxt = decs.length === 0 ? '—'
+                    : decs.map(r => r.type === 'hold' ? '维持'
+                        : (r.type === 'hike' ? '加息 ' : '降息 ') +
+                          (r.change > 0 ? '+' : '') + r.change.toFixed(2))
+                        .join(' / ');
+                const decCol = decs.length === 0 ? 'var(--text-dim)'
+                    : decs.some(r => r.type === 'hike') ? C.down
+                    : decs.some(r => r.type === 'cut') ? C.up : 'var(--text-secondary)';
+                const hal = halvingInMonth(d.ts);
+                html += `<tr>
+                    <td>${d.time}${hal
+                        ? ` <span style="color:${C.halving};font-weight:600">减半</span>` : ''}</td>
+                    <td>${fmtPrice2(d.open)}</td>
+                    <td>${fmtPrice2(d.high)}</td>
+                    <td>${fmtPrice2(d.low)}</td>
+                    <td>${fmtPrice2(d.close)}</td>
+                    <td style="color:${col}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</td>
+                    <td style="color:${C.rate}">${ra ? ra.rate.toFixed(2) + '%' : '—'}</td>
+                    <td style="color:${decCol}">${decTxt}</td>
+                </tr>`;
+            }
+            wrap.innerHTML = html + '</tbody></table>';
+        }
+
+        // ---------- 主题切换 ----------
+        function applyTheme(light) {
+            document.body.classList.toggle('light', light);
+            localStorage.setItem('dashboard_theme', light ? 'light' : 'dark');
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.textContent = light ? '🌙 深色' : '🌞 浅色';
+            if (candles.length) render();
+        }
+
+        // ---------- 事件绑定 ----------
+        document.getElementById('fedControls').addEventListener('click', e => {
+            const rb = e.target.closest('.fed-range-btn');
+            if (rb) {
+                document.querySelectorAll('.fed-range-btn').forEach(b => b.classList.remove('active'));
+                rb.classList.add('active');
+                rangeMonths = parseInt(rb.dataset.range, 10);
+                renderKpis();
+                render();
+                return;
+            }
+            const chip = e.target.closest('.fed-chip');
+            if (chip) {
+                const s = chip.dataset.series;
+                if (s === 'table') {
+                    show.table = !show.table;
+                    chip.classList.toggle('active', show.table);
+                    document.getElementById('fedTableWrap').classList.toggle('show', show.table);
+                    return;
+                }
+                // 不允许把两块面板同时关掉，否则没有 x 轴
+                if ((s === 'price' || s === 'rate') && show[s]) {
+                    const other = s === 'price' ? 'rate' : 'price';
+                    if (!show[other]) return;
+                }
+                show[s] = !show[s];
+                chip.classList.toggle('active', show[s]);
+                render();
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('dashboard_theme') === 'light';
+            if (saved) document.body.classList.add('light');
+            const tbtn = document.getElementById('themeToggleBtn');
+            tbtn.textContent = saved ? '🌙 深色' : '🌞 浅色';
+            tbtn.addEventListener('click', () =>
+                applyTheme(!document.body.classList.contains('light')));
+            document.getElementById('manualRefreshBtn').addEventListener('click', loadData);
+            loadData();
+            // 月线 + 决议都是低频数据，5 分钟足够
+            setInterval(loadData, 300000);
+        });
+    </script>
+</body>
+</html>
