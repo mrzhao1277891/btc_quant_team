@@ -801,6 +801,15 @@
             const pricePoints = [];
             const timeframes = ['1m', '1w', '1d'];  // 暂不含 4h
             const tfLabels = { '1m': '月', '1w': '周', '1d': '日', '4h': '4H' };
+            // 斐波那契标记工具里你拉的**波段端点**，按周期收集后随快照上报。
+            // 比五个散落的档位信息量大得多 —— 档位只能反推出波段，端点直接说明。
+            const fibWaves = {};
+            // K线图上手工点的 📌 标记（含时间戳），同样随快照上报。
+            // ⚠ 必须单独收集：上报给聚类用的 pricePoints 里，PIN 只有「价格 + 高/低」
+            // 两个字段，**挂在哪根 K 线上的 ts 丢了** —— 而「你是在哪根 K 线上标的」
+            // 恰恰是这个数据最有价值的部分（三个月前标的高点 vs 刚标的高点，
+            // 含义完全不同）。
+            const manualPins = {};
             
             // Colors for different indicator types
             const typeColors = {
@@ -833,7 +842,17 @@
                     const fibHigh = Math.max(fibKlineData.pointA.price, fibKlineData.pointB.price);
                     const fibLow = Math.min(fibKlineData.pointA.price, fibKlineData.pointB.price);
                     const fibDir = fibKlineData.pointA.price < fibKlineData.pointB.price ? 'up' : 'down';
-                    
+
+                    // 记录波段端点，供分析师判断「你标的是哪一段」
+                    fibWaves[tf] = {
+                        label: label,
+                        pointA: { price: fibKlineData.pointA.price, ts: fibKlineData.pointA.ts ?? null },
+                        pointB: { price: fibKlineData.pointB.price, ts: fibKlineData.pointB.ts ?? null },
+                        high: fibHigh,
+                        low: fibLow,
+                        direction: fibDir
+                    };
+
                     const fibLevels = [0.236, 0.382, 0.5, 0.618, 0.786];
                     for (const level of fibLevels) {
                         let price;
@@ -856,6 +875,22 @@
                 }
             }
             
+            // 手工标记单独再扫一遍，这次带上时间戳。
+            // 刻意**包含 4h** —— 上面聚类用的 pricePoints 不含 4h（短周期噪音会污染
+            // 价位分布），但人工标记不一样：4h 上的标记正是用来定入场时机的。
+            for (const tf of ['1m', '1w', '1d', '4h']) {
+                const pinned = JSON.parse(localStorage.getItem(`kline_pins_btc_${tf}`) || '{}');
+                for (const [ts, pin] of Object.entries(pinned)) {
+                    if (parseInt(ts) < 1e10) continue;  // 跳过旧的索引标记
+                    if (typeof pin.price !== 'number') continue;
+                    (manualPins[tf] = manualPins[tf] || []).push({
+                        ts: parseInt(ts),
+                        price: pin.price,          // 标记当时那根 K 线的最高/最低
+                        type: pin.type             // high | low
+                    });
+                }
+            }
+
             if (pricePoints.length === 0) {
                 container.innerHTML = '<div class="loading">暂无数据</div>';
                 return;
@@ -884,6 +919,41 @@
                 }
             }
             
+            // ── 上报给后端存档（供分析师系统读取）─────────────────────
+            // 为什么必须由本页上报：这个面板依赖 localStorage 里的手工斐波那契
+            // 标记和 K 线标记，而 localStorage 是跨源隔离的 —— 分析师页面跑在
+            // 另一个端口，后端脚本更读不到。只有能读到的那一方算完主动上报。
+            //
+            // 失败静默：上报是附加功能，绝不能让面板渲染受影响。
+            // 另外注意此处不能用脚本块一里的 API 常量 —— 两个 <script> 作用域独立。
+            (function reportZoneSnapshot() {
+                try {
+                    const cleanZones = zones.map(z => ({
+                        start: z.start,
+                        end: z.end,
+                        isCurrent: !!z.isCur,
+                        points: (z.points || []).map(p => ({
+                            price: p.price, label: p.label, type: p.type
+                        }))
+                    }));
+                    const pts = pricePoints.map(p => ({
+                        price: p.price, label: p.label, type: p.type
+                    }));
+                    fetch('http://127.0.0.1:8000/api/zone-snapshot', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            symbol: 'BTCUSDT',
+                            price: currentPrice,
+                            zones: cleanZones,
+                            points: pts,
+                            fib_waves: fibWaves,
+                            manual_pins: manualPins
+                        })
+                    }).catch(() => {});   // 后端没开也不影响页面
+                } catch (e) { /* 上报失败一律忽略 */ }
+            })();
+
             // Render
             let html = '<div style="display:flex; flex-direction:column; gap:2px; font-size:12px; padding:8px;">';
             

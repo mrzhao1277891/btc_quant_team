@@ -903,6 +903,285 @@ def news_refresh_status():
     }
 
 
+# ============================================================
+# 关键价位分布快照 API
+# ============================================================
+# 由 dashboard.html 的「关键价位分布（按现价1%聚合）」面板上报。
+#
+# 为什么要绕这么一圈：那个面板的数据依赖浏览器 localStorage 里的
+# 手工斐波那契标记和 K 线标记，而 localStorage 是**跨源隔离**的 ——
+# 分析师页面跑在另一个端口，读不到同一份数据，后端脚本更读不到。
+# 所以只能由能读到的那一方（dashboard）算完主动上报。
+
+import hashlib
+
+DDL_ZONE_SNAPSHOTS = """
+CREATE TABLE IF NOT EXISTS zone_snapshots (
+  id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  symbol       VARCHAR(20)   NOT NULL,
+  captured_at  DATETIME      NOT NULL COMMENT '页面计算时刻(东八区)',
+  -- last_seen_at 是「dashboard 最后一次上报这份（相同的）数据」的时间，
+  -- 是一个存活信号，用来区分「数据一直没变」和「页面一直没打开」。
+  -- 它会随每次上报推进，而 captured_at / price 只在真正入库时更新。
+  last_seen_at DATETIME      NOT NULL COMMENT '最后一次看到这份数据(东八区)，存活信号',
+  -- ⚠ price 是「capture 那一刻的现价」，不是「当前价」。
+  -- 它是 zones 的计算基准（聚类阈值 = 这个价 × 1%），必须和 zones 同时点才有意义。
+  -- 节流时只推进 last_seen_at、不动 price —— 否则 zones 和 price 会不同源。
+  -- 所以看到 price 比 last_seen_at 旧是正常的，不是数据坏了。
+  price        DECIMAL(20,8) NOT NULL COMMENT 'capture 时刻的现价(zones 的计算基准)',
+  zone_count   INT           NOT NULL DEFAULT 0,
+  point_count  INT           NOT NULL DEFAULT 0,
+  fingerprint  CHAR(32)      NOT NULL COMMENT '内容指纹，用于去重',
+  has_manual   BOOLEAN       NOT NULL DEFAULT FALSE COMMENT '是否含手工标注(FIB/PIN)',
+  zones_json   JSON          NOT NULL COMMENT '面板完整结构',
+  -- 必须是 DATETIME 且由程序显式写入，时区与 captured_at 一致（东八区）。
+  -- 原来用 TIMESTAMP DEFAULT CURRENT_TIMESTAMP 时，值由 MySQL 按服务器时区填，
+  -- 而 captured_at 是程序写的另一个基准，同一行里差 8 小时 ——
+  -- 看着像数据对不上，实际是字段不同源。
+  created_at   DATETIME      NOT NULL COMMENT '写入时间(东八区)',
+  KEY idx_symbol_seen (symbol, last_seen_at),
+  KEY idx_fingerprint (fingerprint, captured_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='关键价位分布快照(由 dashboard 页面产生)'
+"""
+
+# 表已存在时把 created_at 迁到 DATETIME（幂等）。只做一次，失败无所谓。
+MIGRATE_CREATED_AT = """
+ALTER TABLE zone_snapshots
+  MODIFY created_at DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00'
+  COMMENT '写入时间(东八区)'
+"""
+
+_zone_table_ready = False
+
+
+def _ensure_zone_table():
+    global _zone_table_ready
+    if _zone_table_ready:
+        return
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(DDL_ZONE_SNAPSHOTS)
+        # 老表可能是 TIMESTAMP 版的 created_at，迁移到 DATETIME
+        try:
+            cur.execute("""SELECT DATA_TYPE FROM information_schema.COLUMNS
+                           WHERE TABLE_SCHEMA=DATABASE()
+                             AND TABLE_NAME='zone_snapshots'
+                             AND COLUMN_NAME='created_at'""")
+            row = cur.fetchone()
+            if row and row[0].lower() != "datetime":
+                cur.execute(MIGRATE_CREATED_AT)
+                logging.info("zone_snapshots.created_at 已迁移到 DATETIME(UTC)")
+        except Exception as e:
+            logging.warning("created_at 迁移跳过: %s", e)
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+    _zone_table_ready = True
+
+
+class ZoneSnapshot(BaseModel):
+    symbol: str = "BTCUSDT"
+    price: float
+    zones: List[dict] = []
+    points: List[dict] = []
+    # 斐波那契标记工具里，每个周期**你拉的那两个端点**。
+    # 比五个散落的档位信息量大得多 —— 直接说明「你的波段是从哪到哪」，
+    # 而档位只能靠反推。形如：
+    #   {"1w": {"pointA": {...}, "pointB": {...}, "high": 126200, "low": 57800, "direction": "up"}}
+    # ⚠ 必须在这里声明。Pydantic 默认丢弃未声明字段，而入库走的是 model_dump()，
+    #   不声明的话这个字段会**静默消失**。
+    #
+    # ⚠⚠ 默认值必须是 None 而不是 {} —— 这两者在语义上完全不同：
+    #   None = 客户端**没上报**这个字段（页面是旧版本 / 缓存副本），= 未知
+    #   {}   = 客户端上报了，你确实没画斐波那契
+    # 用 {} 当默认值会把「未知」伪装成「没有」：一个跑着旧代码的标签页
+    # 每 30 秒上报一次，就能把你真实画好的波段静默盖成空的，且页面上看不出异常。
+    # 配合下面的 dump()，未知的键根本不入库，读取侧才有机会回溯到上一份有效值。
+    fib_waves: Optional[dict] = None
+
+    # K线价格走势 panel 上手工点的 📌 标记，**带时间戳** —— 这是和 points 里
+    # type=PIN 的关键区别：那边只有「价格 + 高/低」，挂在哪根 K 线上丢了。
+    #   {"1w": [{"ts": 1754870400000, "price": 82380, "type": "high"}, ...]}
+    # 同样用 None 当默认值，理由见上：没上报 ≠ 没标。
+    manual_pins: Optional[dict] = None
+
+    def dump(self) -> dict:
+        """算指纹和入库统一走这里。
+
+        exclude_none 让「没上报」在库里表现为**键不存在**，而不是 {}。
+        其余字段都有非 None 默认值，不受影响。
+        """
+        return self.model_dump(exclude_none=True)
+
+
+# 快照最小间隔（小时）。页面约 30 秒重渲染一次，不节流会写爆表。
+# 6 小时 ≈ 一个日线级别的粒度，也大致对齐 4h K 线的更新节奏。
+#
+# NOTE: 若希望「手工标记一改就立即入库」，在这里加一个例外：
+#   把 has_manual 也纳入判断 —— 上一行 has_manual=0 而本次 has_manual=1
+#   （或手工点位集合变了）时跳过节流直接插入。
+#   代价是增长上限不再确定（取决于你多久改一次标记）。
+#   当前实现**没有**这个例外，即手工改动最多滞后 MIN_INTERVAL_HOURS 生效。
+MIN_INTERVAL_HOURS = 6
+
+# 库里统一用东八区。
+#
+# 这不是随手选的 —— btc_assistant 现有表的约定就是本地时间：
+#   · klines.create_time        Python datetime.now() naive，本地
+#   · btc_fng / btc_etf_flow /
+#     fed_rate_decisions 的 created_at   MySQL CURRENT_TIMESTAMP，session tz=SYSTEM=本地
+# 实测 12:00 UTC 的 K 线对应 create_time=20:00，固定 +8。
+#
+# 所以这里显式写 +8 而不是跟机器时区走：意图写在代码里，
+# 换台机器部署也不会突然变成另一个基准。
+TZ_CN = timezone(timedelta(hours=8))
+
+# 价格量化粒度（美元）。指纹仍会计算并记录（供事后分析「节流期间内容变过几次」），
+# 但**不再作为插入与否的判断依据** —— 见 save_zone_snapshot 的说明。
+PRICE_QUANTUM = 500
+
+
+def _manual_sig(payload: dict) -> tuple:
+    """手工标注（斐波那契 / K线标记）的指纹。
+
+    只取 type 为 FIB/PIN 的点，排序后作为签名。用来判断「用户改过标记没有」——
+    指标点位（EMA/BOLL）随 K 线走，不在这个签名的范围内。
+    """
+    pts = payload.get("points") or []
+    return tuple(sorted(
+        (round(p.get("price", 0), 2), p.get("label", ""))
+        for p in pts if p.get("type") in ("FIB", "PIN")
+    )) + (("__waves__", json.dumps(payload.get("fib_waves") or {}, sort_keys=True)),)
+
+
+def _fingerprint(payload: dict) -> str:
+    """按**输入点位**算指纹，不是按聚类结果。
+
+    ⚠ 这里踩过坑：最初是按聚类后的 zones 算的，结果每 30 秒写一行 ——
+    因为 thr = 现价×1% 会随价格微动，簇边界跟着漂，zone_count 从 22 变 23，
+    指纹就变了。而 35 个点位自始至终没变过（只在 K 线收盘或用户改标记时才变）。
+
+    所以指纹要算在「真正会变的东西」上：点位集合 + 量化后的价格。
+    """
+    norm = {
+        "price": round(payload["price"] / PRICE_QUANTUM),
+        "points": sorted(
+            (round(p.get("price", 0), 2), p.get("label", ""), p.get("type", ""))
+            for p in (payload.get("points") or [])
+        ),
+    }
+    raw = json.dumps(norm, sort_keys=True, ensure_ascii=False)
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+@app.post("/api/zone-snapshot")
+def save_zone_snapshot(payload: ZoneSnapshot):
+    """接收 dashboard 上报的关键价位分布。
+
+    **按时间节流**：距上一条快照不足 MIN_INTERVAL_HOURS 就只更新 last_seen_at，
+    不插新行。页面约 30 秒重渲染一次，不节流的话一天 2880 行。
+
+    节流而不是按内容去重，是为了行为可预测 —— 之前用「内容指纹」判重，
+    结果因为聚类阈值 `现价×1%` 随价格微动，簇边界漂移导致指纹每次都变，
+    每 30 秒照样写一行。时间节流的增长上限是确定的：一天最多 4 行。
+
+    ⚠ 代价：节流窗口内**手工标记的变化不会立即入库**。你新画一条斐波那契，
+    要等窗口过去才会写进去，而分析师读的是「最新一行」—— 所以最多滞后
+    MIN_INTERVAL_HOURS 小时才生效。要改成立即生效见下面的 NOTE。
+    """
+    _ensure_zone_table()
+
+    now_dt = datetime.now(TZ_CN)
+    now = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    fp = _fingerprint(payload.dump())                # 仍记录，供事后分析
+    has_manual = any(p.get("type") in ("FIB", "PIN") for p in payload.points)
+
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        # ⚠ 排序必须带 id 兜底：captured_at 只精确到秒，同一秒内插入的多行
+        # 在 ORDER BY captured_at 下顺序未定义，取到的可能不是最新那行 ——
+        # 会导致「上一条」判断错位（实测把节流判成了插入）。
+        cur.execute("""SELECT id, captured_at, zones_json FROM zone_snapshots
+                       WHERE symbol=%s ORDER BY captured_at DESC, id DESC LIMIT 1""",
+                    (payload.symbol,))
+        last = cur.fetchone()
+
+        if last:
+            # 库里存的是东八区 naive，读回来显式补上 +8，别指望 MySQL 会话时区
+            last_dt = last["captured_at"].replace(tzinfo=TZ_CN)
+            age_h = (now_dt - last_dt).total_seconds() / 3600
+
+            if age_h < MIN_INTERVAL_HOURS:
+                # 例外：**手工标注变了就立即入库**，不受节流限制。
+                #
+                # 节流是为了控增长（页面 30 秒重渲染一次），但手工标注是这套
+                # 系统里最有价值的输入，和「页面又渲染了一遍」不是一个性质的东西。
+                # 不破例的话：你早上调完关键位，分析里最多 6 小时还是旧的 ——
+                # 恰好撞在「刚做完判断、最想看反馈」的时刻。
+                #
+                # 代价可控：上限 = 4 条/天 + 你重画标记的次数（实际一周几次）。
+                try:
+                    prev_manual = _manual_sig(json.loads(last["zones_json"]))
+                except Exception:
+                    prev_manual = None
+                curr_manual = _manual_sig(payload.dump())
+
+                if prev_manual == curr_manual:
+                    cur.execute("UPDATE zone_snapshots SET last_seen_at=%s WHERE id=%s",
+                                (now, last["id"]))
+                    conn.commit()
+                    cur.close()
+                    return {"status": "throttled", "id": last["id"],
+                            "age_hours": round(age_h, 2),
+                            "next_allowed_in_hours": round(MIN_INTERVAL_HOURS - age_h, 2)}
+                logging.info("手工标注变化，跳过节流立即入库")
+
+        # created_at 也显式写 —— 别再依赖 CURRENT_TIMESTAMP，那会取 MySQL 会话时区，
+        # 和程序写的 captured_at 不同源（本机曾经因此差 8 小时）。
+        cur.execute("""INSERT INTO zone_snapshots
+            (symbol, captured_at, last_seen_at, price, zone_count, point_count,
+             fingerprint, has_manual, zones_json, created_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (payload.symbol, now, now, payload.price, len(payload.zones),
+             len(payload.points), fp, has_manual,
+             json.dumps(payload.dump(), ensure_ascii=False), now))
+        conn.commit()
+        new_id = cur.lastrowid
+        cur.close()
+        logging.info("zone snapshot 新增 id=%s zones=%d points=%d manual=%s",
+                     new_id, len(payload.zones), len(payload.points), has_manual)
+        return {"status": "created", "id": new_id, "fingerprint": fp}
+    finally:
+        conn.close()
+
+
+@app.get("/api/zone-snapshot/latest")
+def latest_zone_snapshot(symbol: str = "BTCUSDT"):
+    """给分析师侧用的最新一份（也便于人工核对上报是否正常）。"""
+    _ensure_zone_table()
+    conn = get_db()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("""SELECT * FROM zone_snapshots WHERE symbol=%s
+                       ORDER BY captured_at DESC LIMIT 1""", (symbol,))
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return {"count": 0, "data": None}
+        row["captured_at"] = row["captured_at"].isoformat()
+        row["last_seen_at"] = row["last_seen_at"].isoformat()
+        row["price"] = float(row["price"])
+        row["zones"] = json.loads(row["zones_json"])
+        row.pop("zones_json", None)
+        return {"count": 1, "data": row}
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
