@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日加密要闻</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <style>
+        body.light {
+            --bg-primary: #f1f5f9; --bg-card: #ffffff; --bg-card-hover: #f8fafc;
+            --border-primary: #e2e8f0; --border-hover: #cbd5e1;
+            --text-primary: #1e293b; --text-secondary: #64748b; --text-dim: #94a3b8;
+        }
+        .theme-btn { background: var(--bg-card); color: var(--text-primary);
+            border: 1px solid var(--border-primary); border-radius: 6px;
+            padding: 4px 12px; cursor: pointer; font-size: 13px; margin-left: 8px; }
+
+        /* 筛选行 —— 与 dashboard_fed / fng / etf 同构 */
+        .news-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 4px; }
+        .news-range-btn { background: var(--bg-card); color: var(--text-secondary);
+            border: 1px solid var(--border-primary); border-radius: 6px;
+            padding: 4px 12px; cursor: pointer; font-size: 12px; }
+        .news-range-btn.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+        .news-chip { background: var(--bg-card); color: var(--text-secondary);
+            border: 1px solid var(--border-primary); border-radius: 14px;
+            padding: 4px 12px; cursor: pointer; font-size: 12px;
+            user-select:none; display:flex; align-items:center; gap:6px; }
+        .news-chip.active { color: var(--text-primary); border-color: var(--border-hover); }
+        .news-chip .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+        .news-sep { width:1px; height:20px; background:var(--border-primary); margin:0 4px; }
+
+        /* KPI 磁贴 */
+        .news-kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:2px 4px 6px; }
+        .news-kpi { background: var(--bg-primary); border:1px solid var(--border-primary);
+            border-radius:8px; padding:10px 14px; min-width:0; }
+        .news-kpi .k { color: var(--text-dim); font-size:11px; margin-bottom:5px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .news-kpi .v { color: var(--text-primary); font-size:21px; font-weight:600; line-height:1.25; }
+        .news-kpi .s { color: var(--text-secondary); font-size:11px; margin-top:4px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+        /* 新闻卡片 */
+        .news-list { display:flex; flex-direction:column; gap:10px; padding:4px; }
+        .news-item { display:block; text-decoration:none; background: var(--bg-primary);
+            border:1px solid var(--border-primary); border-left:3px solid var(--border-primary);
+            border-radius:8px; padding:14px 16px; transition: border-color .15s, background .15s; }
+        .news-item:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
+        .news-item.is-btc { border-left-color: #d97706; }
+        .news-head { display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }
+        .news-rank { flex:0 0 auto; font-size:12px; font-weight:700; color:#3b82f6;
+            background:rgba(59,130,246,.12); border-radius:4px; padding:1px 7px; }
+        .news-title { color: var(--text-primary); font-size:16px; font-weight:600; line-height:1.45; }
+        .news-en { color: var(--text-dim); font-size:12px; line-height:1.5; margin:2px 0 6px; }
+        .news-sum { color: var(--text-secondary); font-size:13px; line-height:1.6; }
+        .news-why { display:inline-block; margin-top:8px; font-size:12px;
+            color:#d97706; background:rgba(217,119,6,.12);
+            border-radius:4px; padding:2px 8px; }
+        .news-foot { display:flex; flex-wrap:wrap; gap:12px; align-items:center;
+            margin-top:10px; font-size:11.5px; color: var(--text-dim); }
+        .news-src { color: var(--text-secondary); font-weight:500; }
+        .news-also { color:#15803d; }
+        .news-score { margin-left:auto; opacity:.75; }
+
+        /* 表格视图 */
+        .news-table-wrap { display:none; margin-top:14px; max-height:460px; overflow:auto;
+            border:1px solid var(--border-primary); border-radius:8px; }
+        .news-table-wrap.show { display:block; }
+        .news-table { width:100%; border-collapse:collapse; font-size:12px;
+            font-variant-numeric: tabular-nums; }
+        .news-table th { position:sticky; top:0; background:var(--bg-card);
+            color:var(--text-secondary); font-weight:500; text-align:left;
+            padding:7px 10px; border-bottom:1px solid var(--border-primary); white-space:nowrap; }
+        .news-table td { padding:6px 10px; border-bottom:1px solid var(--border-primary);
+            color:var(--text-primary); vertical-align:top; }
+        .news-table tr:last-child td { border-bottom:none; }
+        .news-table td.dim { color: var(--text-secondary); white-space:nowrap; }
+        .news-table a { color: var(--text-primary); text-decoration:none; }
+        .news-table a:hover { text-decoration:underline; }
+
+        /* 抓取中：保留上一版内容只降透明度，不做骨架屏闪烁、不跳布局 */
+        .news-list.refreshing { opacity:.45; pointer-events:none; transition:opacity .2s; }
+        .news-busy { color:#3b82f6; }
+        .news-fail { color:#dc2626; }
+
+        @media (max-width: 900px) { .news-kpis { grid-template-columns:repeat(3,1fr); } }
+        @media (max-width: 600px) { .news-kpis { grid-template-columns:repeat(2,1fr); } }
+    </style>
+</head>
+<body>
+    <header class="dashboard-header">
+        <div class="header-left">
+            <h1>📰 每日加密要闻</h1>
+            <p class="subtitle">9 个英文源 RSS → 去重聚类 → LLM 排序与中文翻译</p>
+        </div>
+        <div class="header-right">
+            <div class="refresh-info">
+                <span class="refresh-text" id="newsMeta">加载中...</span>
+                <button id="manualRefreshBtn" class="refresh-btn" aria-label="手动刷新">⟳</button>
+                <button id="themeToggleBtn" class="theme-btn">🌞 浅色</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <div class="card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <h2 class="card-title">今日最重要的加密事件</h2>
+            </div>
+            <div class="card-body" style="padding: 8px 12px 16px;">
+                <div class="news-kpis" id="newsKpis"></div>
+
+                <div class="news-controls" id="newsControls">
+                    <button class="news-range-btn active" data-n="5">5 条</button>
+                    <button class="news-range-btn" data-n="10">10 条</button>
+                    <button class="news-range-btn" data-n="20">20 条</button>
+                    <span class="news-sep"></span>
+                    <span class="news-chip" data-filter="btc">
+                        <span class="dot" style="background:#d97706"></span>只看 BTC</span>
+                    <span class="news-sep"></span>
+                    <span class="news-chip" data-filter="table">
+                        <span class="dot" style="background:transparent;border:1px solid var(--text-dim)"></span>全部原始条目</span>
+                </div>
+
+                <div class="news-list" id="newsList">
+                    <div class="loading">加载中...</div>
+                </div>
+                <div class="news-table-wrap" id="newsTableWrap"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="dashboard-footer">
+        <p>数据来源: 9 个英文 RSS 源 (Cointelegraph / The Block / Decrypt / The Defiant / CryptoPotato / BeInCrypto / AMBCrypto / CoinGape / U.Today)</p>
+        <p>排序依据: 跨源报道数 × 来源权重 × 关键词权重 × 时间衰减，再由 LLM 从预筛结果中挑出最重要的若干条并翻译。同一事件的多家报道会合并为一条。</p>
+        <p>更新时间取决于 <code>scripts/news_fetch.py</code> 的运行频率；页面上显示的是 JSON 的生成时间。</p>
+    </footer>
+
+    <script>
+        const API = 'http://127.0.0.1:8000';
+        const DATA_URL = 'data/news.json';   // 由 scripts/news_fetch.py 生成
+
+        let payload = null;
+        let showN = 5;
+        let btcOnly = false;
+
+        const BTC_RE = /\b(btc|bitcoin|比特币|satoshi|ordinals|lightning network)\b/i;
+
+        // 相对时间
+        function ago(iso) {
+            if (!iso) return '—';
+            const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+            if (mins < 0) return '刚刚';
+            if (mins < 60) return mins + ' 分钟前';
+            const h = Math.floor(mins / 60);
+            if (h < 24) return h + ' 小时前';
+            return Math.floor(h / 24) + ' 天前';
+        }
+        const hhmm = iso => {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            const p = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+                   `${p(d.getHours())}:${p(d.getMinutes())}`;
+        };
+
+        function isBtc(t) {
+            return BTC_RE.test(t.title_zh || '') || BTC_RE.test(t.title_en || '') ||
+                   BTC_RE.test(t.summary_zh || '');
+        }
+
+        // ---------- 加载 ----------
+        async function loadData() {
+            const meta = document.getElementById('newsMeta');
+            const list = document.getElementById('newsList');
+            try {
+                // 加时间戳绕开缓存；JSON 由脚本定期重写
+                const r = await fetch(`${DATA_URL}?t=${Date.now()}`, { cache: 'no-store' });
+                if (!r.ok) throw new Error(`HTTP ${r.status} —— 先跑 scripts/news_fetch.py`);
+                payload = await r.json();
+                if (!payload.top || !payload.top.length) {
+                    list.innerHTML = '<div class="loading">JSON 里没有内容</div>';
+                    return;
+                }
+                meta.textContent = `${payload.fetched} 条 → ${payload.clusters} 个事件 · ` +
+                                   `${hhmm(payload.generated_at)}`;
+                renderKpis();
+                render();
+            } catch (e) {
+                console.error(e);
+                meta.textContent = '加载失败';
+                list.innerHTML = '<div class="loading">加载失败: ' + e.message + '</div>';
+            }
+        }
+
+        // ---------- KPI ----------
+        function renderKpis() {
+            const box = document.getElementById('newsKpis');
+            const d = payload;
+            const srcN = (d.sources || []).filter(s => s.count > 0).length;
+            const merged = (d.top || []).filter(t => (t.also_covered_by || []).length).length;
+            const isLlm = d.engine === 'llm';
+            box.innerHTML = `
+                <div class="news-kpi">
+                    <div class="k">抓取条目</div>
+                    <div class="v">${d.fetched}</div>
+                    <div class="s">窗口 ${d.window_hours} 小时</div>
+                </div>
+                <div class="news-kpi">
+                    <div class="k">独立事件</div>
+                    <div class="v">${d.clusters}</div>
+                    <div class="s">去重后</div>
+                </div>
+                <div class="news-kpi">
+                    <div class="k">来源</div>
+                    <div class="v">${srcN}</div>
+                    <div class="s">Top 5 中 ${merged} 条是多源报道</div>
+                </div>
+                <div class="news-kpi">
+                    <div class="k">排序引擎</div>
+                    <div class="v" style="color:${isLlm ? '#15803d' : '#d97706'};font-size:17px">
+                        ${isLlm ? 'LLM 排序' : '规则回退'}</div>
+                    <div class="s" title="${d.note || ''}">${d.note ? d.note.slice(0, 34) : '正常'}</div>
+                </div>
+                <div class="news-kpi">
+                    <div class="k">生成时间</div>
+                    <div class="v" style="font-size:17px">${ago(d.generated_at)}</div>
+                    <div class="s">${hhmm(d.generated_at)}</div>
+                </div>`;
+        }
+
+        // ---------- 列表 ----------
+        function current() {
+            let rows = (payload.top || []).slice();
+            if (btcOnly) rows = rows.filter(isBtc);
+            return rows.slice(0, showN);
+        }
+
+        function render() {
+            const list = document.getElementById('newsList');
+            const rows = current();
+            if (!rows.length) {
+                list.innerHTML = '<div class="loading">没有符合条件的事件</div>';
+                return;
+            }
+            list.innerHTML = rows.map(t => {
+                const also = t.also_covered_by || [];
+                const alsoTxt = also.length
+                    ? `<span class="news-also">另有 ${also.length} 家报道</span>` : '';
+                return `
+                <a class="news-item${isBtc(t) ? ' is-btc' : ''}" href="${t.url}"
+                   target="_blank" rel="noopener noreferrer">
+                    <div class="news-head">
+                        <span class="news-rank">${t.rank}</span>
+                        <span class="news-title">${t.title_zh || t.title_en}</span>
+                    </div>
+                    ${t.title_en ? `<div class="news-en">${t.title_en}</div>` : ''}
+                    ${t.summary_zh ? `<div class="news-sum">${t.summary_zh}</div>` : ''}
+                    ${t.why ? `<div class="news-why">${t.why}</div>` : ''}
+                    <div class="news-foot">
+                        <span class="news-src">${t.source}</span>
+                        <span>${ago(t.published)}</span>
+                        ${alsoTxt}
+                        <span class="news-score">权重 ${t.score}</span>
+                    </div>
+                </a>`;
+            }).join('');
+        }
+
+        // ---------- 表格（全部原始条目）----------
+        function renderTable() {
+            const wrap = document.getElementById('newsTableWrap');
+            const rows = (payload.all || []).slice();
+            if (!rows.length) { wrap.innerHTML = '<div class="loading">暂无数据</div>'; return; }
+            wrap.innerHTML = `<table class="news-table"><thead><tr>
+                <th>时间</th><th>来源</th><th>标题</th>
+            </tr></thead><tbody>` + rows.map(r => `<tr>
+                <td class="dim">${hhmm(r.published)}</td>
+                <td class="dim">${r.source}</td>
+                <td><a href="${r.url}" target="_blank" rel="noopener noreferrer">${r.title}</a></td>
+            </tr>`).join('') + '</tbody></table>';
+        }
+
+        // ---------- 强制重新抓取 ----------
+        // 点 ⟳ 走 /api/news/refresh：后台拉起 news_fetch.py，页面轮询到
+        // generated_at 变化为止。抓取要 ~40 秒（9 个 RSS + 1 次 LLM），
+        // 所以期间保留旧内容、只降透明度。
+        let busy = false;
+
+        function setBusy(on, text, cls) {
+            busy = on;
+            const list = document.getElementById('newsList');
+            const meta = document.getElementById('newsMeta');
+            document.getElementById('manualRefreshBtn').disabled = on;
+            list.classList.toggle('refreshing', on);
+            if (text) {
+                meta.textContent = text;
+            }
+            meta.className = 'refresh-text ' + (on ? (cls || '') : '');
+        }
+
+        async function forceRefresh() {
+            if (busy) return;
+            const before = payload ? payload.generated_at : null;
+            setBusy(true, '正在抓取 9 个源…（约 40 秒）', 'news-busy');
+
+            let started;
+            try {
+                const r = await fetch(`${API}/api/news/refresh`, { method: 'POST' });
+                started = await r.json();
+            } catch (e) {
+                setBusy(false, '触发失败: ' + e.message, 'news-fail');
+                return;
+            }
+            if (started.status === 'error') {
+                setBusy(false, '触发失败: ' + started.error, 'news-fail');
+                return;
+            }
+
+            // 轮询：150 秒上限，每 3 秒一次
+            const deadline = Date.now() + 150000;
+            while (Date.now() < deadline) {
+                await new Promise(r => setTimeout(r, 3000));
+                let st;
+                try {
+                    st = await (await fetch(`${API}/api/news/refresh/status`,
+                                            { cache: 'no-store' })).json();
+                } catch (e) { continue; }      // 网络抖动就再试一轮
+
+                if (st.error) {
+                    setBusy(false, '抓取失败，仍显示旧数据', 'news-fail');
+                    console.error('news refresh error:', st.error);
+                    return;
+                }
+                if (!st.running && st.generated_at && st.generated_at !== before) {
+                    await loadData();          // 拿到新内容，重渲染
+                    setBusy(false, null);      // loadData 已经写好 meta
+                    return;
+                }
+                if (!st.running && st.generated_at === before) {
+                    // 跑完了但产物没变，通常意味着抓到的还是同一批
+                    await loadData();
+                    setBusy(false, '抓取完成，但没有新事件', '');
+                    return;
+                }
+            }
+            setBusy(false, '抓取超时（仍在后台跑），稍后手动刷新', 'news-fail');
+        }
+
+        // ---------- 主题 ----------
+        function applyTheme(light) {
+            document.body.classList.toggle('light', light);
+            localStorage.setItem('dashboard_theme', light ? 'light' : 'dark');
+            const b = document.getElementById('themeToggleBtn');
+            if (b) b.textContent = light ? '🌙 深色' : '🌞 浅色';
+        }
+
+        // ---------- 事件 ----------
+        document.getElementById('newsControls').addEventListener('click', e => {
+            const rb = e.target.closest('.news-range-btn');
+            if (rb) {
+                document.querySelectorAll('.news-range-btn').forEach(b => b.classList.remove('active'));
+                rb.classList.add('active');
+                showN = parseInt(rb.dataset.n, 10);
+                render();
+                return;
+            }
+            const chip = e.target.closest('.news-chip');
+            if (chip) {
+                const f = chip.dataset.filter;
+                if (f === 'btc') {
+                    btcOnly = !btcOnly;
+                    chip.classList.toggle('active', btcOnly);
+                    render();
+                } else if (f === 'table') {
+                    const wrap = document.getElementById('newsTableWrap');
+                    const on = !wrap.classList.contains('show');
+                    wrap.classList.toggle('show', on);
+                    chip.classList.toggle('active', on);
+                    if (on && payload) renderTable();
+                }
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('dashboard_theme') === 'light';
+            if (saved) document.body.classList.add('light');
+            const tb = document.getElementById('themeToggleBtn');
+            tb.textContent = saved ? '🌙 深色' : '🌞 浅色';
+            tb.addEventListener('click', () =>
+                applyTheme(!document.body.classList.contains('light')));
+            document.getElementById('manualRefreshBtn').addEventListener('click', forceRefresh);
+            loadData();
+            // JSON 由脚本重写，页面只负责轮询；5 分钟足够
+            setInterval(loadData, 300000);
+        });
+    </script>
+</body>
+</html>

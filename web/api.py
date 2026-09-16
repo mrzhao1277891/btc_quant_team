@@ -5,13 +5,16 @@ FastAPI backend serving kline indicator data for the dashboard.
 """
 
 import mysql.connector
-from fastapi import FastAPI, Query, Body
+from fastapi import FastAPI, Query, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 import logging
 import json
+import subprocess
+import sys
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -811,6 +814,93 @@ def save_framework(data: FrameworkUpdate):
     conn.commit()
     cursor.close(); conn.close()
     return {"success": True}
+
+
+# ============================================================
+# 每日新闻 API
+# ============================================================
+
+REPO_ROOT   = Path(__file__).resolve().parents[1]
+NEWS_SCRIPT = REPO_ROOT / "scripts" / "news_fetch.py"
+NEWS_JSON   = REPO_ROOT / "web" / "data" / "news.json"
+
+# 单进程内的作业状态。刻意不落库：news.json 自身就是作业产物，
+# API 重启导致这里重置，也不会留下卡死的锁。
+_news_job = {"proc": None, "started_at": None, "finished_at": None,
+             "returncode": None, "error": None}
+
+
+def _news_running():
+    p = _news_job["proc"]
+    return p is not None and p.poll() is None
+
+
+def _news_generated_at():
+    """读产物里的生成时间 —— 页面用它判断「新一轮跑完了没有」。"""
+    try:
+        with open(NEWS_JSON, encoding="utf-8") as f:
+            return json.load(f).get("generated_at")
+    except Exception:
+        return None
+
+
+@app.post("/api/news/refresh")
+def news_refresh():
+    """后台触发一次抓取，立刻返回。
+
+    抓取要跑 9 个 RSS + 一次 LLM 调用（约 40 秒），同步等必然超时，
+    所以这里只负责拉起进程，进度由 /api/news/refresh/status 暴露。
+    """
+    if _news_running():
+        return {"status": "running", "started_at": _news_job["started_at"],
+                "generated_at": _news_generated_at()}
+
+    if not NEWS_SCRIPT.exists():
+        raise HTTPException(500, f"找不到抓取脚本: {NEWS_SCRIPT}")
+
+    try:
+        _news_job["proc"] = subprocess.Popen(
+            [sys.executable, str(NEWS_SCRIPT), "init"],
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+    except Exception as e:
+        _news_job["error"] = f"{type(e).__name__}: {e}"
+        return {"status": "error", "error": _news_job["error"]}
+
+    _news_job.update(started_at=datetime.now(timezone.utc).isoformat(),
+                     finished_at=None, returncode=None, error=None)
+    logging.info("news refresh started (pid=%s)", _news_job["proc"].pid)
+    return {"status": "started", "started_at": _news_job["started_at"],
+            "generated_at": _news_generated_at()}
+
+
+@app.get("/api/news/refresh/status")
+def news_refresh_status():
+    """轮询用。running 翻成 false 时顺手回收进程并收集错误输出。"""
+    p = _news_job["proc"]
+
+    if p is not None and p.poll() is not None and _news_job["returncode"] is None:
+        _news_job["returncode"] = p.returncode
+        _news_job["finished_at"] = datetime.now(timezone.utc).isoformat()
+        if p.returncode != 0:
+            try:
+                tail = (p.stdout.read() or "")[-800:]
+            except Exception:
+                tail = ""
+            _news_job["error"] = f"退出码 {p.returncode}: {tail}"
+            logging.warning("news refresh failed: %s", _news_job["error"][:200])
+        else:
+            logging.info("news refresh finished ok")
+
+    return {
+        "running":      _news_running(),
+        "returncode":   _news_job["returncode"],
+        "error":        _news_job["error"],
+        "started_at":   _news_job["started_at"],
+        "finished_at":  _news_job["finished_at"],
+        "generated_at": _news_generated_at(),
+    }
 
 
 if __name__ == "__main__":
