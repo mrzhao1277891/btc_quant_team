@@ -1544,10 +1544,11 @@
                     // Draw pinned price labels from localStorage (按时间戳定位)
                     const pinnedKey = `kline_pins_btc_${tfCfg.key}`;
                     const pinned = JSON.parse(localStorage.getItem(pinnedKey) || '{}');
+                    const stale = [];
                     for (const [ts, pin] of Object.entries(pinned)) {
                         // 按时间戳找当前索引
                         const i = tfData.findIndex(d => d.ts === parseInt(ts));
-                        if (i < 0) continue;
+                        if (i < 0) { stale.push(ts); continue; }   // 窗口外 → 见下方清理
                         const x = toX(i);
                         const price = pin.price;
                         const y = toY(price);
@@ -1559,7 +1560,27 @@
                         svg += `<rect x="0" y="${y-7}" width="${PL-2}" height="14" fill="${pinColor}" opacity="0.9" rx="2"/>`;
                         svg += `<text x="${PL-4}" y="${y+3}" text-anchor="end" fill="#0f172a" font-size="9" font-weight="bold">${price.toLocaleString()}</text>`;
                     }
-                    
+
+                    // ── 清理窗口外的标记 ──────────────────────────────
+                    // 画不出来的标记 = 你在图上看不见 = 却仍在参与「关键价位分布」
+                    // 和分析结论，既核对不了也删不掉。约定：窗口外即删除。
+                    //
+                    // ⚠ 只有数据完整时才删。API 抖一下、返回空数组或残缺的一段，
+                    //   所有标记都会被判成「窗口外」而一次性删光 —— 这是不可逆的。
+                    //   上面已有 length===0 的守卫，这里再加一道数量下限兜底：
+                    //   请求的是 100 根，拿回不足一半说明这次数据不可信。
+                    if (stale.length) {
+                        if (tfData.length >= 50) {
+                            stale.forEach(t => delete pinned[t]);
+                            localStorage.setItem(pinnedKey, JSON.stringify(pinned));
+                            console.warn(`[kline] ${tfCfg.label}：已清理 ${stale.length} 个窗口外标记`,
+                                         stale.map(t => new Date(parseInt(t)).toISOString().slice(0, 10)));
+                        } else {
+                            console.warn(`[kline] ${tfCfg.label}：窗口数据不完整(${tfData.length} 根)，`
+                                       + `跳过清理，本次不删任何标记`);
+                        }
+                    }
+
                     // Latest price label
                     const lastClose = closes[closes.length - 1];
                     svg += `<text x="${PL+5}" y="${H-4}" fill="#22c55e" font-size="9">最新: ${lastClose.toLocaleString()}</text>`;

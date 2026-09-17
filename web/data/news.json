@@ -1,30 +1,30 @@
 {
-  "generated_at": "2026-09-16T22:49:01.007737+00:00",
+  "generated_at": "2026-09-17T12:50:28.008070+00:00",
   "window_hours": 36,
   "engine": "llm",
   "note": "",
-  "fetched": 200,
-  "clusters": 161,
+  "fetched": 169,
+  "clusters": 145,
   "sources": [
     {
       "name": "Cointelegraph",
-      "count": 29
-    },
-    {
-      "name": "The Block",
-      "count": 18
-    },
-    {
-      "name": "Decrypt",
       "count": 30
     },
     {
+      "name": "The Block",
+      "count": 16
+    },
+    {
+      "name": "Decrypt",
+      "count": 19
+    },
+    {
       "name": "The Defiant",
-      "count": 20
+      "count": 11
     },
     {
       "name": "CryptoPotato",
-      "count": 28
+      "count": 23
     },
     {
       "name": "BeInCrypto",
@@ -40,83 +40,81 @@
     },
     {
       "name": "U.Today",
-      "count": 29
+      "count": 24
     }
   ],
   "top": [
     {
       "rank": 1,
-      "title_zh": "加密税收法案通过众议院委员会，CLARITY法案受挫后另寻出路",
-      "title_en": "Crypto Tax Bill Clears House Committee After Clarity Act Setback",
-      "summary_zh": "税改立法推进，监管框架走向或影响合规成本。",
-      "why": "税收规则改变交易与持仓成本",
+      "title_zh": "Circle Arc主网上线，贝莱德、DTCC、Visa任验证者",
+      "title_en": "Circle Launches Arc Mainnet With BlackRock, DTCC and Visa as Validators",
+      "summary_zh": "Circle推出Arc主网，联手传统金融巨头做验证节点。",
+      "why": "加速机构入场，利好稳定币与RWA赛道",
       "source": "Decrypt",
-      "published": "2026-09-16T21:46:03+00:00",
-      "url": "https://decrypt.co/378449/crypto-tax-bill-clears-house-committee",
+      "published": "2026-09-16T14:56:02+00:00",
+      "url": "https://decrypt.co/378374/circle-launches-arc-mainnet-with-blackrock-dtcc-and-visa-as-validators",
       "also_covered_by": [
         "CoinGape",
         "Cointelegraph",
         "CryptoPotato",
-        "The Block"
+        "The Block",
+        "The Defiant"
       ],
-      "score": 14.329
+      "score": 17.619
     },
     {
       "rank": 2,
-      "title_zh": "Kraken母公司拟为美国交易者提供受监管的Hyperliquid永续合约",
-      "title_en": "Kraken parent plans regulated Hyperliquid perps for US traders",
-      "summary_zh": "Kraken拟将合规永续合约引入美国本土市场。",
-      "why": "新衍生品渠道影响流动性格局",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T21:30:55+00:00",
-      "url": "https://ambcrypto.com/kraken-parent-plans-regulated-hyperliquid-perps-for-us-traders/",
-      "also_covered_by": [
-        "CoinGape",
-        "The Defiant"
-      ],
-      "score": 7.991
-    },
-    {
-      "rank": 3,
-      "title_zh": "SEC与CFTC主席称将在无CLARITY法案情况下自行制定加密规则",
-      "title_en": "SEC and CFTC Chairmen Say They Will Write Crypto Rules Without CLARITY Act",
-      "summary_zh": "两机构表态将独立推进监管，规则制定权成焦点。",
-      "why": "监管路径重塑市场预期",
-      "source": "The Defiant",
-      "published": "2026-09-16T19:05:19+00:00",
-      "url": "https://thedefiant.io/news/regulation/sec-and-cftc-chairmen-say-they-will-write-crypto-rules-without-clarity-act",
-      "also_covered_by": [
-        "The Block"
-      ],
-      "score": 6.975
-    },
-    {
-      "rank": 4,
-      "title_zh": "美联储宣布加息25个基点，为2023年以来首次",
+      "title_zh": "美联储三年首次加息，加密市场震荡应对",
       "title_en": "FOMC Meeting: Fed Hikes Rates for First Time Since 2023",
-      "summary_zh": "美联储重启加息至4%，加密市场风险偏好承压。",
-      "why": "利率转向直接冲击资金流与仓位",
+      "summary_zh": "FOMC宣布加息25基点，为2023年来首次，官员暗示继续收紧。",
+      "why": "改变资金成本与风险偏好，牵动全市场仓位",
       "source": "CoinGape",
       "published": "2026-09-16T18:33:13+00:00",
       "url": "https://coingape.com/fomc-meeting-fed-hikes-rates-for-first-time-since-2023/",
       "also_covered_by": [
         "Decrypt"
       ],
-      "score": 6.917
+      "score": 6.181
     },
     {
-      "rank": 5,
-      "title_zh": "CLARITY法案受阻后比特币现货ETF单日净流出4.5亿美元",
-      "title_en": "Spot Bitcoin ETFs Bleed $450M After Senate Blocks CLARITY, Biggest Outflow Since June",
-      "summary_zh": "参院否决CLARITY后ETF创六月以来最大赎回。",
-      "why": "资金流出信号，影响机构仓位",
-      "source": "CoinGape",
-      "published": "2026-09-16T12:00:04+00:00",
-      "url": "https://coingape.com/spot-bitcoin-etfs-bleed-450m-after-senate-blocks-clarity-biggest-outflow-since-june/",
+      "rank": 3,
+      "title_zh": "CLARITY法案折戟，SEC与CFTC将主导加密立法",
+      "title_en": "Bernstein says Clarity Act failure allows stablecoin rewards on idle balances to continue, expects ‘swift’ SEC and CFTC rulemaking",
+      "summary_zh": "Bernstein称法案失败反令稳定币闲置余额奖励延续，监管转向快速立规。",
+      "why": "监管路径生变，直接决定稳定币与合规叙事",
+      "source": "The Block",
+      "published": "2026-09-16T12:47:59+00:00",
+      "url": "https://www.theblock.co/news/regulation/2026-09-16-bernstein-says-clarity-act-failure-allows-stablecoin-rewards-on-idle-balances-to-continue-expects-swift-sec-and-cftc-rulemaking-415263",
       "also_covered_by": [
         "Cointelegraph"
       ],
-      "score": 5.23
+      "score": 6.093
+    },
+    {
+      "rank": 4,
+      "title_zh": "美众议院委员会按党派推进比特币储备法案",
+      "title_en": "House Committee Advances US Bitcoin Reserve Bill on Party-Line Split",
+      "summary_zh": "比特币储备法案以28-21票过关，后续立法前景仍存疑。",
+      "why": "若成法将带来主权级买盘预期",
+      "source": "Decrypt",
+      "published": "2026-09-17T10:24:21+00:00",
+      "url": "https://decrypt.co/378457/house-committee-advances-us-bitcoin-reserve-bill-on-party-line-split",
+      "also_covered_by": [
+        "Cointelegraph"
+      ],
+      "score": 5.932
+    },
+    {
+      "rank": 5,
+      "title_zh": "SEC加密托管新规进入白宫审查阶段",
+      "title_en": "SEC Crypto Custody Rewrite Enters White House Review",
+      "summary_zh": "SEC加密资产托管规则修订提交白宫审查，落地临近。",
+      "why": "托管合规松绑将释放机构资金流入",
+      "source": "The Defiant",
+      "published": "2026-09-17T12:50:29+00:00",
+      "url": "https://thedefiant.io/converge/regulation/sec-crypto-custody-rewrite-enters-white-house-review",
+      "also_covered_by": [],
+      "score": 4.2
     }
   ],
   "all": [
@@ -124,19 +122,433 @@
       "title": "Revolut Starts EURR Rollout With Bridge as Regulated Issuer",
       "url": "https://thedefiant.io/converge/tradfi-and-fintech/revolut-starts-eurr-rollout-with-bridge-as-regulated-issuer",
       "source": "The Defiant",
-      "published": "2026-09-16T22:49:02+00:00"
+      "published": "2026-09-17T12:50:29+00:00"
     },
     {
       "title": "SEC Crypto Custody Rewrite Enters White House Review",
       "url": "https://thedefiant.io/converge/regulation/sec-crypto-custody-rewrite-enters-white-house-review",
       "source": "The Defiant",
-      "published": "2026-09-16T22:49:02+00:00"
+      "published": "2026-09-17T12:50:29+00:00"
     },
     {
       "title": "Brent Tops $106 And Hike Odds Reach 64% As Crypto Sells Off",
       "url": "https://thedefiant.io/news/markets/brent-tops-106-hike-odds-reach-64-crypto-sells-off-sep-10-2026",
       "source": "The Defiant",
-      "published": "2026-09-16T22:49:02+00:00"
+      "published": "2026-09-17T12:50:29+00:00"
+    },
+    {
+      "title": "Crypto.com registers with SEC for single-stock futures, plans US stock perps",
+      "url": "https://www.theblock.co/news/business/2026-09-17-crypto-com-registers-with-sec-for-single-stock-futures-plans-us-stock-perps-415355",
+      "source": "The Block",
+      "published": "2026-09-17T12:41:53+00:00"
+    },
+    {
+      "title": "Crypto adoption blooming in Germany, while UK is falling ‘behind,’ says CoinShares researcher",
+      "url": "https://cointelegraph.com/news/crypto-adoption-blooming-germany-uk-behind-researcher?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T12:34:11+00:00"
+    },
+    {
+      "title": "Where Do Latin America's Dollars Actually Live?",
+      "url": "https://beincrypto.com/latin-america-stablecoins-dollar-reserves/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T12:13:37+00:00"
+    },
+    {
+      "title": "Chinese AI Models Drive 440% Jump in Blockchain-Hosted Malware Commands",
+      "url": "https://beincrypto.com/chinese-ai-blockchain-malware-commands/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T12:12:24+00:00"
+    },
+    {
+      "title": "Zoomex Adds Six ETF Perpetuals to Its Growing TradFi Stock Perpetuals Lineup",
+      "url": "https://beincrypto.com/zoomex-adds-6-etf-perpetuals/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T12:09:40+00:00"
+    },
+    {
+      "title": "Zcash Closes On $1,400 After Coinholders Vote to Keep Bitcoin-Style Halvings",
+      "url": "https://decrypt.co/378460/zcash-closes-on-1400-after-coinholders-vote-to-keep-bitcoin-style-halvings",
+      "source": "Decrypt",
+      "published": "2026-09-17T12:05:13+00:00"
+    },
+    {
+      "title": "US Bitcoin reserve bill gains momentum after 28-21 vote – But can it become law?",
+      "url": "https://ambcrypto.com/us-bitcoin-reserve-bill-gains-momentum-after-28-21-vote-but-can-it-become-law/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T12:00:40+00:00"
+    },
+    {
+      "title": "State hackers drive 420% surge in onchain malware, Chainalysis finds",
+      "url": "https://cointelegraph.com/news/onchain-malware-writes-surge-420-north-korea-iran-chainalysis?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T12:00:00+00:00"
+    },
+    {
+      "title": "BlackRock Expands Ethereum Position With $1.5 Billion",
+      "url": "https://u.today/blackrock-expands-ethereum-position-with-15-billion",
+      "source": "U.Today",
+      "published": "2026-09-17T11:59:09+00:00"
+    },
+    {
+      "title": "Bitcoin vs Gold Forecast: BTC Consolidates, Gold Retests $4,200 as Markets Price in 2 More Rate Hikes",
+      "url": "https://coingape.com/markets/bitcoin-vs-gold-forecast-btc-consolidates-gold-retests-4200-as-markets-price-in-rate-hikes/",
+      "source": "CoinGape",
+      "published": "2026-09-17T11:57:48+00:00"
+    },
+    {
+      "title": "Zoomex Launches First-Week Copy Trading Loss Compensation Campaign",
+      "url": "https://beincrypto.com/zoomex-launches-first-week-copy-trading-loss-compensation/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T11:47:46+00:00"
+    },
+    {
+      "title": "Grayscale’s Pandl still sees bitcoin’s $58K low as the bottom, gives clients ‘green light’",
+      "url": "https://www.theblock.co/news/markets/2026-09-17-grayscales-pandl-still-sees-bitcoins-58k-low-as-the-bottom-gives-clients-green-light-415346",
+      "source": "The Block",
+      "published": "2026-09-17T11:47:30+00:00"
+    },
+    {
+      "title": "XRP News: Ripple Adds XRP and RLUSD to Stripe and Tempo’s AI Agentic Payments",
+      "url": "https://coingape.com/xrp-news-ripple-adds-xrp-and-rlusd-to-stripe-and-tempos-ai-agentic-payments/",
+      "source": "CoinGape",
+      "published": "2026-09-17T11:43:48+00:00"
+    },
+    {
+      "title": "Gate Upgrades Prediction Markets: Introducing Combo Trading And U.S. Midterm Elections Hub",
+      "url": "https://beincrypto.com/gate-combo-trading-us-midterm-prediction-markets/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T11:35:47+00:00"
+    },
+    {
+      "title": "Seven Democrats Refuse to Give Up on CLARITY Act After Senate Setback",
+      "url": "https://cryptopotato.com/seven-democrats-refuse-to-give-up-on-clarity-act-after-senate-setback/",
+      "source": "CryptoPotato",
+      "published": "2026-09-17T11:32:09+00:00"
+    },
+    {
+      "title": "Zama Opens Confidential Access to DeFi’s Existing Yield Venues",
+      "url": "https://cryptopotato.com/zama-opens-confidential-access-to-defis-existing-yield-venues/",
+      "source": "CryptoPotato",
+      "published": "2026-09-17T11:28:51+00:00"
+    },
+    {
+      "title": "iFX EXPO Asia Returns to Hong Kong in 2026",
+      "url": "https://beincrypto.com/ifx-expo-asia-2026-hong-kong/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T11:27:28+00:00"
+    },
+    {
+      "title": "Bernard Arnault's Son Takes a Nike Board Seat: Why Should NFT Holders Care?",
+      "url": "https://beincrypto.com/alexandre-arnault-nike-board-cryptopunk/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T11:21:37+00:00"
+    },
+    {
+      "title": "Bittensor in the spotlight: TAO’s 45% rally has traders watching $231",
+      "url": "https://ambcrypto.com/bittensor-in-the-spotlight-taos-45-rally-has-traders-watching-231/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T11:15:02+00:00"
+    },
+    {
+      "title": "Whales are loading up on Ethereum – But here’s why institutions aren’t",
+      "url": "https://ambcrypto.com/whales-are-loading-up-on-ethereum-but-heres-why-institutions-arent/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T11:00:42+00:00"
+    },
+    {
+      "title": "Zcash gains 20% as Paradigm founder reveals firm made ZEC investment",
+      "url": "https://cointelegraph.com/markets/zcash-zec-price-paradigm-investment-privacy-coins?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T10:35:29+00:00"
+    },
+    {
+      "title": "Ripple CEO, Wall Street Heavyweights Head to Swell 2026: Agenda Revealed",
+      "url": "https://u.today/ripple-ceo-wall-street-heavyweights-head-to-swell-2026-agenda-revealed",
+      "source": "U.Today",
+      "published": "2026-09-17T10:30:43+00:00"
+    },
+    {
+      "title": "House Committee Advances US Bitcoin Reserve Bill on Party-Line Split",
+      "url": "https://decrypt.co/378457/house-committee-advances-us-bitcoin-reserve-bill-on-party-line-split",
+      "source": "Decrypt",
+      "published": "2026-09-17T10:24:21+00:00"
+    },
+    {
+      "title": "Bitwise CIO Hougan revises Clarity Act outlook, says crypto bull market may continue without legislation",
+      "url": "https://www.theblock.co/news/markets/2026-09-17-bitwise-cio-hougan-revises-clarity-act-outlook-says-crypto-bull-market-may-continue-without-legislation-415339",
+      "source": "The Block",
+      "published": "2026-09-17T10:19:55+00:00"
+    },
+    {
+      "title": "Vitalik Buterin Rejects Claim That AI Hacking Can Break Cybersecurity & Crypto, But There’s a Catch",
+      "url": "https://coingape.com/vitalik-buterin-rejects-claim-that-ai-hacking-can-break-cybersecurity-crypto-but-theres-a-catch/",
+      "source": "CoinGape",
+      "published": "2026-09-17T10:16:19+00:00"
+    },
+    {
+      "title": "Revolut Hackers Demand 6,000 XMR ($3M) or They Sell 680 Crypto Customer Files",
+      "url": "https://coingape.com/revolut-hackers-demand-6000-xmr-3m-or-they-sell-680-crypto-customer-files/",
+      "source": "CoinGape",
+      "published": "2026-09-17T10:11:17+00:00"
+    },
+    {
+      "title": "XRP Burn Rate Surges on the Ledger: Implications for Price",
+      "url": "https://u.today/xrp-burn-rate-surges-on-the-ledger-implications-for-price",
+      "source": "U.Today",
+      "published": "2026-09-17T10:05:00+00:00"
+    },
+    {
+      "title": "Bitget Boosts Proof of Reserves To 19 Crypto Assets With Bitcoin, Ethereum, XRP",
+      "url": "https://coingape.com/bitget-boosts-proof-of-reserves-to-19-crypto-assets-with-bitcoin-ethereum-xrp/",
+      "source": "CoinGape",
+      "published": "2026-09-17T10:00:40+00:00"
+    },
+    {
+      "title": "XRP slides below $1.30 support: Traders turn bearish in the short-term",
+      "url": "https://ambcrypto.com/xrp-slides-below-1-30-support-traders-turn-bearish-in-the-short-term/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T10:00:01+00:00"
+    },
+    {
+      "title": "Bitget Broadens Proof of Reserves as 15+ Assets Become Verifiable",
+      "url": "https://beincrypto.com/bitget-broadens-proof-of-reserve/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T10:00:00+00:00"
+    },
+    {
+      "title": "XRP Open Interest Plunges 23% as Traders Unwind Leverage",
+      "url": "https://cryptopotato.com/xrp-open-interest-plunges-23-as-traders-unwind-leverage/",
+      "source": "CryptoPotato",
+      "published": "2026-09-17T09:59:26+00:00"
+    },
+    {
+      "title": "Revolut says no direct contact from hackers after $3M public ransom demand",
+      "url": "https://cointelegraph.com/news/revolut-data-breach-monero-ransom-no-direct-contact?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T09:57:51+00:00"
+    },
+    {
+      "title": "Bitcoin Looks Resilient After 2 Blows, The On-Chain Data Disagrees",
+      "url": "https://beincrypto.com/bitcoin-price-range-break-onchain-demand-vanishes/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T09:51:20+00:00"
+    },
+    {
+      "title": "HTX Research Examines Stock-Linked Memecoins: A New Connection Between Equity Assets and Crypto Liquidity",
+      "url": "https://beincrypto.com/htx-research-stock-linked-memecoins/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T09:41:52+00:00"
+    },
+    {
+      "title": "CLARITY Act Now Eyes Revival After Midterm Elections As US House Cancels Sessions Until Nov",
+      "url": "https://coingape.com/clarity-act-now-eyes-revival-after-midterm-elections-as-us-house-cancels-sessions-until-nov/",
+      "source": "CoinGape",
+      "published": "2026-09-17T09:38:56+00:00"
+    },
+    {
+      "title": "Polymarket users referred to prosecutors in South Korea: Report",
+      "url": "https://cointelegraph.com/news/south-korea-polymarket-users-prosecutors-gambling-probe?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T09:37:32+00:00"
+    },
+    {
+      "title": "Bitcoin FOMO turns to FUD – Is September turning bearish for BTC?",
+      "url": "https://ambcrypto.com/bitcoin-fomo-turns-to-fud-is-september-turning-bearish-for-btc/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T09:00:36+00:00"
+    },
+    {
+      "title": "Bitcoin treasuries buy just 5.9K BTC in three months as paper losses linger",
+      "url": "https://cointelegraph.com/markets/bitcoin-treasuries-buy-just-59k-btc-in-three-months-as-paper-losses-linger?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T09:00:31+00:00"
+    },
+    {
+      "title": "Nvidia, AWS and Salesforce Say Yes to Snap's Glasses. Wall Street Says Hold",
+      "url": "https://beincrypto.com/snap-ar-glasses-enterprise-partners/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T09:00:14+00:00"
+    },
+    {
+      "title": "Ripple CTO Emeritus Schwartz: US Senate Blocked CLARITY Act to Protect Bank Profits",
+      "url": "https://u.today/ripple-cto-emeritus-schwartz-us-senate-blocked-clarity-act-to-protect-bank-profits",
+      "source": "U.Today",
+      "published": "2026-09-17T08:38:30+00:00"
+    },
+    {
+      "title": "Vitalik Buterin Rejects Cybersecurity Doom Over AI Hacking",
+      "url": "https://u.today/vitalik-buterin-rejects-cybersecurity-doom-over-ai-hacking",
+      "source": "U.Today",
+      "published": "2026-09-17T08:36:22+00:00"
+    },
+    {
+      "title": "Bitcoin (BTC) Reacts to Fed Rate Hike: Analysts Split on What Comes Next",
+      "url": "https://cryptopotato.com/bitcoin-btc-reacts-to-fed-rate-hike-analysts-split-on-what-comes-next/",
+      "source": "CryptoPotato",
+      "published": "2026-09-17T08:29:07+00:00"
+    },
+    {
+      "title": "Vitalik Buterin's Local AI Push: Can Your Laptop Replace ChatGPT?",
+      "url": "https://beincrypto.com/vitalik-buterin-local-ai-laptop/",
+      "source": "BeInCrypto",
+      "published": "2026-09-17T08:20:51+00:00"
+    },
+    {
+      "title": "CLARITY Act Dead or Delayed? Seven Democrats Reopen Talks as SEC-CFTC Path Takes Over",
+      "url": "https://coingape.com/clarity-act-dead-or-delayed-seven-democrats-reopen-talks-as-sec-cftc-path-takes-over/",
+      "source": "CoinGape",
+      "published": "2026-09-17T08:12:39+00:00"
+    },
+    {
+      "title": "Synapse (SYN) Skyrockets 30% in Unexpected 24-Hour Breakout",
+      "url": "https://u.today/synapse-syn-skyrockets-30-in-unexpected-24-hour-breakout",
+      "source": "U.Today",
+      "published": "2026-09-17T08:05:00+00:00"
+    },
+    {
+      "title": "Why is Lighter [LIT] up 18%? Circle Arc DEX integration, whale buying and more…",
+      "url": "https://ambcrypto.com/why-is-lighter-lit-up-18-circle-arc-dex-integration-whale-buying-and-more/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T08:00:28+00:00"
+    },
+    {
+      "title": "Russia’s Moscow Stock Exchange to Launch Bitcoin, ETH, XRP, SOL, TRX Perpetual Futures",
+      "url": "https://coingape.com/russia-moscow-stock-exchange-launch-bitcoin-eth-xrp-sol-trx-perpetual-futures/",
+      "source": "CoinGape",
+      "published": "2026-09-17T07:46:39+00:00"
+    },
+    {
+      "title": "Not Just Algorithms: How Arbitflow Puts Human Judgment Back Into Crypto Trading",
+      "url": "https://ambcrypto.com/not-just-algorithms-how-arbitflow-puts-human-judgment-back-into-crypto-trading/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T07:40:14+00:00"
+    },
+    {
+      "title": "Bitcoin Survives First Fed Rate Hike in 3 Years, Zcash Explodes Again: Market Watch",
+      "url": "https://cryptopotato.com/bitcoin-survives-first-fed-rate-hike-in-3-years-zcash-explodes-again-market-watch/",
+      "source": "CryptoPotato",
+      "published": "2026-09-17T07:14:00+00:00"
+    },
+    {
+      "title": "PUMP retraces 30% after 105% rally, but THIS level could keep recovery hopes alive!",
+      "url": "https://ambcrypto.com/pump-retraces-30-after-105-rally-but-this-level-could-keep-recovery-hopes-alive/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T07:00:40+00:00"
+    },
+    {
+      "title": "Ondo Finance just plugged tokenized funds into America’s biggest fund networks",
+      "url": "https://ambcrypto.com/ondo-finance-just-plugged-tokenized-funds-into-americas-biggest-fund-networks/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T06:45:03+00:00"
+    },
+    {
+      "title": "Ripple Partners SBI and Kyobo Complete Direct Japan-Korea Stablecoin Transfer Pilot",
+      "url": "https://coingape.com/ripple-partners-sbi-and-kyobo-complete-direct-japan-korea-stablecoin-transfer-pilot/",
+      "source": "CoinGape",
+      "published": "2026-09-17T06:21:36+00:00"
+    },
+    {
+      "title": "South Korean police charge 26 Polymarket users for illegal gambling: report",
+      "url": "https://www.theblock.co/news/regulation/2026-09-17-south-korean-police-charge-polymarket-users-415333",
+      "source": "The Block",
+      "published": "2026-09-17T06:12:50+00:00"
+    },
+    {
+      "title": "Franklin's XRP ETF Pulls In Fresh $3.5 Million",
+      "url": "https://u.today/franklins-xrp-etf-pulls-in-fresh-35-million",
+      "source": "U.Today",
+      "published": "2026-09-17T06:03:59+00:00"
+    },
+    {
+      "title": "Here’s what happened in crypto today",
+      "url": "https://cointelegraph.com/news/what-happened-in-crypto-today?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T06:01:31+00:00"
+    },
+    {
+      "title": "Here’s why CoinShares doubts Bitcoin price recovery will lure back miners",
+      "url": "https://ambcrypto.com/heres-why-coinshares-doubts-bitcoin-price-recovery-will-lure-back-miners/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T06:00:55+00:00"
+    },
+    {
+      "title": "BitMEX faces Celsius lawsuit ahead of exchange closure",
+      "url": "https://cointelegraph.com/news/celsius-estate-bitmex-6360-btc-liquidation-lawsuit?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T05:55:18+00:00"
+    },
+    {
+      "title": "OpenAI discloses 6 new cases of ‘misaligned’ AI behavior",
+      "url": "https://cointelegraph.com/news/openai-discloses-6-new-cases-of-misaligned-ai-behavior?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T05:49:06+00:00"
+    },
+    {
+      "title": "Derive up 40% after v3 upgrade plan, but will this help DRV hold its ATH?",
+      "url": "https://ambcrypto.com/derive-up-40-after-v3-upgrade-plan-but-will-this-help-drv-hold-its-ath/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T05:00:37+00:00"
+    },
+    {
+      "title": "Jupiter drops 10% as $0.24 support breaks – Protocol inflows turn negative",
+      "url": "https://ambcrypto.com/jupiter-drops-10-as-0-24-support-breaks-protocol-inflows-turn-negative/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T04:30:32+00:00"
+    },
+    {
+      "title": "XRP’s 70% Breakout Had a Warning Sign: 85 Millionaire Wallets Moved First",
+      "url": "https://cryptopotato.com/xrps-70-breakout-had-a-warning-sign-85-millionaire-wallets-moved-first/",
+      "source": "CryptoPotato",
+      "published": "2026-09-17T04:05:38+00:00"
+    },
+    {
+      "title": "Deutsche Bank bets big on digital assets – Here’s how it could reshape European crypto",
+      "url": "https://ambcrypto.com/deutsche-bank-bets-big-on-digital-assets-heres-how-it-could-reshape-european-crypto/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T04:00:16+00:00"
+    },
+    {
+      "title": "Gold attracts $500B despite rising yields: Is Bitcoin’s lead at risk?",
+      "url": "https://ambcrypto.com/gold-attracts-500b-despite-rising-yields-is-bitcoins-lead-at-risk/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T03:00:48+00:00"
+    },
+    {
+      "title": "Bitcoin absorbs Fed rate hike as officials see more tightening",
+      "url": "https://cointelegraph.com/markets/bitcoin-absorbs-fed-rate-hike-as-officials-see-more-tightening?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T02:52:08+00:00"
+    },
+    {
+      "title": "‘Not the end’: Sen. Gillibrand says Democrats still committed to passing Clarity Act",
+      "url": "https://www.theblock.co/news/regulation/2026-09-16-sen-gillibrand-still-committed-to-clarity-415326",
+      "source": "The Block",
+      "published": "2026-09-17T02:09:31+00:00"
+    },
+    {
+      "title": "DoJ targets Robinhood engineers: ‘Misappropriating confidential information is illegal’",
+      "url": "https://ambcrypto.com/doj-targets-robinhood-engineers-misappropriating-confidential-information-is-illegal/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T02:00:39+00:00"
+    },
+    {
+      "title": "Will Pi Network face further losses? Why THESE signals say yes",
+      "url": "https://ambcrypto.com/will-pi-network-face-further-losses-why-these-signals-say-yes/",
+      "source": "AMBCrypto",
+      "published": "2026-09-17T01:00:01+00:00"
+    },
+    {
+      "title": "House committee moves to codify Trump’s Strategic Bitcoin Reserve",
+      "url": "https://www.theblock.co/news/regulation/2026-09-16-house-committee-moves-bitcoin-reserve-bill-415317",
+      "source": "The Block",
+      "published": "2026-09-17T00:56:10+00:00"
+    },
+    {
+      "title": "US lawmakers advance bill to lock Trump’s Bitcoin reserve into law",
+      "url": "https://cointelegraph.com/news/us-bitcoin-reserve-bill-passes-house-committee?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
+      "source": "Cointelegraph",
+      "published": "2026-09-17T00:23:44+00:00"
     },
     {
       "title": "Analyst Says This Setup Could Send Bitcoin Above $90K by November",
@@ -151,46 +563,16 @@
       "published": "2026-09-16T22:33:10+00:00"
     },
     {
-      "title": "Ethereum’s liquidity engine warms up: Should you expect a Q4 risk-on move?",
-      "url": "https://ambcrypto.com/ethereums-liquidity-engine-warms-up-should-you-expect-a-q4-risk-on-move/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T22:00:17+00:00"
-    },
-    {
       "title": "Crypto Tax Bill Clears House Committee After Clarity Act Setback",
       "url": "https://decrypt.co/378449/crypto-tax-bill-clears-house-committee",
       "source": "Decrypt",
       "published": "2026-09-16T21:46:03+00:00"
     },
     {
-      "title": "Anthropic IPO Underwriter Says AI Spending Won't Slow: Can He Be Neutral?",
-      "url": "https://beincrypto.com/anthropic-ipo-underwriter-ai-spending/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T21:41:12+00:00"
-    },
-    {
-      "title": "Kraken parent plans regulated Hyperliquid perps for US traders",
-      "url": "https://ambcrypto.com/kraken-parent-plans-regulated-hyperliquid-perps-for-us-traders/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T21:30:55+00:00"
-    },
-    {
-      "title": "US Opens Door to AI Risk Talks With China: Will Anything Change?",
-      "url": "https://beincrypto.com/us-china-ai-risk-talks-bessent/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T21:21:42+00:00"
-    },
-    {
       "title": "Meta May Have Found a Fix for Its 'Pervert Glasses'",
       "url": "https://decrypt.co/378448/meta-fix-pervert-glasses",
       "source": "Decrypt",
       "published": "2026-09-16T21:16:03+00:00"
-    },
-    {
-      "title": "Curve DAO drops 13% – But limited liquidation clusters suggest a rebound",
-      "url": "https://ambcrypto.com/curve-dao-drops-13-but-limited-liquidation-clusters-suggest-a-rebound/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T21:00:20+00:00"
     },
     {
       "title": "CLARITY Act could get another shot during lame-duck session, policy advocate says",
@@ -205,46 +587,16 @@
       "published": "2026-09-16T20:49:52+00:00"
     },
     {
-      "title": "Fed rate hike lands at 4%—What it means for Bitcoin and crypto",
-      "url": "https://ambcrypto.com/fed-rate-hike-lands-at-4-what-it-means-for-bitcoin-and-crypto/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T20:34:06+00:00"
-    },
-    {
       "title": "OpenAI's Rogue AI Agents Were Probing Hugging Face Two Months Before Hack",
       "url": "https://decrypt.co/378446/openai-rogue-agents-hugging-face-two-months-before-hack",
       "source": "Decrypt",
       "published": "2026-09-16T20:31:03+00:00"
     },
     {
-      "title": "ERA Launches Software Wallet, Turning Its Hardware Device Into a Full Self-Custody Ecosystem",
-      "url": "https://beincrypto.com/era-software-wallet-14-network-self-custody/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T20:24:07+00:00"
-    },
-    {
-      "title": "Zoomex TradFi Zone: How ETF Perpetual Contracts Work",
-      "url": "https://beincrypto.com/zoomex-etf-perpetual-contracts-tradfi-zone/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T20:17:57+00:00"
-    },
-    {
-      "title": "Two Wall Street Titans Just Issued Warnings No Investor Wants to Hear",
-      "url": "https://beincrypto.com/wall-street-titans-warnings-dimon-zandi/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T20:11:01+00:00"
-    },
-    {
       "title": "Bitcoin, ether swing after unanimous quarter-point Fed rate hike as Warsh takes aim at inflation",
       "url": "https://www.theblock.co/news/markets/2026-09-16-bitcoin-ether-swing-unanimous-quarter-point-fed-rate-hike-warsh-aim-inflation-415307",
       "source": "The Block",
       "published": "2026-09-16T20:02:16+00:00"
-    },
-    {
-      "title": "Injective feels the heat as CLARITY Act vote shakes the market, drops 10% in 24 hours",
-      "url": "https://ambcrypto.com/injective-feels-the-heat-as-clarity-act-vote-shakes-the-market-drops-10-in-24-hours/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T20:00:02+00:00"
     },
     {
       "title": "Binance Unveils Multiple Delistings: Check Out the Affected Cryptocurrencies",
@@ -271,12 +623,6 @@
       "published": "2026-09-16T19:43:24+00:00"
     },
     {
-      "title": "Here’s what happened in crypto today",
-      "url": "https://cointelegraph.com/news/what-happened-in-crypto-today?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-16T19:25:46+00:00"
-    },
-    {
       "title": "UK FCA sets crypto authorization guidance ahead of September application window",
       "url": "https://cointelegraph.com/news/uk-fca-sets-crypto-authorization-guidance-ahead-of-september-application-window?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
       "source": "Cointelegraph",
@@ -293,12 +639,6 @@
       "url": "https://thedefiant.io/news/regulation/sec-and-cftc-chairmen-say-they-will-write-crypto-rules-without-clarity-act",
       "source": "The Defiant",
       "published": "2026-09-16T19:05:19+00:00"
-    },
-    {
-      "title": "Bitcoin ETFs lose $450M after CLARITY Act defeat while whales buy $238M",
-      "url": "https://ambcrypto.com/bitcoin-etfs-lose-450m-after-clarity-act-defeat-while-whales-buy-238m/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T19:00:22+00:00"
     },
     {
       "title": "Bitcoin Core Software Update Aims for Speed and Security Patches",
@@ -319,12 +659,6 @@
       "published": "2026-09-16T18:33:13+00:00"
     },
     {
-      "title": "Fidelity crypto ETF sees $214M exit as Bitcoin funds lose $450M",
-      "url": "https://ambcrypto.com/fidelity-crypto-etf-sees-214m-exit-as-bitcoin-funds-lose-450m/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T18:30:01+00:00"
-    },
-    {
       "title": "Fed Hikes Rates for the First Time Since 2023, Bitcoin Spikes",
       "url": "https://decrypt.co/378417/fed-hikes-rates-first-time-since-2023-bitcoin",
       "source": "Decrypt",
@@ -343,12 +677,6 @@
       "published": "2026-09-16T18:06:15+00:00"
     },
     {
-      "title": "Fed Hikes to 4%: Why Are 16 Officials Still Not Done?",
-      "url": "https://beincrypto.com/fomc-warsh-interest-rate-bitcoin-gold/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T18:04:35+00:00"
-    },
-    {
       "title": "US House tax committee advances crypto tax overhaul in 38–5 vote",
       "url": "https://cointelegraph.com/news/house-tax-committee-advances-crypto-tax-overhaul-in-385-vote?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
       "source": "Cointelegraph",
@@ -361,12 +689,6 @@
       "published": "2026-09-16T18:00:34+00:00"
     },
     {
-      "title": "Useless Coin rallies 15% while crypto turns red – 2 signals define its next move",
-      "url": "https://ambcrypto.com/useless-coin-rallies-15-while-crypto-turns-red-2-signals-define-its-next-move/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T18:00:33+00:00"
-    },
-    {
       "title": "Robinhood Chain’s TVL Nears $1B, but Failed L1s Raise Sustainability Question",
       "url": "https://cryptopotato.com/robinhood-chains-tvl-nears-1b-but-failed-l1s-raise-sustainability-question/",
       "source": "CryptoPotato",
@@ -377,12 +699,6 @@
       "url": "https://www.theblock.co/news/regulation/2026-09-16-house-panel-approves-first-federal-crypto-tax-framework-one-day-after-senates-clarity-act-stumbles-415293",
       "source": "The Block",
       "published": "2026-09-16T17:29:50+00:00"
-    },
-    {
-      "title": "Celsius Sues Dying BitMEX Exchange for 6,360 Lost Bitcoin",
-      "url": "https://beincrypto.com/celsius-sues-bitmex-6360-bitcoin/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T17:17:26+00:00"
     },
     {
       "title": "CFTC and SEC Double Down on Crypto After Clarity Act Defeat",
@@ -409,24 +725,6 @@
       "published": "2026-09-16T17:01:22+00:00"
     },
     {
-      "title": "Aave’s Anchorage proposal bridges institutional custody and DeFi – Explained",
-      "url": "https://ambcrypto.com/aaves-anchorage-proposal-bridges-institutional-custody-and-defi-explained/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T17:00:38+00:00"
-    },
-    {
-      "title": "US crypto tax bill advances 38–5, but staking question remains",
-      "url": "https://ambcrypto.com/us-crypto-tax-bill-advances-38-5-but-staking-question-remains/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T16:58:39+00:00"
-    },
-    {
-      "title": "Your Bitcoin Payments Can Reveal More Than You Bargained For",
-      "url": "https://beincrypto.com/bitcoin-wallet-privacy-transaction-tracing/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T16:51:03+00:00"
-    },
-    {
       "title": "Breaking: US House Advances Crypto Tax Bill Despite CLARITY Act Setback",
       "url": "https://coingape.com/us-house-advances-crypto-tax-bill-despite-clarity-act-setback/",
       "source": "CoinGape",
@@ -445,22 +743,10 @@
       "published": "2026-09-16T16:21:30+00:00"
     },
     {
-      "title": "SpaceX Stock Jumps 6% After Starship Milestone. Will the Rally Hold?",
-      "url": "https://beincrypto.com/spacex-stock-starship-flight-14-orbit/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T16:21:13+00:00"
-    },
-    {
       "title": "Anchorage expands institutional custody to Etherlink, tokenized uranium",
       "url": "https://cointelegraph.com/news/anchorage-digital-brings-tokenized-uranium-custody-to-federally-chartered-crypto-bank?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
       "source": "Cointelegraph",
       "published": "2026-09-16T16:03:35+00:00"
-    },
-    {
-      "title": "Arc mainnet goes live – Can USDC’s $74B scale fuel network growth?",
-      "url": "https://ambcrypto.com/arc-mainnet-goes-live-can-usdcs-74b-scale-fuel-network-growth/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T16:00:42+00:00"
     },
     {
       "title": "ZEC Surges 11% Despite Clarity Mayhem",
@@ -505,12 +791,6 @@
       "published": "2026-09-16T15:20:08+00:00"
     },
     {
-      "title": "Monero price drops from $560 — Can XMR defend $490-$500?",
-      "url": "https://ambcrypto.com/monero-price-drops-from-560-can-xmr-defend-490-500/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T15:08:22+00:00"
-    },
-    {
       "title": "Circle Launches Arc Mainnet With BlackRock, DTCC and Visa as Validators",
       "url": "https://decrypt.co/378374/circle-launches-arc-mainnet-with-blackrock-dtcc-and-visa-as-validators",
       "source": "Decrypt",
@@ -541,18 +821,6 @@
       "published": "2026-09-16T14:36:29+00:00"
     },
     {
-      "title": "Wirex One Launches Publicly on Arc, Bringing Stablecoin Private Banking to the Mass Affluent Market",
-      "url": "https://beincrypto.com/wirex-one-arc-stablecoin-private-banking/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T14:17:22+00:00"
-    },
-    {
-      "title": "Top 5 presales to watch out for in September 2026",
-      "url": "https://ambcrypto.com/top-5-presales-to-watch-out-for-in-september-2026/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T14:10:44+00:00"
-    },
-    {
       "title": "Top Reasons Why Crypto Market Is Falling Ahead of FOMC Decision",
       "url": "https://coingape.com/markets/top-reasons-why-crypto-market-is-falling-ahead-of-fomc-decision/",
       "source": "CoinGape",
@@ -565,22 +833,10 @@
       "published": "2026-09-16T14:02:22+00:00"
     },
     {
-      "title": "Crypto’s $600M liquidation flush meets FOMC risk – Can bulls hold on?",
-      "url": "https://ambcrypto.com/crypto-market-loses-120b-as-fomc-looms-can-bulls-hold-on/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T14:00:41+00:00"
-    },
-    {
       "title": "Strategy CEO Chairman Michael Saylor Predicts CLARITY Stall Could Push More Capital Into Bitcoin",
       "url": "https://coingape.com/strategy-ceo-chairman-michael-saylor-predicts-clarity-stall-could-push-more-capital-into-bitcoin/",
       "source": "CoinGape",
       "published": "2026-09-16T13:55:37+00:00"
-    },
-    {
-      "title": "93% Chance of a Fed Rate Hike Today. What Happens to Bitcoin Now?",
-      "url": "https://beincrypto.com/fed-rate-hike-bitcoin-gold-warsh/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T13:33:14+00:00"
     },
     {
       "title": "Solana Speed Upgrade Enters Final Stretch, Key September Date Ahead",
@@ -617,12 +873,6 @@
       "url": "https://thedefiant.io/news/defi/kraken-parent-plans-permissioned-hyperliquid-perps-for-us-traders",
       "source": "The Defiant",
       "published": "2026-09-16T13:09:34+00:00"
-    },
-    {
-      "title": "Bitcoin stalls – STHs dump BTC at a loss following failed Senate crypto bill",
-      "url": "https://ambcrypto.com/bitcoin-stalls-sths-dump-btc-at-a-loss-following-failed-senate-crypto-bill/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T13:00:46+00:00"
     },
     {
       "title": "Wild Bitcoin Prediction Ahead of the FOMC: Here’s What Could Trigger a Pump",
@@ -667,28 +917,10 @@
       "published": "2026-09-16T12:24:29+00:00"
     },
     {
-      "title": "Hedera Joins BlackRock, Ripple and Chainlink in Shaping UK Tokenised Markets",
-      "url": "https://coingape.com/hedera-joins-blackrock-ripple-and-chainlink-in-shaping-uk-tokenised-markets/",
-      "source": "CoinGape",
-      "published": "2026-09-16T12:22:05+00:00"
-    },
-    {
       "title": "Circle Launches Arc Mainnet With 100+ Institutional and Crypto Partners",
       "url": "https://cryptopotato.com/circle-launches-arc-mainnet-with-100-institutional-and-crypto-partners/",
       "source": "CryptoPotato",
       "published": "2026-09-16T12:18:44+00:00"
-    },
-    {
-      "title": "BREAKING: Kraken Parent Payward Confirms Bringing Hyperliquid Perps to US, HYPE Price Surges",
-      "url": "https://coingape.com/kraken-parent-payward-confirms-bringing-hyperliquid-perps-to-us-hype-price-surges/",
-      "source": "CoinGape",
-      "published": "2026-09-16T12:15:48+00:00"
-    },
-    {
-      "title": "Circle Launches Arc Blockchain for Payments and Tokenized Financial Markets",
-      "url": "https://coingape.com/circle-launches-arc-blockchain-for-payments-and-tokenized-financial-markets/",
-      "source": "CoinGape",
-      "published": "2026-09-16T12:14:54+00:00"
     },
     {
       "title": "Bitcoin Hovers at $76K as Analysts Argue the Fed Matters More Than Clarity Act",
@@ -697,40 +929,16 @@
       "published": "2026-09-16T12:12:21+00:00"
     },
     {
-      "title": "Can ETH whales’ $100M buy counter Ethereum’s 709K Binance inflows?",
-      "url": "https://ambcrypto.com/can-eth-whales-100m-buy-counter-ethereums-709k-binance-inflows/",
-      "source": "AMBCrypto",
-      "published": "2026-09-16T12:00:58+00:00"
-    },
-    {
-      "title": "Spot Bitcoin ETFs Bleed $450M After Senate Blocks CLARITY, Biggest Outflow Since June",
-      "url": "https://coingape.com/spot-bitcoin-etfs-bleed-450m-after-senate-blocks-clarity-biggest-outflow-since-june/",
-      "source": "CoinGape",
-      "published": "2026-09-16T12:00:04+00:00"
-    },
-    {
       "title": "Zcash holders back 25-second blocks, vote to keep ZEC halving schedule",
       "url": "https://cointelegraph.com/news/zcash-nu7-poll-faster-blocks-zec-halvings?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
       "source": "Cointelegraph",
       "published": "2026-09-16T11:46:39+00:00"
     },
     {
-      "title": "Cathie Wood Calls the $1.75 Trillion SpaceX IPO a Bargain: Here's Why",
-      "url": "https://beincrypto.com/cathie-wood-spacex-ipo-starship-bargain/",
-      "source": "BeInCrypto",
-      "published": "2026-09-16T11:44:02+00:00"
-    },
-    {
       "title": "Circle launches Arc mainnet with USDC as native gas token",
       "url": "https://cointelegraph.com/news/circle-arc-mainnet-launch-usdc-native-gas?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
       "source": "Cointelegraph",
       "published": "2026-09-16T11:39:44+00:00"
-    },
-    {
-      "title": "CLARITY Act Eyes Second Chance At Senate Cloture Vote As Surprising Details Unfold",
-      "url": "https://coingape.com/clarity-act-eyes-second-chance-at-senate-cloture-vote-as-surprising-details-unfold/",
-      "source": "CoinGape",
-      "published": "2026-09-16T11:36:23+00:00"
     },
     {
       "title": "Nearly $2 Billion of Bitcoin Sent to Exchanges at Loss as Clarity Act Fails",
@@ -757,22 +965,10 @@
       "published": "2026-09-16T10:45:56+00:00"
     },
     {
-      "title": "Bitget Opens VIP 7 Access to High-Volume Traders in 8th Anniversary Campaign",
-      "url": "https://coingape.com/bitget-opens-vip-7-access-to-high-volume-traders-in-8th-anniversary-campaign/",
-      "source": "CoinGape",
-      "published": "2026-09-16T10:43:40+00:00"
-    },
-    {
       "title": "Deutsche Bank awaits regulatory nod to launch institutional crypto custody solutions",
       "url": "https://cointelegraph.com/news/deutsche-bank-regulatory-nod-institutional-crypto-custody?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
       "source": "Cointelegraph",
       "published": "2026-09-16T10:33:12+00:00"
-    },
-    {
-      "title": "$1.7T Deutsche Bank to Launch Crypto Custody for Bitcoin, Ethereum and Stablecoins",
-      "url": "https://coingape.com/deutsche-bank-to-launch-crypto-custody-for-bitcoin-ethereum-stablecoins/",
-      "source": "CoinGape",
-      "published": "2026-09-16T10:30:53+00:00"
     },
     {
       "title": "Circle Launches Arc Mainnet With BlackRock, DTCC and Visa Producing Blocks",
@@ -791,12 +987,6 @@
       "url": "https://u.today/biggest-bitcoin-btc-capitulation-in-september-short-term-holders-shake-it-off",
       "source": "U.Today",
       "published": "2026-09-16T10:20:00+00:00"
-    },
-    {
-      "title": "Panda Bundler on Robinhood Chain: Preparing a Token Launch on Pons",
-      "url": "https://coingape.com/panda-bundler-on-robinhood-chain-preparing-a-token-launch-on-pons/",
-      "source": "CoinGape",
-      "published": "2026-09-16T10:19:12+00:00"
     },
     {
       "title": "XRP Holders, Mark Your Calendars for September 29: Network Upgrade Activates",
@@ -833,12 +1023,6 @@
       "url": "https://decrypt.co/378337/uk-backs-money-laundering-crackdown-with-676m-and-500-new-officers",
       "source": "Decrypt",
       "published": "2026-09-16T09:41:53+00:00"
-    },
-    {
-      "title": "Ripple Lawyer Says XRP Already Has Clarity After Senate CLARITY Act Defeat",
-      "url": "https://coingape.com/ripple-lawyer-says-xrp-already-has-clarity-after-senate-clarity-act-defeat/",
-      "source": "CoinGape",
-      "published": "2026-09-16T09:23:41+00:00"
     },
     {
       "title": "Tonkeeper Becomes Keeper as Wallet Adds Bitcoin, Ethereum, and Tron",
@@ -947,378 +1131,6 @@
       "url": "https://cointelegraph.com/news/crypto-industry-turns-to-us-regulators-after-clarity-setback?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
       "source": "Cointelegraph",
       "published": "2026-09-16T02:24:07+00:00"
-    },
-    {
-      "title": "XRP Ledger Batch V1.1 Nears Activation After Security Rebuild",
-      "url": "https://cryptopotato.com/xrp-ledger-batch-v1-1-nears-activation-after-security-rebuild/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T22:24:22+00:00"
-    },
-    {
-      "title": "Wall Street Bets on Fed Rate Hike: Here's What It Means for Bitcoin, Bonds and Trump",
-      "url": "https://decrypt.co/378306/wall-street-fed-rate-hike-bitcoin-bonds-trump",
-      "source": "Decrypt",
-      "published": "2026-09-15T21:46:03+00:00"
-    },
-    {
-      "title": "‘This one stings’: Clarity Act fails procedural Senate vote — is crypto’s biggest regulatory push dead?",
-      "url": "https://www.theblock.co/news/regulation/2026-09-15-this-one-stings-clarity-act-fails-senate-is-cryptos-biggest-regulatory-push-dead-415135",
-      "source": "The Block",
-      "published": "2026-09-15T21:24:18+00:00"
-    },
-    {
-      "title": "BIS paper finds major gap in Bitcoin onchain transfer estimates",
-      "url": "https://cointelegraph.com/news/bis-paper-finds-major-gap-in-bitcoin-onchain-transfer-estimates?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T21:23:00+00:00"
-    },
-    {
-      "title": "Coinbase-Backed Crypto Group Warns of Midterms Payback After Clarity Act Fails",
-      "url": "https://decrypt.co/378303/coinbase-crypto-group-midterms-vote-clarity-act",
-      "source": "Decrypt",
-      "published": "2026-09-15T21:10:06+00:00"
-    },
-    {
-      "title": "Crypto stocks slide after CLARITY Act fails to advance in Senate",
-      "url": "https://cointelegraph.com/markets/crypto-stocks-slide-after-clarity-act-fails-to-advance-in-senate?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T20:37:34+00:00"
-    },
-    {
-      "title": "CoinEx Calls Time After Nearly Nine Years as Crypto Market Pressure Mounts",
-      "url": "https://cryptopotato.com/coinex-calls-time-after-nearly-nine-years-as-crypto-market-pressure-mounts/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T20:33:33+00:00"
-    },
-    {
-      "title": "OpenAI's Brockman Says Safety Concerns Have Already Slowed Its Most Advanced AI Work",
-      "url": "https://decrypt.co/378300/openai-safety-concerns-slowed-most-advanced-ai-work",
-      "source": "Decrypt",
-      "published": "2026-09-15T20:09:19+00:00"
-    },
-    {
-      "title": "BTC, XRP, SHIB Plunge After Clarity Failure: These Senators Voted Against It",
-      "url": "https://u.today/btc-xrp-shib-plunge-after-clarity-failure-these-senators-voted-against-it",
-      "source": "U.Today",
-      "published": "2026-09-15T19:59:38+00:00"
-    },
-    {
-      "title": "Clarity Act Fails Again: What It Means for Crypto",
-      "url": "https://u.today/opinions/clarity-act-fails-again-what-it-means-for-crypto",
-      "source": "U.Today",
-      "published": "2026-09-15T19:58:13+00:00"
-    },
-    {
-      "title": "Senate Blocks CLARITY Act 49-50 With No Democratic Votes to Proceed",
-      "url": "https://thedefiant.io/news/regulation/senate-blocks-clarity-act-49-50-with-no-democratic-votes-to-proceed",
-      "source": "The Defiant",
-      "published": "2026-09-15T19:56:20+00:00"
-    },
-    {
-      "title": "Crypto Reacts: Bitcoin Slides as Clarity Act Fails to Clear Senate Vote",
-      "url": "https://decrypt.co/378286/crypto-clarity-act-fails-clear-senate-bitcoin-slides",
-      "source": "Decrypt",
-      "published": "2026-09-15T19:18:29+00:00"
-    },
-    {
-      "title": "Bitcoin’s Price Plunges to $75,000 as Senate Votes Against Advancing Crypto CLARITY Act",
-      "url": "https://cryptopotato.com/bitcoins-price-plunges-to-75000-as-senate-votes-against-advancing-crypto-clarity-act/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T19:06:59+00:00"
-    },
-    {
-      "title": "Hyperliquid’s $319 Target Hinges on Token Dilution: Analyst",
-      "url": "https://cryptopotato.com/hyperliquids-319-target-hinges-on-token-dilution-analyst/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T19:02:24+00:00"
-    },
-    {
-      "title": "Clarity Act preliminary vote falls short in Senate amid ethics fight over Trump’s crypto wealth",
-      "url": "https://www.theblock.co/news/regulation/2026-09-15-clarity-act-preliminary-vote-falls-short-in-senate-amid-ethics-fight-over-trumps-crypto-wealth-415010",
-      "source": "The Block",
-      "published": "2026-09-15T18:57:00+00:00"
-    },
-    {
-      "title": "0x Says Uniswap v4 Hooks Were A Mistake, Hayden Adams Says \"Skill Issue\"",
-      "url": "https://thedefiant.io/news/defi/0x-says-uniswap-v4-hooks-were-a-mistake-hayden-adams-says-skill-issue",
-      "source": "The Defiant",
-      "published": "2026-09-15T18:56:26+00:00"
-    },
-    {
-      "title": "Clarity Act Stalls in Senate as Crypto Bill Fails to Clear Key Vote",
-      "url": "https://decrypt.co/378283/clarity-act-fails-senate-hurdle",
-      "source": "Decrypt",
-      "published": "2026-09-15T18:54:10+00:00"
-    },
-    {
-      "title": "BREAKING: US Senate Fails to Advance Crypto CLARITY Act, Here’s What It Means",
-      "url": "https://cryptopotato.com/breaking-us-senate-fails-to-advance-crypto-clarity-act-heres-what-this-means/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T18:51:32+00:00"
-    },
-    {
-      "title": "US Senate fails to advance CLARITY Act",
-      "url": "https://cointelegraph.com/news/us-senate-fails-to-advance-clarity-act?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T18:46:51+00:00"
-    },
-    {
-      "title": "Ripple CEO Says Crypto Will Win With or Without Clarity Act",
-      "url": "https://u.today/ripple-ceo-says-crypto-will-win-with-or-without-clarity-act",
-      "source": "U.Today",
-      "published": "2026-09-15T17:56:12+00:00"
-    },
-    {
-      "title": "Stablecoin growth could boost dollar dominance, US Treasury demand: BoE official",
-      "url": "https://cointelegraph.com/news/stablecoins-us-dollar-dominance-treasury-demand-boe?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T17:53:04+00:00"
-    },
-    {
-      "title": "DOJ charges Robinhood former engineers with front-running crypto listings on Hyperliquid",
-      "url": "https://www.theblock.co/news/regulation/2026-09-15-doj-charges-robinhood-engineers-front-running-crypto-listings-hyperliquid-414865",
-      "source": "The Block",
-      "published": "2026-09-15T17:50:23+00:00"
-    },
-    {
-      "title": "Sen. Elizabeth Warren says she wants a crypto bill, but the Clarity Act just isn’t it",
-      "url": "https://www.theblock.co/news/regulation/2026-09-15-sen-elizabeth-warren-says-she-wants-a-crypto-bill-but-the-clarity-act-just-isnt-it-414869",
-      "source": "The Block",
-      "published": "2026-09-15T17:49:30+00:00"
-    },
-    {
-      "title": "Robinhood Engineers Charged With Fraud Over Alleged Crypto Listing Trades",
-      "url": "https://decrypt.co/378267/robinhood-engineers-charged-fraud-over-crypto-listing-trades",
-      "source": "Decrypt",
-      "published": "2026-09-15T17:49:23+00:00"
-    },
-    {
-      "title": "'It's Now or Never' for Clarity Act, Says 'Bitcoin Senator' Lummis",
-      "url": "https://decrypt.co/378268/now-or-never-clarity-act-bitcoin-cynthia-lummis",
-      "source": "Decrypt",
-      "published": "2026-09-15T17:43:01+00:00"
-    },
-    {
-      "title": "240,000,000 DOGE in a Week: Where Is Dogecoin Headed Next?",
-      "url": "https://cryptopotato.com/240000000-doge-in-a-week-where-is-dogecoin-headed-next/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T17:40:22+00:00"
-    },
-    {
-      "title": "Binance adds 11 US-listed ETFs to wealth management offering",
-      "url": "https://cointelegraph.com/news/binance-adds-11-us-listed-etfs-to-wealth-management-offering?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T17:22:04+00:00"
-    },
-    {
-      "title": "US Seeks Forfeiture of $61 Million in Crypto Linked to Alleged Iranian Oil Scheme",
-      "url": "https://decrypt.co/378261/us-forfeiture-61-million-crypto-iranian-oil-scheme",
-      "source": "Decrypt",
-      "published": "2026-09-15T17:06:03+00:00"
-    },
-    {
-      "title": "Crypto's Long-Sought 'De Minimis' Tax Break Gets a House Markup This Week",
-      "url": "https://decrypt.co/378260/house-crypto-tax-bill-de-minimis-captail-gains",
-      "source": "Decrypt",
-      "published": "2026-09-15T16:34:35+00:00"
-    },
-    {
-      "title": "Preparing for a Post-CLARITY Crash? Whale Opens Massive BTC, ETH, and ZEC Shorts",
-      "url": "https://cryptopotato.com/preparing-for-a-post-clarity-crash-whale-opens-massive-btc-eth-and-zec-shorts/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T16:16:53+00:00"
-    },
-    {
-      "title": "XRP Defies 851% Liquidation Imbalance With $2 Million Short Squeeze",
-      "url": "https://u.today/xrp-defies-851-liquidation-imbalance-with-2-million-short-squeeze",
-      "source": "U.Today",
-      "published": "2026-09-15T16:11:45+00:00"
-    },
-    {
-      "title": "MEV Bot Front-Runs $7.8 Million rsETH Exploit on Ethereum",
-      "url": "https://thedefiant.io/news/hacks/mev-bot-front-runs-7-8-million-rseth-exploit-on-ethereum",
-      "source": "The Defiant",
-      "published": "2026-09-15T16:03:00+00:00"
-    },
-    {
-      "title": "Bitcoin price falls to $75.6K September low as global bonds hit multidecade highs",
-      "url": "https://cointelegraph.com/markets/bitcoin-price-falls-to-756k-september-low-as-global-bonds-hit-multidecade-highs?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T16:02:01+00:00"
-    },
-    {
-      "title": "Kamino Names Michael Weisz CEO for US and Institutional Expansion",
-      "url": "https://thedefiant.io/news/people/kamino-names-michael-weisz-ceo-for-us-and-institutional-expansion",
-      "source": "The Defiant",
-      "published": "2026-09-15T15:59:53+00:00"
-    },
-    {
-      "title": "Bitcoin Falls Below $76,000 as Traders Cut CLARITY Act Odds Hours Before Senate Vote",
-      "url": "https://thedefiant.io/news/markets/bitcoin-falls-below-76000-clarity-act-odds-senate-vote-sep-15-2026",
-      "source": "The Defiant",
-      "published": "2026-09-15T15:58:40+00:00"
-    },
-    {
-      "title": "CoinEx to Close Exchange on Ninth Anniversary",
-      "url": "https://thedefiant.io/news/cefi/coinex-to-close-exchange-on-ninth-anniversary",
-      "source": "The Defiant",
-      "published": "2026-09-15T15:55:59+00:00"
-    },
-    {
-      "title": "Standard Chartered says Arbitrum could outperform Bitcoin, Ether through 2030",
-      "url": "https://cointelegraph.com/news/standard-chartered-arbitrum-arb-price-10-2030?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T15:50:49+00:00"
-    },
-    {
-      "title": "XRP Liquidity on Binance Hits Six-Month High",
-      "url": "https://u.today/xrp-liquidity-on-binance-hits-six-month-high",
-      "source": "U.Today",
-      "published": "2026-09-15T15:41:17+00:00"
-    },
-    {
-      "title": "Bitcoin price recovery unlikely to lure AI-focused miners back, CoinShares says",
-      "url": "https://www.theblock.co/news/markets/2026-09-15-bitcoin-price-recovery-unlikely-lure-ai-focused-miners-back-coinshares-says-414844",
-      "source": "The Block",
-      "published": "2026-09-15T15:37:47+00:00"
-    },
-    {
-      "title": "7,000% Growth by 2030: Standard Chartered Predicts Arbitrum (ARB) to Hit $10",
-      "url": "https://u.today/7000-growth-by-2030-standard-chartered-predicts-arbitrum-arb-to-hit-10",
-      "source": "U.Today",
-      "published": "2026-09-15T15:25:05+00:00"
-    },
-    {
-      "title": "ETH wallet exploit backfires as MEV bot captures $7.7M, Kelp freezes address",
-      "url": "https://cointelegraph.com/news/mev-bot-intercepts-77m-in-rseth-from-ethereum-wallet-exploit?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T15:21:26+00:00"
-    },
-    {
-      "title": "Ripple Backs Stablecoin Startup as Part of $10 Million Funding Round",
-      "url": "https://u.today/ripple-backs-stablecoin-startup-as-part-of-10-million-funding-round",
-      "source": "U.Today",
-      "published": "2026-09-15T15:21:13+00:00"
-    },
-    {
-      "title": "Democrats 'Move the Goalposts' on Clarity Act Hours Before Key Senate Vote",
-      "url": "https://decrypt.co/378246/democrats-goalposts-clarity-act-key-senate-vote",
-      "source": "Decrypt",
-      "published": "2026-09-15T15:08:07+00:00"
-    },
-    {
-      "title": "Bitcoin Sinks as the Senate's Clarity Act Showdown Looms",
-      "url": "https://decrypt.co/378233/bitcoin-sinks-senate-clarity-act-showdown",
-      "source": "Decrypt",
-      "published": "2026-09-15T14:58:57+00:00"
-    },
-    {
-      "title": "Lead Senate Republican Lummis rejects Democratic counteroffer as Clarity Act vote nears",
-      "url": "https://www.theblock.co/news/regulation/2026-09-15-senate-republican-lummis-rejects-democratic-counteroffer-clarity-act-vote-414850",
-      "source": "The Block",
-      "published": "2026-09-15T14:38:13+00:00"
-    },
-    {
-      "title": "Cardano Joins Mastercard's Crypto Partner Program in Major Payments Push",
-      "url": "https://u.today/cardano-joins-mastercards-crypto-partner-program-in-major-payments-push",
-      "source": "U.Today",
-      "published": "2026-09-15T14:30:48+00:00"
-    },
-    {
-      "title": "USDT payments feature in Polish energy giant’s failed $230M oil deal: FT",
-      "url": "https://cointelegraph.com/news/usdt-payments-polish-energy-giants-failed-230m-oil-deal?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound",
-      "source": "Cointelegraph",
-      "published": "2026-09-15T13:37:31+00:00"
-    },
-    {
-      "title": "Five Binance Margin Pairs Face Delisting This September: Here's Full List",
-      "url": "https://u.today/five-binance-margin-pairs-face-delisting-this-september-heres-full-list",
-      "source": "U.Today",
-      "published": "2026-09-15T13:21:00+00:00"
-    },
-    {
-      "title": "XRP Fakeout Ruins Landmark XRP Ledger Momentum: Main Crypto News This Morning",
-      "url": "https://u.today/xrp-fakeout-ruins-landmark-xrp-ledger-momentum-main-crypto-news-this-morning",
-      "source": "U.Today",
-      "published": "2026-09-15T13:10:05+00:00"
-    },
-    {
-      "title": "Why an AI Slowdown Could Collapse Under Commercial and US-China Pressure",
-      "url": "https://decrypt.co/378203/ai-slowdown-us-china-pressure",
-      "source": "Decrypt",
-      "published": "2026-09-15T13:00:05+00:00"
-    },
-    {
-      "title": "Will crypto get clarity? Senate votes today",
-      "url": "https://thedefiant.io/podcasts-and-videos/podcast/will-crypto-get-clarity-senate-votes-today",
-      "source": "The Defiant",
-      "published": "2026-09-15T13:00:00+00:00"
-    },
-    {
-      "title": "Standard Chartered Sets $10 Arbitrum Target on Robinhood and Tokenization Growth",
-      "url": "https://thedefiant.io/news/markets/standard-chartered-sets-10-arbitrum-target-on-robinhood-and-tokenization-growth",
-      "source": "The Defiant",
-      "published": "2026-09-15T12:27:07+00:00"
-    },
-    {
-      "title": "Huge Day for XRP: CLARITY Act Vote Could Spark the Next Big Move",
-      "url": "https://cryptopotato.com/huge-day-for-xrp-clarity-act-vote-could-spark-the-next-big-move/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T12:13:59+00:00"
-    },
-    {
-      "title": "Shiba Inu (SHIB) Loses 78% in One of the Most Important Metrics for Price",
-      "url": "https://u.today/shiba-inu-shib-loses-78-in-one-of-the-most-important-metrics-for-price",
-      "source": "U.Today",
-      "published": "2026-09-15T12:05:00+00:00"
-    },
-    {
-      "title": "BlackRock Buys $1 Billion in Bitcoin",
-      "url": "https://u.today/blackrock-buys-1-billion-in-bitcoin",
-      "source": "U.Today",
-      "published": "2026-09-15T12:01:23+00:00"
-    },
-    {
-      "title": "Bitget Wallet Adds Reality's Tokenized U.S. Stocks Alongside Ondo And xStocks",
-      "url": "https://thedefiant.io/news/tradfi-and-fintech/bitget-wallet-integrates-reality-tokenized-us-stocks-rtokens",
-      "source": "The Defiant",
-      "published": "2026-09-15T12:00:49+00:00"
-    },
-    {
-      "title": "Ethereum Holders Are Pulling ETH Off Exchanges at a Historic Pace",
-      "url": "https://cryptopotato.com/ethereum-holders-are-pulling-eth-off-exchanges-at-a-historic-pace/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T11:59:38+00:00"
-    },
-    {
-      "title": "House committee releases sweeping crypto tax bill ahead of Wednesday markup",
-      "url": "https://www.theblock.co/news/regulation/2026-09-15-house-committee-crypto-tax-bill-414824",
-      "source": "The Block",
-      "published": "2026-09-15T11:52:36+00:00"
-    },
-    {
-      "title": "Standard Chartered sees Arbitrum at $10 by end-2030, up 70-fold",
-      "url": "https://www.theblock.co/news/markets/2026-09-15-standard-chartered-sees-arbitrum-at-10-by-end-2030-up-70-fold-414821",
-      "source": "The Block",
-      "published": "2026-09-15T11:50:30+00:00"
-    },
-    {
-      "title": "BingX Evolves into a Multi-Asset Trading Platform, Connecting Users to Global Opportunities",
-      "url": "https://cryptopotato.com/bingx-evolves-into-a-multi-asset-trading-platform-connecting-users-to-global-opportunities/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T11:19:54+00:00"
-    },
-    {
-      "title": "NBKR and CertiK Establish Long-Term Strategic Partnership on Digital Som Security and Digital Asset Oversight",
-      "url": "https://cryptopotato.com/nbkr-and-certik-establish-long-term-strategic-partnership-on-digital-som-security-and-digital-asset-oversight/",
-      "source": "CryptoPotato",
-      "published": "2026-09-15T11:19:18+00:00"
-    },
-    {
-      "title": "Solana Treasury Firm DeFi Dev Corp Rolls Out $300M CHAD to Buy More SOL",
-      "url": "https://decrypt.co/378183/solana-defi-development-corp-chad",
-      "source": "Decrypt",
-      "published": "2026-09-15T11:01:04+00:00"
     }
   ]
 }

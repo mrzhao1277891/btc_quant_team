@@ -46,7 +46,7 @@ SOURCES = [
     ("etf_flow",  "BTC 现货 ETF 净流入 (Farside)",
      [PY, "scripts/etf_flow_ingest.py", "update"], 300),
 
-    ("fed_rates", "美联储利率决议 (AKShare)",
+    ("fed_rates", "美联储利率决议 (FRED + FOMC 日历)",
      [PY, "scripts/fed_rate_ingest.py", "update"], 300),
 
     # 放最后：它要跑 9 个 RSS + 一次 LLM 调用，是最慢的一个

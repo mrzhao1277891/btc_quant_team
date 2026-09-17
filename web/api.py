@@ -1193,15 +1193,23 @@ if __name__ == "__main__":
 
 @app.get("/api/fed-rates")
 def list_fed_rates(limit: int = Query(100, ge=1, le=500)):
-    """返回美联储利率决策历史 (从旧到新)."""
+    """返回美联储利率决策历史 (从旧到新).
+
+    ⚠ `limit` 取的是**最近的** limit 条，不是最旧的。
+    之前是 `ORDER BY decision_date ASC LIMIT n` —— 那返回的是最旧的 n 条，
+    表一旦超过 n 行，**最新的数据会被静默截掉**，图上表现为「利率线停在过去」，
+    而且没有任何提示。取最近 N 条才是调用方要的语义，返回值再升序排列。
+    """
     conn = get_db()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
-            """SELECT id, decision_date, rate, rate_change, decision_type
-               FROM fed_rate_decisions
-               ORDER BY decision_date ASC
-               LIMIT %s""",
+            """SELECT * FROM (
+                   SELECT id, decision_date, rate, rate_change, decision_type
+                   FROM fed_rate_decisions
+                   ORDER BY decision_date DESC, id DESC
+                   LIMIT %s
+               ) t ORDER BY decision_date ASC, id ASC""",
             (limit,),
         )
         rows = cur.fetchall()

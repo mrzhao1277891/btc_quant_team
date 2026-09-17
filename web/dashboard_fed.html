@@ -121,7 +121,8 @@
     </main>
 
     <footer class="dashboard-footer">
-        <p>数据来源: klines 表 (BTC 月线) + fed_rate_decisions 表 (AKShare 美联储利率决策)</p>
+        <p>数据来源: klines 表 (BTC 月线) + fed_rate_decisions 表 (FRED + FOMC 官方日历)。
+           日期为<b>生效日</b>（决议次日，即东八区含公布时刻的那根 K 线）</p>
         <p>利率为联邦基金目标利率，阶梯线在两次决议之间保持持平。绿 = 上涨 / 降息，红 = 下跌 / 加息。蜡烛实体空心 = 上涨，实心 = 下跌。</p>
         <p>减半线为区块高度 210,000 的整数倍事件（2012 / 2016 / 2020 / 2024，UTC 日期）。下一次减半日期为按 10 分钟平均出块时间的外推值，非确定时间。</p>
     </footer>
